@@ -48,8 +48,7 @@
 * 组件
 ![](image/组件.png)
 
-## 一些未来的计划 ~~画饼~~ 
-<img src="image/1.png" style="width: 80%; max-width: 50px; height: auto;">
+## 一些未来的计划 ~~画饼~~ <img src="image/1.png" style="width: 80%; max-width: 500; height: auto;">
 * 语音播报优化：
     * 目前此功能尚不稳定，尽量不要使用    
     * 在未来我们将适配花儿不哭大佬的GPT-SoVITS在线推理api
@@ -62,8 +61,7 @@
 
 
 
-# 附录 
-<img src="image/2.png" style="width: 80%; max-width: 50px; height: auto;">
+# 附录 <img src="image/2.png" style="width: 80%; max-width: 500; height: auto;">
 # AIIsland API 提供商配置指南
 
 > 本指南列出 AIIsland 支持的所有 AI API 提供商，并附注册、获取 Key 和配置教程。
