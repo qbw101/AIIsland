@@ -1,0 +1,61 @@
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Interactivity;
+using Avalonia.Markup.Xaml;
+using ClassIsland.Core.Abstractions.Controls;
+using ClassIsland.Core.Attributes;
+using ClassIsland.AISmartClass.Models;
+using ClassIsland.AISmartClass.Services;
+
+namespace ClassIsland.AISmartClass.Controls.DifficultyInfo;
+
+[ComponentInfo(
+    "11000000-0000-0000-0000-000000000005",
+    "难度与番茄钟",
+    "bitmap(avares://ClassIsland.AISmartClass/icon/5.png)",
+    "显示今日课程难度星数和番茄钟建议"
+)]
+public partial class DifficultyInfo : ComponentBase<DifficultyInfoSettings>
+{
+    public static readonly DirectProperty<DifficultyInfo, string> DifficultyStarsProperty =
+        AvaloniaProperty.RegisterDirect<DifficultyInfo, string>(nameof(DifficultyStars),
+            o => o.DifficultyStars, (o, v) => o.DifficultyStars = v);
+    private string _difficultyStars = "⭐⭐⭐";
+    public string DifficultyStars { get => _difficultyStars; set => SetAndRaise(DifficultyStarsProperty, ref _difficultyStars, value); }
+
+    public static readonly DirectProperty<DifficultyInfo, string> PomodoroSuggestionProperty =
+        AvaloniaProperty.RegisterDirect<DifficultyInfo, string>(nameof(PomodoroSuggestion),
+            o => o.PomodoroSuggestion, (o, v) => o.PomodoroSuggestion = v);
+    private string _pomodoroSuggestion = "25min";
+    public string PomodoroSuggestion { get => _pomodoroSuggestion; set => SetAndRaise(PomodoroSuggestionProperty, ref _pomodoroSuggestion, value); }
+
+    public DifficultyInfo()
+    {
+        DataContext = this;
+        InitializeComponent();
+    }
+    private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
+
+    protected override void OnLoaded(RoutedEventArgs e)
+    {
+        DataContext = this;
+        base.OnLoaded(e);
+        UpdateInfo();
+    }
+
+    private void UpdateInfo()
+    {
+        try
+        {
+            var ps = Plugin.ProfileService;
+            var ai = Plugin.GetAIService();
+            if (ps == null || ai == null) return;
+
+            var subjects = ScheduleQueryHelper.GetTodaySubjectNames(ps);
+            var diff = ai.EstimateDifficulty(subjects);
+            DifficultyStars = new string('⭐', Math.Clamp(diff, 1, 5));
+            PomodoroSuggestion = subjects.Count switch { > 5 => "建议 25min", >= 4 => "建议 30min", _ => "建议 45min" };
+        }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"难度信息失败: {ex.Message}"); }
+    }
+}

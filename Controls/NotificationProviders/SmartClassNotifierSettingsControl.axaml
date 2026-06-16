@@ -1,0 +1,46 @@
+<ci:NotificationProviderControlBase
+    x:TypeArguments="models:SmartClassNotifierSettings"
+    x:Class="ClassIsland.AISmartClass.Controls.NotificationProviders.SmartClassNotifierSettingsControl"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ci="http://classisland.tech/schemas/xaml/core"
+    xmlns:local="clr-namespace:ClassIsland.AISmartClass.Controls.NotificationProviders"
+    xmlns:models="clr-namespace:ClassIsland.AISmartClass.Models">
+
+    <StackPanel Spacing="12" Margin="8"
+                DataContext="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=local:SmartClassNotifierSettingsControl}}">
+
+        <TextBlock Text="自动提醒" FontSize="14" FontWeight="Bold"/>
+
+        <CheckBox Content="课前提醒（课间开始时触发）"
+                  IsChecked="{Binding Settings.EnableBeforeClassReminder}"/>
+
+        <CheckBox Content="放学总结（放学时触发）"
+                  IsChecked="{Binding Settings.EnableAfterSchoolSummary}"/>
+
+        <CheckBox Content="换课提醒（检测到临时换课时触发）"
+                  IsChecked="{Binding Settings.EnableClassChangeAlert}"/>
+
+        <Separator/>
+
+        <TextBlock Text="提醒样式" FontSize="14" FontWeight="Bold"/>
+
+        <CheckBox Content="语音播报（默认关闭以免影响课堂）"
+                  IsChecked="{Binding Settings.EnableTTS}"/>
+
+        <Grid ColumnDefinitions="120,150">
+            <TextBlock Text="遮罩时长（秒）" VerticalAlignment="Center"/>
+            <NumericUpDown Grid.Column="1"
+                           Value="{Binding Settings.MaskDurationSeconds}"
+                           Minimum="1" Maximum="10"/>
+        </Grid>
+
+        <Grid ColumnDefinitions="120,150">
+            <TextBlock Text="正文时长（秒）" VerticalAlignment="Center"/>
+            <NumericUpDown Grid.Column="1"
+                           Value="{Binding Settings.OverlayDurationSeconds}"
+                           Minimum="1" Maximum="15"/>
+        </Grid>
+
+    </StackPanel>
+</ci:NotificationProviderControlBase>

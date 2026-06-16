@@ -1,0 +1,24 @@
+<ci:ComponentBase
+    x:Class="ClassIsland.AISmartClass.Controls.CurrentHint.CurrentHint"
+    x:TypeArguments="models:CurrentHintSettings"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ci="http://classisland.tech/schemas/xaml/core"
+    xmlns:models="clr-namespace:ClassIsland.AISmartClass.Models"
+    FontSize="{Binding Settings.FontSize, FallbackValue=14}">
+
+    <Border CornerRadius="8" Padding="12,8"
+            Background="{DynamicResource SystemAccentColor}">
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+            <TextBlock Text="💡" FontSize="18" VerticalAlignment="Center"/>
+            <StackPanel Spacing="1" VerticalAlignment="Center">
+                <TextBlock Text="学习提示" FontSize="11" Foreground="White" Opacity="0.7"/>
+                <TextBlock Text="{Binding Hint}"
+                           Foreground="White" FontWeight="Medium"
+                           TextWrapping="Wrap" MaxLines="2"
+                           TextTrimming="CharacterEllipsis"
+                           LineHeight="18"/>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</ci:ComponentBase>

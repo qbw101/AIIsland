@@ -1,0 +1,97 @@
+<ci:SettingsPageBase
+    x:Class="ClassIsland.AISmartClass.Views.SettingsPages.AISettingsPage"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ci="http://classisland.tech/schemas/xaml/core">
+
+    <ScrollViewer>
+        <StackPanel Spacing="16" Margin="24">
+
+            <!-- 第 1 节：API 配置 -->
+            <TextBlock Text="API 配置" FontSize="16" FontWeight="Bold"/>
+            <StackPanel Spacing="8">
+                <TextBlock Text="兼容 OpenAI Chat Completions 格式的 API" FontSize="12" Opacity="0.7"/>
+                <TextBlock Text="API 地址" FontSize="12" Opacity="0.7"/>
+                <TextBox x:Name="EndpointBox" Watermark="https://api.deepseek.com/v1/chat/completions"/>
+                <TextBlock Text="API Key" FontSize="12" Opacity="0.7"/>
+                <TextBox x:Name="ApiKeyBox" PasswordChar="•" Watermark="sk-..."/>
+                <TextBlock Text="模型名称" FontSize="12" Opacity="0.7"/>
+                <TextBox x:Name="ModelBox" Watermark="deepseek-chat"/>
+            </StackPanel>
+
+            <Separator/>
+
+            <!-- 第 2 节：语气风格 -->
+            <TextBlock Text="语气风格" FontSize="16" FontWeight="Bold"/>
+            <StackPanel Spacing="8">
+                <ComboBox x:Name="ToneStyleComboBox" SelectedIndex="1" Width="320">
+                    <ComboBoxItem Tag="0">活泼 — 轻松有趣，适合日常提醒</ComboBoxItem>
+                    <ComboBoxItem Tag="1">标准 — 平衡得体（推荐）</ComboBoxItem>
+                    <ComboBoxItem Tag="2">严肃 — 稳重准确，适合考试期间</ComboBoxItem>
+                </ComboBox>
+            </StackPanel>
+
+            <Separator/>
+
+            <!-- 第 3 节：高级参数 -->
+            <TextBlock Text="高级参数" FontSize="16" FontWeight="Bold"/>
+            <StackPanel Spacing="8">
+                <Grid ColumnDefinitions="120,150">
+                    <TextBlock Text="最大回复长度" VerticalAlignment="Center"/>
+                    <NumericUpDown Grid.Column="1" x:Name="MaxTokensBox"
+                                   Minimum="50" Maximum="500" Increment="50" Value="200"/>
+                </Grid>
+                <Grid ColumnDefinitions="120,150">
+                    <TextBlock Text="超时时间（秒）" VerticalAlignment="Center"/>
+                    <NumericUpDown Grid.Column="1" x:Name="TimeoutBox"
+                                   Minimum="3" Maximum="30" Value="10"/>
+                </Grid>
+                <Grid ColumnDefinitions="120,150">
+                    <TextBlock Text="缓存时长（分钟）" VerticalAlignment="Center"/>
+                    <NumericUpDown Grid.Column="1" x:Name="CacheBox"
+                                   Minimum="1" Maximum="60" Value="5"/>
+                </Grid>
+                <Grid ColumnDefinitions="120,150">
+                    <TextBlock Text="失败重试次数" VerticalAlignment="Center"/>
+                    <NumericUpDown Grid.Column="1" x:Name="MaxRetriesBox"
+                                   Minimum="0" Maximum="5" Value="1"/>
+                </Grid>
+            </StackPanel>
+
+            <Separator/>
+
+            <!-- 第 4 节：降级词库 -->
+            <TextBlock Text="离线降级" FontSize="16" FontWeight="Bold"/>
+            <TextBlock Text="当 AI 不可用时，将使用本地预设句子库作为回退。句子库可在插件目录 Data/fallback_phrases.json 中自定义。"
+                       TextWrapping="Wrap" FontSize="12" Opacity="0.7"/>
+
+            <Separator/>
+
+            <!-- 第 5 节：测试与保存 -->
+            <TextBlock Text="测试与保存" FontSize="16" FontWeight="Bold"/>
+            <StackPanel Spacing="8">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="TestButton" Content="测试 API 连接"
+                            HorizontalAlignment="Left" Padding="16,8"
+                            Click="OnTestClicked"/>
+                    <Button x:Name="TestReminderButton" Content="测试 AI 提醒"
+                            HorizontalAlignment="Left" Padding="16,8"
+                            Click="OnTestReminderClicked"/>
+                    <Button x:Name="TestSummaryButton" Content="测试 AI 总结"
+                            HorizontalAlignment="Left" Padding="16,8"
+                            Click="OnTestSummaryClicked"/>
+                    <Button x:Name="SaveButton" Content="保存配置"
+                            HorizontalAlignment="Left" Padding="16,8"
+                            Click="OnSaveClicked"/>
+                </StackPanel>
+                <Border x:Name="TestResultBorder"
+                        CornerRadius="4" Padding="8,4"
+                        IsVisible="{Binding #TestResultBorder.IsVisible}">
+                    <TextBlock x:Name="TestResultText"
+                               TextWrapping="Wrap" FontSize="12"/>
+                </Border>
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</ci:SettingsPageBase>

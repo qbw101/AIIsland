@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <AssemblyName>ClassIsland.AISmartClass</AssemblyName>
+        <RootNamespace>ClassIsland.AISmartClass</RootNamespace>
+        <!-- 关键：启用动态加载（官方模板要求） -->
+        <EnableDynamicLoading>True</EnableDynamicLoading>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- ClassIsland 插件 SDK -->
+        <PackageReference Include="ClassIsland.PluginSdk" Version="2.0.0.2">
+            <!-- 排除运行时资产，避免与 ClassIsland 主程序 DLL 冲突 -->
+            <ExcludeAssets>runtime;native</ExcludeAssets>
+        </PackageReference>
+        <!-- MVVM 工具包（主程序已有，排除运行时避免冲突） -->
+        <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2">
+            <ExcludeAssets>runtime;native</ExcludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <!-- Data 目录作为独立文件复制到输出目录 -->
+    <ItemGroup>
+        <Content Include="Data\**\*">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <Link>Data\%(RecursiveDir)%(Filename)%(Extension)</Link>
+        </Content>
+    </ItemGroup>
+
+    <!-- manifest.yml / README.md / API-GUIDE.md 作为独立文件复制到输出目录 -->
+    <ItemGroup>
+        <Content Include="manifest.yml">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+        <Content Include="README.md">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+        <Content Include="API-GUIDE.md">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
+
+    <!-- 插件图标 -->
+    <ItemGroup>
+        <Content Include="icon.png">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+        <AvaloniaResource Include="icon.png" />
+    </ItemGroup>
+
+    <!-- 组件图标（PNG，bitmap 图标源仅支持位图，不支持 SVG） -->
+    <ItemGroup>
+        <AvaloniaResource Include="icon\*.png" />
+    </ItemGroup>
+
+</Project>

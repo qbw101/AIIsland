@@ -1,0 +1,24 @@
+<ci:ComponentBase
+    x:Class="ClassIsland.AISmartClass.Controls.ClassCountdown.ClassCountdown"
+    x:TypeArguments="models:ClassCountdownSettings"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ci="http://classisland.tech/schemas/xaml/core"
+    xmlns:models="clr-namespace:ClassIsland.AISmartClass.Models"
+    FontSize="{Binding Settings.FontSize, FallbackValue=14}">
+
+    <Border CornerRadius="8" Padding="12,8"
+            Background="{DynamicResource SystemControlBackgroundListLowBrush}">
+        <StackPanel Spacing="5">
+            <Grid ColumnDefinitions="Auto,*">
+                <TextBlock Grid.Column="0" Text="⏳" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBlock Grid.Column="1"
+                           Text="{Binding CountdownText}"
+                           VerticalAlignment="Center"
+                           FontWeight="Medium"/>
+            </Grid>
+            <ProgressBar Value="{Binding ProgressPercent}"
+                         Maximum="100" Height="6" CornerRadius="3"/>
+        </StackPanel>
+    </Border>
+</ci:ComponentBase>

@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "ClassIsland": {
+      "commandName": "Executable",
+      "executablePath": "C:\\Program Files\\ClassIsland\\ClassIsland.exe",
+      "workingDirectory": "$(ProjectDir)",
+      "nativeDebugging": false
+    }
+  }
+}

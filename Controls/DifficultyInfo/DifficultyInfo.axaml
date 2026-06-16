@@ -1,0 +1,36 @@
+<ci:ComponentBase
+    x:Class="ClassIsland.AISmartClass.Controls.DifficultyInfo.DifficultyInfo"
+    x:TypeArguments="models:DifficultyInfoSettings"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ci="http://classisland.tech/schemas/xaml/core"
+    xmlns:models="clr-namespace:ClassIsland.AISmartClass.Models"
+    FontSize="{Binding Settings.FontSize, FallbackValue=14}">
+
+    <Border CornerRadius="8" Padding="12,8"
+            Background="{DynamicResource SystemControlBackgroundListLowBrush}">
+        <Grid ColumnDefinitions="*,*">
+            <!-- 左：难度 -->
+            <StackPanel Grid.Column="0"
+                        IsVisible="{Binding Settings.ShowDifficulty}"
+                        Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <TextBlock Text="📊" FontSize="16" VerticalAlignment="Center"/>
+                <TextBlock Text="今日难度" VerticalAlignment="Center" Opacity="0.75"/>
+                <TextBlock Text="{Binding DifficultyStars}"
+                           VerticalAlignment="Center"
+                           Foreground="#FFB300"/>
+            </StackPanel>
+
+            <!-- 右：番茄钟 -->
+            <StackPanel Grid.Column="1"
+                        IsVisible="{Binding Settings.ShowPomodoro}"
+                        Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                        HorizontalAlignment="Right">
+                <TextBlock Text="🍅" FontSize="16" VerticalAlignment="Center"/>
+                <TextBlock Text="专注" VerticalAlignment="Center" Opacity="0.75"/>
+                <TextBlock Text="{Binding PomodoroSuggestion}"
+                           VerticalAlignment="Center" FontWeight="Medium"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</ci:ComponentBase>
