@@ -133,6 +133,10 @@ public class Plugin : PluginBase
             services.AddSettingsPage<AISettingsPage>();
             System.Diagnostics.Debug.WriteLine("[AIIsland] AISettingsPage 已注册");
 
+            // 8. 注册考试模式 HTTP 服务器
+            services.AddSingleton<ExamModeServer>();
+            System.Diagnostics.Debug.WriteLine("[AIIsland] ExamModeServer 已注册");
+
             // 8. 提前获取核心服务（BuildServiceProvider 在这里是安全的，因为主程序已完成注册）
             try
             {

@@ -67,7 +67,19 @@
 
             <Separator/>
 
-            <!-- 第 5 节：测试与保存 -->
+            <!-- 第 5 节：考试模式 -->
+            <TextBlock Text="考试模式" FontSize="16" FontWeight="Bold"/>
+            <StackPanel Spacing="8">
+                <TextBlock Text="打开浏览器显示考试倒计时仪表盘，实时显示当前科目和剩余时间。适用于考试期间投屏或全屏显示。"
+                           TextWrapping="Wrap" FontSize="12" Opacity="0.7"/>
+                <Button x:Name="ExamModeButton" Content="🚀 启动考试模式"
+                        HorizontalAlignment="Left" Padding="16,8"
+                        Click="OnExamModeClicked"/>
+            </StackPanel>
+
+            <Separator/>
+
+            <!-- 第 6 节：测试与保存 -->
             <TextBlock Text="测试与保存" FontSize="16" FontWeight="Bold"/>
             <StackPanel Spacing="8">
                 <StackPanel Orientation="Horizontal" Spacing="8">

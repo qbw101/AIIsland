@@ -32,6 +32,8 @@ public partial class AISettingsPage : SettingsPageBase
     private Button? _testSummaryButton;
     private TextBlock? _testResultText;
     private Border? _testResultBorder;
+    private Button? _examModeButton;
+    private ExamModeServer? _examServer;
 
     public AISettingsPage(string configFolder)
     {
@@ -85,6 +87,10 @@ public partial class AISettingsPage : SettingsPageBase
         _testResultBorder = this.FindControl<Border>("TestResultBorder");
         if (_testResultBorder != null)
             _testResultBorder.IsVisible = false;
+
+        _examModeButton = this.FindControl<Button>("ExamModeButton");
+        if (_examModeButton != null)
+            _examModeButton.Click += OnExamModeClicked;
     }
 
     private void LoadSettings()
@@ -293,6 +299,44 @@ public partial class AISettingsPage : SettingsPageBase
     private void OnSaveClicked(object? sender, RoutedEventArgs e)
     {
         AutoSaveSettings();
+    }
+
+    private async void OnExamModeClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_examModeButton == null) return;
+        _examModeButton.IsEnabled = false;
+
+        try
+        {
+            if (_examServer == null)
+            {
+                _examServer = new ExamModeServer();
+                await _examServer.StartAsync();
+            }
+            else if (!_examServer.IsRunning)
+            {
+                await _examServer.StartAsync();
+            }
+
+            // 用浏览器打开仪表盘
+            var url = _examServer.Url;
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true
+            });
+
+            ShowTestResult(true, $"✅ 考试模式已启动！\n\n浏览器已打开：{url}\n\n关闭浏览器后，服务器仍在后台运行。");
+            _examModeButton.Content = "🔄 重新打开考试模式";
+        }
+        catch (Exception ex)
+        {
+            ShowTestResult(false, $"❌ 启动考试模式失败: {ex.Message}");
+        }
+        finally
+        {
+            _examModeButton.IsEnabled = true;
+        }
     }
 
     /// <summary>收集 UI 控件当前值 → 持久化到 JSON → 实时同步到 AIChatService</summary>
