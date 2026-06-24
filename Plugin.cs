@@ -84,6 +84,10 @@ public class Plugin : PluginBase
             services.AddSingleton(fallback);
             System.Diagnostics.Debug.WriteLine("[AIIsland] FallbackPhraseService 初始化完成");
 
+            // 1.5. 加载 3 套语气风格提示词 JSON
+            PromptTemplates.Load(PluginConfigFolder);
+            System.Diagnostics.Debug.WriteLine("[AIIsland] PromptTemplates 初始化完成");
+
             // 2. 初始化 AI 聊天服务（统一后端：缓存 + 重试 + 降级）
             var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
             var aiService = new AIChatService(http, fallback);
@@ -137,7 +141,52 @@ public class Plugin : PluginBase
             services.AddSingleton<ExamModeServer>();
             System.Diagnostics.Debug.WriteLine("[AIIsland] ExamModeServer 已注册");
 
-            // 8. 提前获取核心服务（BuildServiceProvider 在这里是安全的，因为主程序已完成注册）
+            // 9. 首次运行检测：没有配置文件时自动弹出欢迎向导
+            try
+            {
+                var settingsPath = System.IO.Path.Combine(PluginConfigFolder, "aisettings.json");
+                if (!System.IO.File.Exists(settingsPath))
+                {
+                    System.Diagnostics.Debug.WriteLine("[AIIsland] 检测到首次运行，将在启动后显示欢迎向导");
+                    Task.Run(async () =>
+                    {
+                        await Task.Delay(1200);
+                        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                        {
+                            try
+                            {
+                                var wizard = new Views.WelcomeWizard();
+                                wizard.WizardCompleted += settings =>
+                                {
+                                    try
+                                    {
+                                        var configPath = System.IO.Path.Combine(ConfigFolderPath!, "aisettings.json");
+                                        var json = System.Text.Json.JsonSerializer.Serialize(settings);
+                                        System.IO.File.WriteAllText(configPath, json);
+                                        _sharedAiService?.SyncFrom(settings);
+                                        System.Diagnostics.Debug.WriteLine("[AIIsland] 欢迎向导完成，设置已自动保存");
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        System.Diagnostics.Debug.WriteLine($"[AIIsland] 向导设置保存失败: {ex.Message}");
+                                    }
+                                };
+                                wizard.Show();
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[AIIsland] 欢迎向导启动失败: {ex.Message}");
+                            }
+                        });
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[AIIsland] 首次运行检测失败: {ex.Message}");
+            }
+
+            // 10. 提前获取核心服务（BuildServiceProvider 在这里是安全的，因为主程序已完成注册）
             try
             {
                 var sp = services.BuildServiceProvider();

@@ -33,7 +33,7 @@ public partial class AISettingsPage : SettingsPageBase
     private TextBlock? _testResultText;
     private Border? _testResultBorder;
     private Button? _examModeButton;
-    private ExamModeServer? _examServer;
+    private bool _disposed;
 
     public AISettingsPage(string configFolder)
     {
@@ -91,6 +91,10 @@ public partial class AISettingsPage : SettingsPageBase
         _examModeButton = this.FindControl<Button>("ExamModeButton");
         if (_examModeButton != null)
             _examModeButton.Click += OnExamModeClicked;
+
+        var welcomeWizardButton = this.FindControl<Button>("WelcomeWizardButton");
+        if (welcomeWizardButton != null)
+            welcomeWizardButton.Click += OnWelcomeWizardClicked;
     }
 
     private void LoadSettings()
@@ -111,6 +115,11 @@ public partial class AISettingsPage : SettingsPageBase
             _settings = new AISettings();
         }
 
+        ApplySettingsToControls();
+    }
+
+    private void ApplySettingsToControls()
+    {
         if (_endpointBox != null) _endpointBox.Text = _settings.Endpoint;
         if (_apiKeyBox != null) _apiKeyBox.Text = _settings.ApiKey;
         if (_modelBox != null) _modelBox.Text = _settings.Model;
@@ -216,64 +225,8 @@ public partial class AISettingsPage : SettingsPageBase
             var apiKey = _apiKeyBox?.Text ?? "";
             var model = _modelBox?.Text ?? "";
 
-            if (string.IsNullOrWhiteSpace(endpoint))
-            {
-                ShowTestResult(false, "请填写 API 地址");
-                return;
-            }
-            if (string.IsNullOrWhiteSpace(apiKey))
-            {
-                ShowTestResult(false, "请填写 API Key");
-                return;
-            }
-            if (string.IsNullOrWhiteSpace(model))
-            {
-                ShowTestResult(false, "请填写模型名称");
-                return;
-            }
-
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-            var requestBody = new
-            {
-                model = model,
-                messages = new[]
-                {
-                    new { role = "user", content = "你好，请用一句话回复。" }
-                },
-                max_tokens = 50,
-                temperature = 0.1
-            };
-
-            var requestJson = System.Text.Json.JsonSerializer.Serialize(requestBody);
-            var content = new System.Net.Http.StringContent(requestJson, System.Text.Encoding.UTF8, "application/json");
-
-            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
-            request.Content = content;
-            request.Headers.Add("Authorization", $"Bearer {apiKey}");
-
-            var response = await http.SendAsync(request);
-            var responseText = await response.Content.ReadAsStringAsync();
-
-            if (response.IsSuccessStatusCode)
-            {
-                ShowTestResult(true, $"✅ 连接成功！\n模型: {model}\nAPI 返回正常");
-            }
-            else
-            {
-                ShowTestResult(false, $"❌ API 返回错误 ({response.StatusCode})\n{Truncate(responseText, 300)}");
-            }
-        }
-        catch (TaskCanceledException)
-        {
-            ShowTestResult(false, "❌ 连接超时，请检查 API 地址是否正确");
-        }
-        catch (HttpRequestException ex)
-        {
-            ShowTestResult(false, $"❌ 网络错误: {ex.Message}\n请检查 API 地址格式是否正确");
-        }
-        catch (Exception ex)
-        {
-            ShowTestResult(false, $"❌ 未知错误: {ex.Message}");
+            var result = await Services.ApiConnectionTester.FullTestAsync(endpoint, apiKey, model);
+            ShowTestResult(result.Success, result.Success ? $"✅ {result.Message}" : $"❌ {result.Message}");
         }
         finally
         {
@@ -291,52 +244,67 @@ public partial class AISettingsPage : SettingsPageBase
             : new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromRgb(80, 40, 40));
     }
 
-    private static string Truncate(string text, int maxLen)
-    {
-        return text.Length <= maxLen ? text : text[..maxLen] + "...";
-    }
-
     private void OnSaveClicked(object? sender, RoutedEventArgs e)
     {
         AutoSaveSettings();
     }
 
-    private async void OnExamModeClicked(object? sender, RoutedEventArgs e)
+    private void OnExamModeClicked(object? sender, RoutedEventArgs e)
     {
         if (_examModeButton == null) return;
         _examModeButton.IsEnabled = false;
 
         try
         {
-            if (_examServer == null)
+            var server = ExamModeServer.GetOrCreate();
+            if (!server.IsRunning)
             {
-                _examServer = new ExamModeServer();
-                await _examServer.StartAsync();
-            }
-            else if (!_examServer.IsRunning)
-            {
-                await _examServer.StartAsync();
+                server.Start();
             }
 
-            // 用浏览器打开仪表盘
-            var url = _examServer.Url;
+            var url = $"{server.Url}/?t={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
                 FileName = url,
                 UseShellExecute = true
             });
 
-            ShowTestResult(true, $"✅ 考试模式已启动！\n\n浏览器已打开：{url}\n\n关闭浏览器后，服务器仍在后台运行。");
+            ShowTestResult(true, $"✅ 考试模式已启动！\n浏览器已打开：{server.Url}");
             _examModeButton.Content = "🔄 重新打开考试模式";
         }
         catch (Exception ex)
         {
-            ShowTestResult(false, $"❌ 启动考试模式失败: {ex.Message}");
+            ShowTestResult(false, $"❌ 启动失败: {ex.Message}");
         }
         finally
         {
             _examModeButton.IsEnabled = true;
         }
+    }
+
+    private void OnWelcomeWizardClicked(object? sender, RoutedEventArgs e)
+    {
+        AutoSaveSettings();
+        var wizard = new WelcomeWizard(_settings);
+        wizard.WizardCompleted += settings =>
+        {
+            _settings = settings;
+            ApplySettingsToControls();
+            AutoSaveSettings();
+        };
+
+        if (this.VisualRoot is Avalonia.Controls.Window owner)
+            _ = wizard.ShowDialog(owner);
+        else
+            wizard.Show();
+    }
+
+    protected override void OnUnloaded(RoutedEventArgs e)
+    {
+        base.OnUnloaded(e);
+        if (_disposed) return;
+        _disposed = true;
+        // 设置页关闭时不释放单例，避免重复开关页导致端口变更；应用退出时由 DI 容器统一释放
     }
 
     /// <summary>收集 UI 控件当前值 → 持久化到 JSON → 实时同步到 AIChatService</summary>

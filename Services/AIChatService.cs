@@ -55,6 +55,9 @@ public class AIChatService : IDisposable
 
         // 设置变更后清除缓存，确保立即使用新配置重新调用 AI
         _cache.Clear();
+
+        // 同步语气风格到降级句子库
+        _fallback.ToneStyle = settings.ToneStyle;
     }
 
     /// <summary>根据语气风格获取 temperature</summary>
@@ -137,8 +140,8 @@ public class AIChatService : IDisposable
         if (string.IsNullOrWhiteSpace(ApiKey))
             return GenerateRuleBasedSummary(subjectNames);
 
-        var systemPrompt = PromptTemplates.TodaySummarySystem;
-        var userMessage = string.Format(PromptTemplates.TodaySummaryUser,
+        var systemPrompt = PromptTemplates.GetTodaySummarySystem(ToneStyle);
+        var userMessage = string.Format(PromptTemplates.GetTodaySummaryUser(ToneStyle),
             string.Join("、", subjectNames),
             DateTime.Now.DayOfWeek switch
             {
@@ -158,8 +161,8 @@ public class AIChatService : IDisposable
         if (string.IsNullOrWhiteSpace(ApiKey))
             return _fallback.GetRandomPhrase("before_class", nextSubject);
 
-        var systemPrompt = PromptTemplates.BeforeClassSystem;
-        var userMessage = string.Format(PromptTemplates.BeforeClassUser,
+        var systemPrompt = PromptTemplates.GetBeforeClassSystem(ToneStyle);
+        var userMessage = string.Format(PromptTemplates.GetBeforeClassUser(ToneStyle),
             previousSubject ?? "无", nextSubject);
         var result = await ChatAsync(systemPrompt, userMessage, ct: ct);
 
@@ -175,8 +178,8 @@ public class AIChatService : IDisposable
         if (string.IsNullOrWhiteSpace(ApiKey))
             return _fallback.GetRandomPhrase("after_school");
 
-        var systemPrompt = PromptTemplates.DailySummarySystem;
-        var userMessage = string.Format(PromptTemplates.DailySummaryUser,
+        var systemPrompt = PromptTemplates.GetDailySummarySystem(ToneStyle);
+        var userMessage = string.Format(PromptTemplates.GetDailySummaryUser(ToneStyle),
             string.Join("\n", todaySubjects.Select((s, i) => $"第{i + 1}节：{s}")));
         var result = await ChatAsync(systemPrompt, userMessage, ct: ct);
 
@@ -274,8 +277,8 @@ public class AIChatService : IDisposable
 
         try
         {
-            var systemPrompt = PromptTemplates.HomeworkEstimateSystem;
-            var userMessage = string.Format(PromptTemplates.HomeworkEstimateUser,
+            var systemPrompt = PromptTemplates.GetHomeworkEstimateSystem(ToneStyle);
+            var userMessage = string.Format(PromptTemplates.GetHomeworkEstimateUser(ToneStyle),
                 string.Join("、", subjectNames));
             var result = await ChatAsync(systemPrompt, userMessage, ct: ct);
 

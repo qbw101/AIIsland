@@ -49,6 +49,35 @@ public partial class AISettings : ObservableRecipient
     private int _maxRetries = 1;
     // 失败重试次数
 
+    // ===== 向导与偏好 =====
+
+    [ObservableProperty]
+    private bool _wizardCompleted;
+
+    [ObservableProperty]
+    private string _setupMode = "unknown";
+    // unknown / manual / recommended / offline
+
+    [ObservableProperty]
+    private bool _useSeriousToneInExamMode = true;
+    // 考试期间自动切换严肃语气
+
+    [ObservableProperty]
+    private bool _enableFallbackWhenAiUnavailable = true;
+    // AI 不可用时使用本地降级提示
+
+    [ObservableProperty]
+    private bool _enableApiCache = true;
+    // 启用 AI 结果缓存节省 API 调用
+
+    [ObservableProperty]
+    private bool _enableExamModeLocalServer = true;
+    // 允许考试模式启动本地 HTTP 服务
+
+    [ObservableProperty]
+    private bool _showConfigStatusOnStartup = true;
+    // 启动后显示配置状态提醒
+
     /// <summary>根据语气风格获取 temperature 值</summary>
     public double GetTemperature()
     {

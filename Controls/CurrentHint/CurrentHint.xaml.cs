@@ -3,9 +3,9 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using ClassIsland.Core.Abstractions.Controls;
+using ClassIsland.AISmartClass.Services;
 using ClassIsland.Core.Attributes;
 using ClassIsland.AISmartClass.Models;
-using ClassIsland.AISmartClass.Services;
 
 namespace ClassIsland.AISmartClass.Controls.CurrentHint;
 
@@ -61,7 +61,8 @@ public partial class CurrentHint : ComponentBase<CurrentHintSettings>
 
             var current = GetCurrentSubjectName(ps);
             var userMsg = string.IsNullOrEmpty(current) ? "请给一句15字以内的学习提示。" : $"当前课程：{current}\n请给一句15字以内的学习提示。";
-            var result = await ai.ChatAsync("你是一个学习助手，给高中生当前课程的简短提示。", userMsg);
+            var systemPrompt = PromptTemplates.GetCurrentHintSystem(ai.ToneStyle);
+            var result = await ai.ChatAsync(systemPrompt, userMsg);
             Hint = string.IsNullOrEmpty(result) || result.Contains("AI 暂时不可用") ? "" : result;
         }
         catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"课程提示失败: {ex.Message}"); }

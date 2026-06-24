@@ -244,7 +244,7 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
         if (!Settings.ShowCurrentHint || _currentHintLoaded) return;
         var current = GetCurrentSubjectName();
         var userMsg = string.IsNullOrEmpty(current) ? "请给一句15字以内的学习提示。" : $"当前课程：{current}\n请给一句15字以内的学习提示。";
-        var result = await _ai.ChatAsync("你是一个学习助手，给高中生当前课程的简短提示。", userMsg, ct: ct);
+        var result = await _ai.ChatAsync(PromptTemplates.GetCurrentHintSystem(_ai.ToneStyle), userMsg, ct: ct);
         CurrentHint = result;
         _currentHintLoaded = !IsFallbackResult(result);
     }
