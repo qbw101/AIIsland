@@ -7,10 +7,10 @@
     xmlns:local="clr-namespace:ClassIsland.AISmartClass.Controls.NotificationProviders"
     xmlns:models="clr-namespace:ClassIsland.AISmartClass.Models">
 
-    <StackPanel Spacing="12" Margin="8"
+    <StackPanel Spacing="12" Margin="12"
                 DataContext="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=local:SmartClassNotifierSettingsControl}}">
 
-        <TextBlock Text="自动提醒" FontSize="14" FontWeight="Bold"/>
+        <TextBlock Text="自动提醒" FontSize="15" FontWeight="SemiBold"/>
 
         <CheckBox Content="课前提醒（课间开始时触发）"
                   IsChecked="{Binding Settings.EnableBeforeClassReminder}"/>
@@ -21,26 +21,70 @@
         <CheckBox Content="换课提醒（检测到临时换课时触发）"
                   IsChecked="{Binding Settings.EnableClassChangeAlert}"/>
 
-        <Separator/>
+        <Separator Margin="0,2"/>
 
-        <TextBlock Text="提醒样式" FontSize="14" FontWeight="Bold"/>
+        <TextBlock Text="提醒样式" FontSize="15" FontWeight="SemiBold"/>
 
         <CheckBox Content="语音播报（默认关闭以免影响课堂）"
                   IsChecked="{Binding Settings.EnableTTS}"/>
 
         <Grid ColumnDefinitions="120,150">
-            <TextBlock Text="遮罩时长（秒）" VerticalAlignment="Center"/>
+            <TextBlock Text="遮罩时长（秒）" VerticalAlignment="Center" FontSize="13"/>
             <NumericUpDown Grid.Column="1"
                            Value="{Binding Settings.MaskDurationSeconds}"
                            Minimum="1" Maximum="10"/>
         </Grid>
 
         <Grid ColumnDefinitions="120,150">
-            <TextBlock Text="正文时长（秒）" VerticalAlignment="Center"/>
+            <TextBlock Text="正文时长（秒）" VerticalAlignment="Center" FontSize="13"/>
             <NumericUpDown Grid.Column="1"
                            Value="{Binding Settings.OverlayDurationSeconds}"
                            Minimum="1" Maximum="15"/>
         </Grid>
+
+        <Separator Margin="0,2"/>
+
+        <TextBlock Text="自定义提醒" FontSize="15" FontWeight="SemiBold"/>
+        <TextBlock Text="支持固定日期时间、每日重复、指定科目课前提醒。解析失败时可手动添加。"
+                   FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}" TextWrapping="Wrap"/>
+
+        <Grid ColumnDefinitions="*,Auto">
+            <TextBox x:Name="NlInputBox" Watermark="例如：明天下午3点提醒我交数学作业 / 每天7点提醒我背单词 / 数学课前5分钟提醒我带作业本"
+                     FontSize="13"/>
+            <Button Grid.Column="1" x:Name="ParseBtn" Content="解析添加"
+                    Margin="6,0,0,0" Click="OnParseClicked"/>
+        </Grid>
+
+        <TextBlock x:Name="ParseStatusText" FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                   IsVisible="False" TextWrapping="Wrap"/>
+
+        <ScrollViewer MaxHeight="180">
+            <ListBox x:Name="ReminderListBox" Background="Transparent" BorderThickness="0">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" CornerRadius="6" Padding="10,8" Margin="0,0,0,4"
+                                BorderBrush="{DynamicResource ControlFillColorSecondaryBrush}" BorderThickness="1">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel>
+                                    <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                               Text="{Binding DisplayTitle}" TextWrapping="Wrap"/>
+                                    <TextBlock FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                               Text="{Binding DisplaySubtitle}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" Text="✓" Foreground="{DynamicResource SystemFillColorSuccessBrush}"
+                                           VerticalAlignment="Center" IsVisible="{Binding IsEnabled}"/>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </ScrollViewer>
+
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button x:Name="AddBtn" Content="+ 手动添加" Click="OnAddClicked"/>
+            <Button x:Name="EditBtn" Content="编辑选中" Click="OnEditClicked"/>
+            <Button x:Name="DeleteBtn" Content="删除选中" Click="OnDeleteClicked"/>
+        </StackPanel>
 
     </StackPanel>
 </ci:NotificationProviderControlBase>

@@ -4,6 +4,7 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
+using ClassIsland.AISmartClass.Attributes;
 using ClassIsland.AISmartClass.Models;
 using ClassIsland.AISmartClass.Services;
 
@@ -12,9 +13,10 @@ namespace ClassIsland.AISmartClass.Controls.ClassCountdown;
 [ComponentInfo(
     "11000000-0000-0000-0000-000000000003",
     "课时倒计时",
-    "bitmap(avares://ClassIsland.AISmartClass/icon/3.png)",
+    "fluent(\ue121)",
     "显示当前课时剩余时间和进度条"
 )]
+[AIIslandIcon("\ue001")]
 public partial class ClassCountdown : ComponentBase<ClassCountdownSettings>
 {
     private enum LessonState { OnClass, Breaking, AfterSchool, Unknown }

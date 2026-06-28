@@ -32,4 +32,33 @@ public class ReminderParseResult
 
     /// <summary>用于缓存的原始输入</summary>
     public string RawInput { get; set; } = "";
+
+    /// <summary>将解析结果转换为 CustomReminder 对象</summary>
+    public CustomReminder ToCustomReminder()
+    {
+        var reminder = new CustomReminder
+        {
+            Type = Type,
+            Content = Content.Trim(),
+            SubjectName = string.IsNullOrWhiteSpace(SubjectName) ? null : SubjectName.Trim().TrimEnd('课'),
+            MinutesBefore = Math.Clamp(MinutesBefore, 0, 120),
+            IsEnabled = true,
+            IsRepeating = Type != ReminderType.FixedTime
+        };
+
+        if (!string.IsNullOrWhiteSpace(Time) && TimeSpan.TryParse(Time, out var time))
+        {
+            if (Type == ReminderType.FixedTime)
+            {
+                if (!string.IsNullOrWhiteSpace(Date) && DateTime.TryParse(Date, out var date))
+                    reminder.FixedDateTime = date.Date + time;
+            }
+            else if (Type == ReminderType.DailyRepeat)
+            {
+                reminder.FixedDateTime = new DateTime(2000, 1, 1, time.Hours, time.Minutes, 0);
+            }
+        }
+
+        return reminder;
+    }
 }

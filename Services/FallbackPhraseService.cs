@@ -66,7 +66,7 @@ public class FallbackPhraseService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[Fallback] 加载 {fileName} 失败: {ex.Message}");
+            Logger.Info($"[Fallback] 加载 {fileName} 失败: {ex.Message}");
         }
     }
 

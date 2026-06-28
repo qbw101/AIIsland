@@ -4,6 +4,7 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
+using ClassIsland.AISmartClass.Attributes;
 using ClassIsland.AISmartClass.Models;
 using ClassIsland.AISmartClass.Services;
 
@@ -12,9 +13,10 @@ namespace ClassIsland.AISmartClass.Controls.ScheduleInsight;
 [ComponentInfo(
     "11000000-0000-0000-0000-000000000001",
     "AIIsland 课表总结",
-    "bitmap(avares://ClassIsland.AISmartClass/icon/1.png)",
+    "fluent(\ue161)",
     "一句话解读今日课表"
 )]
+[AIIslandIcon("\ue005")]
 public partial class ScheduleInsight : ComponentBase<ScheduleInsightSettings>
 {
     public static readonly DirectProperty<ScheduleInsight, string> SummaryProperty =
@@ -51,7 +53,7 @@ public partial class ScheduleInsight : ComponentBase<ScheduleInsightSettings>
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"课表总结加载失败: {ex.Message}");
+            Logger.Info($"课表总结加载失败: {ex.Message}");
             Summary = "课表分析中...";
         }
     }

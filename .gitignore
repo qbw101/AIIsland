@@ -22,3 +22,4 @@ Thumbs.db
 
 # Screenshots (large files, not needed in repo)
 # image/  -- 用户要求推送截图，已取消排除
+*.bak

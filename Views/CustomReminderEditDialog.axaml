@@ -1,0 +1,177 @@
+<Window
+    x:Class="ClassIsland.AISmartClass.Views.CustomReminderEditDialog"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="编辑自定义提醒"
+    Width="460" Height="500"
+    MinWidth="460" MinHeight="500"
+    CanResize="False"
+    WindowStartupLocation="CenterOwner"
+    Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+    FontFamily="Microsoft YaHei,Segoe UI,sans-serif">
+
+    <Window.Styles>
+        <Style Selector="Button">
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="MinHeight" Value="34"/>
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{TemplateBinding CornerRadius}"
+                            MinHeight="{TemplateBinding MinHeight}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="Button:pointerover">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource TextFillColorTertiaryBrush}"/>
+        </Style>
+        <Style Selector="Button:pressed">
+            <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorBaseBrush}"/>
+        </Style>
+        <Style Selector="Button:disabled">
+            <Setter Property="Opacity" Value="0.4"/>
+        </Style>
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="Button.primary:pointerover">
+            <Setter Property="Background" Value="{DynamicResource AccentFillColorSecondaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="Button.primary:pressed">
+            <Setter Property="Background" Value="{DynamicResource AccentFillColorTertiaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorTertiaryBrush}"/>
+        </Style>
+        <Style Selector="TextBox">
+            <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style Selector="ComboBox">
+            <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style Selector="NumericUpDown">
+            <Setter Property="MinHeight" Value="36"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="Width" Value="140"/>
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+        <Style Selector="NumericUpDown Button">
+            <Setter Property="Width" Value="20"/>
+            <Setter Property="Height" Value="13"/>
+        </Style>
+        <Style Selector="NumericUpDown TextBox">
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="MinWidth" Value="50"/>
+            <Setter Property="Padding" Value="4,2"/>
+        </Style>
+        <Style Selector="DatePicker">
+            <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style Selector="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.label">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.error">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
+        </Style>
+        <Style Selector="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+    </Window.Styles>
+
+    <StackPanel Spacing="12" Margin="24,20">
+
+        <StackPanel Spacing="4">
+            <TextBlock Text="编辑自定义提醒" FontSize="18" FontWeight="SemiBold"/>
+            <TextBlock Text="固定时间只提醒一次；每日重复每天提醒一次；科目提醒会在对应课程开始前触发。"
+                       FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <StackPanel Spacing="4">
+            <TextBlock Classes="label" Text="提醒类型"/>
+            <ComboBox x:Name="TypeCombo" SelectedIndex="0">
+                <ComboBoxItem>固定日期+时间</ComboBoxItem>
+                <ComboBoxItem>关联科目（课前提醒）</ComboBoxItem>
+                <ComboBoxItem>每日重复时间</ComboBoxItem>
+            </ComboBox>
+        </StackPanel>
+
+        <StackPanel x:Name="DateSection" Spacing="4">
+            <TextBlock Classes="label" Text="日期"/>
+            <DatePicker x:Name="DatePicker"/>
+        </StackPanel>
+
+        <StackPanel x:Name="TimeSection" Spacing="4">
+            <TextBlock Classes="label" Text="时间"/>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <NumericUpDown x:Name="HourBox" Minimum="0" Maximum="23" Value="8"
+                               FormatString="00"/>
+                <TextBlock Text=":" FontSize="18" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontWeight="SemiBold"/>
+                <NumericUpDown x:Name="MinuteBox" Minimum="0" Maximum="59" Value="0"
+                               FormatString="00"/>
+            </StackPanel>
+        </StackPanel>
+
+        <StackPanel x:Name="SubjectSection" Spacing="4" IsVisible="False">
+            <TextBlock Classes="label" Text="关联科目"/>
+            <TextBox x:Name="SubjectBox" Watermark="例如：数学、英语、物理"/>
+        </StackPanel>
+
+        <StackPanel x:Name="MinutesSection" Spacing="4" IsVisible="False">
+            <TextBlock Classes="label" Text="提前多少分钟提醒"/>
+            <NumericUpDown x:Name="MinutesBeforeBox" Minimum="0" Maximum="120" Value="3"/>
+        </StackPanel>
+
+        <StackPanel Spacing="4">
+            <TextBlock Classes="label" Text="提醒内容"/>
+            <TextBox x:Name="ContentBox" Watermark="例如：带数学作业本 / 记得喝水" MinHeight="68"
+                     AcceptsReturn="True" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <CheckBox x:Name="EnabledCb" Content="启用此提醒" IsChecked="True"/>
+        <TextBlock x:Name="ErrorText" Classes="error" IsVisible="False" TextWrapping="Wrap"/>
+
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,8,0,0">
+            <Button x:Name="CancelBtn" Content="取消" Click="OnCancelClicked"/>
+            <Button x:Name="OkBtn" Content="确定" Classes="primary" Click="OnOkClicked"/>
+        </StackPanel>
+
+    </StackPanel>
+</Window>

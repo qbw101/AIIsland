@@ -34,6 +34,18 @@ public class AIChatService : IDisposable
     public int CacheMinutes { get; set; } = 5;
     public int MaxRetries { get; set; } = 1;
 
+    // ===== 偏好开关（从 AISettings 同步） =====
+    public bool EnableCache { get; set; } = true;
+    public bool EnableFallback { get; set; } = true;
+    public bool UseSeriousToneInExamMode { get; set; } = true;
+    public bool IsInExam { get; set; } = false;
+    public bool EnableExamModeLocalServer { get; set; } = true;
+    public bool ShowConfigStatusOnStartup { get; set; } = true;
+
+    /// <summary>获取实际生效的语气风格（考试模式可覆盖为严肃）</summary>
+    public int EffectiveToneStyle =>
+        (UseSeriousToneInExamMode && IsInExam) ? 2 : ToneStyle;
+
     public AIChatService(HttpClient http, FallbackPhraseService fallback)
     {
         _http = http;
@@ -53,6 +65,13 @@ public class AIChatService : IDisposable
         MaxRetries = settings.MaxRetries;
         _http.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds);
 
+        // 同步偏好开关
+        EnableCache = settings.EnableApiCache;
+        EnableFallback = settings.EnableFallbackWhenAiUnavailable;
+        UseSeriousToneInExamMode = settings.UseSeriousToneInExamMode;
+        EnableExamModeLocalServer = settings.EnableExamModeLocalServer;
+        ShowConfigStatusOnStartup = settings.ShowConfigStatusOnStartup;
+
         // 设置变更后清除缓存，确保立即使用新配置重新调用 AI
         _cache.Clear();
 
@@ -63,7 +82,7 @@ public class AIChatService : IDisposable
     /// <summary>根据语气风格获取 temperature</summary>
     private double GetTemperature()
     {
-        return ToneStyle switch
+        return EffectiveToneStyle switch
         {
             0 => 1.0,   // 活泼
             1 => 0.7,   // 标准
@@ -84,11 +103,11 @@ public class AIChatService : IDisposable
     {
         // 1. API Key 缺失 → 降级
         if (string.IsNullOrWhiteSpace(ApiKey))
-            return _fallback.GetRandomPhrase("api_key_missing");
+            return EnableFallback ? _fallback.GetRandomPhrase("api_key_missing") : "";
 
-        // 2. 检查缓存
+        // 2. 检查缓存（受 EnableCache 控制）
         var cacheKey = ComputeCacheKey(systemPrompt, userMessage);
-        if (_cache.TryGetValue(cacheKey, out var cached) && cached.ExpireAt > DateTime.UtcNow)
+        if (EnableCache && _cache.TryGetValue(cacheKey, out var cached) && cached.ExpireAt > DateTime.UtcNow)
             return cached.Result;
 
         // 3. 如果未指定 temperature，使用语气风格映射值
@@ -104,12 +123,15 @@ public class AIChatService : IDisposable
             {
                 var result = await SendRequestAsync(systemPrompt, userMessage, effectiveTemp, ct);
 
-                // 写入缓存
-                _cache[cacheKey] = new CacheEntry
+                // 写入缓存（受 EnableCache 控制）
+                if (EnableCache)
                 {
-                    Result = result,
-                    ExpireAt = DateTime.UtcNow.AddMinutes(CacheMinutes)
-                };
+                    _cache[cacheKey] = new CacheEntry
+                    {
+                        Result = result,
+                        ExpireAt = DateTime.UtcNow.AddMinutes(CacheMinutes)
+                    };
+                }
 
                 // 随机清理过期缓存
                 if (Random.Shared.Next(20) == 0)
@@ -120,12 +142,12 @@ public class AIChatService : IDisposable
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"AI 请求失败 (attempt {attempt}): {ex.Message}");
+                Logger.Info($"AI 请求失败 (attempt {attempt}): {ex.Message}");
             }
         }
 
         // 全部重试失败 → 降级
-        return _fallback.GetRandomPhrase("api_error");
+        return EnableFallback ? _fallback.GetRandomPhrase("api_error") : "";
     }
 
     // ========================================
@@ -140,8 +162,8 @@ public class AIChatService : IDisposable
         if (string.IsNullOrWhiteSpace(ApiKey))
             return GenerateRuleBasedSummary(subjectNames);
 
-        var systemPrompt = PromptTemplates.GetTodaySummarySystem(ToneStyle);
-        var userMessage = string.Format(PromptTemplates.GetTodaySummaryUser(ToneStyle),
+        var systemPrompt = PromptTemplates.GetTodaySummarySystem(EffectiveToneStyle);
+        var userMessage = string.Format(PromptTemplates.GetTodaySummaryUser(EffectiveToneStyle),
             string.Join("、", subjectNames),
             DateTime.Now.DayOfWeek switch
             {
@@ -161,8 +183,8 @@ public class AIChatService : IDisposable
         if (string.IsNullOrWhiteSpace(ApiKey))
             return _fallback.GetRandomPhrase("before_class", nextSubject);
 
-        var systemPrompt = PromptTemplates.GetBeforeClassSystem(ToneStyle);
-        var userMessage = string.Format(PromptTemplates.GetBeforeClassUser(ToneStyle),
+        var systemPrompt = PromptTemplates.GetBeforeClassSystem(EffectiveToneStyle);
+        var userMessage = string.Format(PromptTemplates.GetBeforeClassUser(EffectiveToneStyle),
             previousSubject ?? "无", nextSubject);
         var result = await ChatAsync(systemPrompt, userMessage, ct: ct);
 
@@ -178,8 +200,8 @@ public class AIChatService : IDisposable
         if (string.IsNullOrWhiteSpace(ApiKey))
             return _fallback.GetRandomPhrase("after_school");
 
-        var systemPrompt = PromptTemplates.GetDailySummarySystem(ToneStyle);
-        var userMessage = string.Format(PromptTemplates.GetDailySummaryUser(ToneStyle),
+        var systemPrompt = PromptTemplates.GetDailySummarySystem(EffectiveToneStyle);
+        var userMessage = string.Format(PromptTemplates.GetDailySummaryUser(EffectiveToneStyle),
             string.Join("\n", todaySubjects.Select((s, i) => $"第{i + 1}节：{s}")));
         var result = await ChatAsync(systemPrompt, userMessage, ct: ct);
 
@@ -245,7 +267,7 @@ public class AIChatService : IDisposable
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"自然语言解析失败: {ex.Message}");
+            Logger.Info($"自然语言解析失败: {ex.Message}");
             result.Success = false;
             result.ErrorMessage = "解析失败，请尝试更直接的表述";
             return result;
@@ -277,8 +299,8 @@ public class AIChatService : IDisposable
 
         try
         {
-            var systemPrompt = PromptTemplates.GetHomeworkEstimateSystem(ToneStyle);
-            var userMessage = string.Format(PromptTemplates.GetHomeworkEstimateUser(ToneStyle),
+            var systemPrompt = PromptTemplates.GetHomeworkEstimateSystem(EffectiveToneStyle);
+            var userMessage = string.Format(PromptTemplates.GetHomeworkEstimateUser(EffectiveToneStyle),
                 string.Join("、", subjectNames));
             var result = await ChatAsync(systemPrompt, userMessage, ct: ct);
 
@@ -289,7 +311,7 @@ public class AIChatService : IDisposable
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"作业量估算失败: {ex.Message}");
+            Logger.Info($"作业量估算失败: {ex.Message}");
             return RuleBasedHomeworkEstimate(subjectNames);
         }
     }

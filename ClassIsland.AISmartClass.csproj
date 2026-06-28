@@ -49,11 +49,9 @@
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
         <AvaloniaResource Include="icon.png" />
-    </ItemGroup>
-
-    <!-- 组件图标（PNG，bitmap 图标源仅支持位图，不支持 SVG） -->
-    <ItemGroup>
-        <AvaloniaResource Include="icon\*.png" />
+        <AvaloniaResource Include="icon\icon.png" />
+        <AvaloniaResource Include="icon\welcome.png" />
+        <AvaloniaResource Include="icon\AIIslandIcons.ttf" />
     </ItemGroup>
 
 </Project>

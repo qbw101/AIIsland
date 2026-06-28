@@ -20,6 +20,7 @@ public class ExamModeServer : IDisposable
 
     public bool IsRunning { get; private set; }
     public string Url => $"http://localhost:{_port}";
+    public bool Enabled { get; set; } = true;
 
     public static ExamModeServer GetOrCreate(int port = 9876)
     {
@@ -42,6 +43,7 @@ public class ExamModeServer : IDisposable
     public Task StartAsync()
     {
         if (IsRunning) return Task.CompletedTask;
+        if (!Enabled) { Logger.Info("[ExamMode] 服务器未启用（EnableExamModeLocalServer=false）"); return Task.CompletedTask; }
 
         Exception? lastException = null;
         for (var port = _startPort; port <= MaxPort; port++)
@@ -57,14 +59,20 @@ public class ExamModeServer : IDisposable
                 _cts = new CancellationTokenSource();
                 IsRunning = true;
                 _ = Task.Run(() => ListenLoop(_cts.Token));
-                System.Diagnostics.Debug.WriteLine($"[ExamMode] 服务器已启动: {Url}");
+                Logger.Info($"[ExamMode] 服务器已启动: {Url}");
+
+                // 通知 AI 服务进入考试模式，自动切换严肃语气
+                var ai = Plugin.GetAIService();
+                if (ai != null) ai.IsInExam = true;
+                Logger.Info("[ExamMode] AI 语气已切换为严肃模式");
+
                 return Task.CompletedTask;
             }
             catch (Exception ex) when (ex is HttpListenerException or InvalidOperationException)
             {
                 lastException = ex;
                 try { listener.Close(); } catch { }
-                System.Diagnostics.Debug.WriteLine($"[ExamMode] 端口 {port} 启动失败，尝试下一个端口: {ex}");
+                Logger.Info($"[ExamMode] 端口 {port} 启动失败，尝试下一个端口: {ex}");
             }
         }
 
@@ -80,7 +88,12 @@ public class ExamModeServer : IDisposable
         _cts?.Dispose();
         _cts = null;
         IsRunning = false;
-        System.Diagnostics.Debug.WriteLine("[ExamMode] 服务器已停止");
+        Logger.Info("[ExamMode] 服务器已停止");
+
+        // 通知 AI 服务退出考试模式，恢复用户偏好的语气
+        var ai = Plugin.GetAIService();
+        if (ai != null) ai.IsInExam = false;
+        Logger.Info("[ExamMode] AI 语气已恢复正常");
     }
 
     private async Task ListenLoop(CancellationToken ct)
@@ -106,7 +119,7 @@ public class ExamModeServer : IDisposable
             catch (HttpListenerException) { break; }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[ExamMode] 请求处理异常: {ex}");
+                Logger.Info($"[ExamMode] 请求处理异常: {ex}");
             }
         }
     }
@@ -114,7 +127,7 @@ public class ExamModeServer : IDisposable
     private async Task HandleRequest(HttpListenerContext ctx)
     {
         var path = ctx.Request.Url?.AbsolutePath ?? "/";
-        System.Diagnostics.Debug.WriteLine($"[ExamMode] {ctx.Request.HttpMethod} {path}");
+        Logger.Info($"[ExamMode] {ctx.Request.HttpMethod} {path}");
 
         if (path == "/" || path == "/index.html")
         {

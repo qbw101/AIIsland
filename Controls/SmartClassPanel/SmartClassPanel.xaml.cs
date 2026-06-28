@@ -11,6 +11,21 @@ using ClassIsland.AISmartClass.Services;
 
 namespace ClassIsland.AISmartClass.Controls.SmartClassPanel;
 
+/// <summary>
+/// SmartClassPanel 是 AIIsland 的"老版聚合面板"，内部包含课表总结、课程提示、倒计时、
+/// 难度与番茄钟、作业量估算 5 个子模块。这些模块已同时作为独立组件暴露给 ClassIsland
+/// 主界面，用户可自由排列。
+///
+/// 独立组件列表（均含独立设置控件）：
+/// - ScheduleInsight（课表总结）
+/// - HomeworkEstimate（作业量估算）
+/// - ClassCountdown（课时倒计时）
+/// - CurrentHint（当前课程提示）
+/// - DifficultyInfo（难度与番茄钟）
+///
+/// SmartClassPanel 仍保留以供：1) 向后兼容老用户的布局 2) 作为一键查看全部信息的聚合视图。
+/// 新增功能应优先在独立组件中实现，SmartClassPanel 仅做聚合调用。
+/// </summary>
 [ComponentInfo(
     "A1B2C3D4-E5F6-7890-ABCD-EF1234567890",
     "AIIsland 智能面板",
@@ -202,7 +217,7 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
         catch (OperationCanceledException) { SetAIStatus(false, ""); }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"SmartClassPanel 初始化失败: {ex.Message}");
+            Logger.Info($"SmartClassPanel 初始化失败: {ex.Message}");
             SetAIStatus(false, "AI 离线");
         }
     }
@@ -244,7 +259,7 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
         if (!Settings.ShowCurrentHint || _currentHintLoaded) return;
         var current = GetCurrentSubjectName();
         var userMsg = string.IsNullOrEmpty(current) ? "请给一句15字以内的学习提示。" : $"当前课程：{current}\n请给一句15字以内的学习提示。";
-        var result = await _ai.ChatAsync(PromptTemplates.GetCurrentHintSystem(_ai.ToneStyle), userMsg, ct: ct);
+        var result = await _ai.ChatAsync(PromptTemplates.GetCurrentHintSystem(_ai.EffectiveToneStyle), userMsg, ct: ct);
         CurrentHint = result;
         _currentHintLoaded = !IsFallbackResult(result);
     }

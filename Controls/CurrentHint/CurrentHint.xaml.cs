@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using ClassIsland.Core.Abstractions.Controls;
+using ClassIsland.AISmartClass.Attributes;
 using ClassIsland.AISmartClass.Services;
 using ClassIsland.Core.Attributes;
 using ClassIsland.AISmartClass.Models;
@@ -12,9 +13,10 @@ namespace ClassIsland.AISmartClass.Controls.CurrentHint;
 [ComponentInfo(
     "11000000-0000-0000-0000-000000000004",
     "AIIsland 课程提示",
-    "bitmap(avares://ClassIsland.AISmartClass/icon/4.png)",
+    "fluent(\uea80)",
     "上课时自动生成当前课程学习提示"
 )]
+[AIIslandIcon("\ue003")]
 public partial class CurrentHint : ComponentBase<CurrentHintSettings>
 {
     public static readonly DirectProperty<CurrentHint, string> HintProperty =
@@ -61,11 +63,11 @@ public partial class CurrentHint : ComponentBase<CurrentHintSettings>
 
             var current = GetCurrentSubjectName(ps);
             var userMsg = string.IsNullOrEmpty(current) ? "请给一句15字以内的学习提示。" : $"当前课程：{current}\n请给一句15字以内的学习提示。";
-            var systemPrompt = PromptTemplates.GetCurrentHintSystem(ai.ToneStyle);
+            var systemPrompt = PromptTemplates.GetCurrentHintSystem(ai.EffectiveToneStyle);
             var result = await ai.ChatAsync(systemPrompt, userMsg);
             Hint = string.IsNullOrEmpty(result) || result.Contains("AI 暂时不可用") ? "" : result;
         }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"课程提示失败: {ex.Message}"); }
+        catch (Exception ex) { Logger.Info($"课程提示失败: {ex.Message}"); }
     }
 
     private static string GetCurrentSubjectName(ClassIsland.Core.Abstractions.Services.IProfileService ps)

@@ -4,105 +4,350 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:ci="http://classisland.tech/schemas/xaml/core">
 
+    <ci:SettingsPageBase.Styles>
+        <Style Selector="TextBlock.section-title">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+            <Setter Property="Margin" Value="0,14,0,2"/>
+        </Style>
+        <Style Selector="Border.setting-card">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="16,13"/>
+            <Setter Property="Margin" Value="0,4"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="Border.setting-row">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="16,12"/>
+            <Setter Property="Margin" Value="0,3"/>
+            <Setter Property="MinHeight" Value="66"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="Border.setting-row:pointerover">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.row-icon">
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="Width" Value="28"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.row-title">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.row-description">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style Selector="Button">
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Button.icon-button">
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="15"/>
+        </Style>
+        <Style Selector="TextBox">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorInputBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style Selector="TextBox:pointerover">
+            <Setter Property="BorderBrush" Value="{DynamicResource TextFillColorTertiaryBrush}"/>
+        </Style>
+        <Style Selector="TextBox:focus">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        </Style>
+        <Style Selector="ComboBox">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorInputBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="8,5"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style Selector="ComboBox:pointerover">
+            <Setter Property="BorderBrush" Value="{DynamicResource TextFillColorTertiaryBrush}"/>
+        </Style>
+        <Style Selector="ComboBox:focus">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        </Style>
+        <Style Selector="NumericUpDown">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorInputBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style Selector="NumericUpDown:pointerover">
+            <Setter Property="BorderBrush" Value="{DynamicResource TextFillColorTertiaryBrush}"/>
+        </Style>
+        <Style Selector="NumericUpDown:focus">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        </Style>
+        <Style Selector="ToggleSwitch">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="OffContent" Value="关"/>
+            <Setter Property="OnContent" Value="开"/>
+        </Style>
+    </ci:SettingsPageBase.Styles>
+
     <ScrollViewer>
-        <StackPanel Spacing="16" Margin="24">
+        <StackPanel Spacing="6" Margin="20,10,20,20" MaxWidth="960" HorizontalAlignment="Stretch">
+            <TextBlock Text="插件信息" Classes="section-title"/>
 
-            <!-- 第 1 节：API 配置 -->
-            <TextBlock Text="API 配置" FontSize="16" FontWeight="Bold"/>
-            <StackPanel Spacing="8">
-                <TextBlock Text="兼容 OpenAI Chat Completions 格式的 API" FontSize="12" Opacity="0.7"/>
-                <TextBlock Text="API 地址" FontSize="12" Opacity="0.7"/>
-                <TextBox x:Name="EndpointBox" Watermark="https://api.deepseek.com/v1/chat/completions"/>
-                <TextBlock Text="API Key" FontSize="12" Opacity="0.7"/>
-                <TextBox x:Name="ApiKeyBox" PasswordChar="•" Watermark="sk-..."/>
-                <TextBlock Text="模型名称" FontSize="12" Opacity="0.7"/>
-                <TextBox x:Name="ModelBox" Watermark="deepseek-chat"/>
-            </StackPanel>
-
-            <Separator/>
-
-            <!-- 第 2 节：语气风格 -->
-            <TextBlock Text="语气风格" FontSize="16" FontWeight="Bold"/>
-            <StackPanel Spacing="8">
-                <ComboBox x:Name="ToneStyleComboBox" SelectedIndex="1" Width="320">
-                    <ComboBoxItem Tag="0">活泼 — 轻松有趣，适合日常提醒</ComboBoxItem>
-                    <ComboBoxItem Tag="1">标准 — 平衡得体（推荐）</ComboBoxItem>
-                    <ComboBoxItem Tag="2">严肃 — 稳重准确，适合考试期间</ComboBoxItem>
-                </ComboBox>
-            </StackPanel>
-
-            <Separator/>
-
-            <!-- 第 3 节：高级参数 -->
-            <TextBlock Text="高级参数" FontSize="16" FontWeight="Bold"/>
-            <StackPanel Spacing="8">
-                <Grid ColumnDefinitions="120,150">
-                    <TextBlock Text="最大回复长度" VerticalAlignment="Center"/>
-                    <NumericUpDown Grid.Column="1" x:Name="MaxTokensBox"
-                                   Minimum="50" Maximum="500" Increment="50" Value="200"/>
+            <Border Classes="setting-card" Padding="18,14">
+                <Grid ColumnDefinitions="58,*,Auto" ColumnSpacing="16">
+                    <Image Source="avares://ClassIsland.AISmartClass/icon.png"
+                           Width="44" Height="44" Stretch="Uniform"
+                           VerticalAlignment="Center"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="AIIsland"
+                                       FontSize="20"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                            <TextBlock x:Name="VersionLabel"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       VerticalAlignment="Bottom"/>
+                        </StackPanel>
+                        <TextBlock Text="AI 驱动的智能课表助手"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                        <TextBlock Text="用于 ClassIsland 的智能提醒、总结与考试倒计时辅助插件。"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <Button x:Name="GitHubBtn" Classes="icon-button" Content="&#xE8A7;" ToolTip.Tip="GitHub 主页"/>
+                        <Button x:Name="IssuesBtn" Classes="icon-button" Content="&#xE7BA;" ToolTip.Tip="Bug 反馈 / 功能建议"/>
+                        <Button x:Name="WelcomeWizardButton" Classes="icon-button" Content="&#xE9CE;" ToolTip.Tip="重新运行欢迎向导"/>
+                    </StackPanel>
                 </Grid>
-                <Grid ColumnDefinitions="120,150">
-                    <TextBlock Text="超时时间（秒）" VerticalAlignment="Center"/>
-                    <NumericUpDown Grid.Column="1" x:Name="TimeoutBox"
-                                   Minimum="3" Maximum="30" Value="10"/>
+            </Border>
+
+            <TextBlock Text="考试模式" Classes="section-title"/>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE121;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="考试模式" Classes="row-title"/>
+                        <TextBlock Text="打开浏览器显示考试倒计时仪表盘，适合考试期间投屏。" Classes="row-description"/>
+                    </StackPanel>
+                    <Button Grid.Column="2" x:Name="ExamModeButton" Content="启动考试模式" VerticalAlignment="Center"/>
                 </Grid>
-                <Grid ColumnDefinitions="120,150">
-                    <TextBlock Text="缓存时长（分钟）" VerticalAlignment="Center"/>
-                    <NumericUpDown Grid.Column="1" x:Name="CacheBox"
-                                   Minimum="1" Maximum="60" Value="5"/>
+            </Border>
+
+            <TextBlock Text="API 连接" Classes="section-title"/>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,460" ColumnSpacing="14">
+                    <TextBlock Text="&#xE71B;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="API 地址" Classes="row-title"/>
+                        <TextBlock Text="兼容 OpenAI Chat Completions 的接口地址。" Classes="row-description"/>
+                    </StackPanel>
+                    <TextBox Grid.Column="2" x:Name="EndpointBox"
+                             Watermark="https://api.deepseek.com/v1/chat/completions"
+                             VerticalAlignment="Center"/>
                 </Grid>
-                <Grid ColumnDefinitions="120,150">
-                    <TextBlock Text="失败重试次数" VerticalAlignment="Center"/>
-                    <NumericUpDown Grid.Column="1" x:Name="MaxRetriesBox"
-                                   Minimum="0" Maximum="5" Value="1"/>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,460" ColumnSpacing="14">
+                    <TextBlock Text="&#xE192;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="API Key" Classes="row-title"/>
+                        <TextBlock Text="用于调用模型接口的访问密钥。" Classes="row-description"/>
+                    </StackPanel>
+                    <TextBox Grid.Column="2" x:Name="ApiKeyBox"
+                             PasswordChar="•" Watermark="sk-..."
+                             VerticalAlignment="Center"/>
                 </Grid>
-            </StackPanel>
+            </Border>
 
-            <Separator/>
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,260" ColumnSpacing="14">
+                    <TextBlock Text="&#xE950;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="模型名称" Classes="row-title"/>
+                        <TextBlock Text="用于生成提醒和总结的模型。" Classes="row-description"/>
+                    </StackPanel>
+                    <TextBox Grid.Column="2" x:Name="ModelBox"
+                             Watermark="deepseek-chat"
+                             VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
 
-            <!-- 第 4 节：降级词库 -->
-            <TextBlock Text="离线降级" FontSize="16" FontWeight="Bold"/>
-            <TextBlock Text="当 AI 不可用时，将使用本地预设句子库作为回退。句子库可在插件目录 Data/fallback_phrases.json 中自定义。"
-                       TextWrapping="Wrap" FontSize="12" Opacity="0.7"/>
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,260" ColumnSpacing="14">
+                    <TextBlock Text="&#xE8BD;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="语气风格" Classes="row-title"/>
+                        <TextBlock Text="控制 AI 回复的整体表达风格。" Classes="row-description"/>
+                    </StackPanel>
+                    <ComboBox Grid.Column="2" x:Name="ToneStyleComboBox" SelectedIndex="1" VerticalAlignment="Center">
+                        <ComboBoxItem Tag="0">活泼 — 轻二次元风格</ComboBoxItem>
+                        <ComboBoxItem Tag="1">标准 — 自然随和（推荐）</ComboBoxItem>
+                        <ComboBoxItem Tag="2">严肃 — 正式专业</ComboBoxItem>
+                    </ComboBox>
+                </Grid>
+            </Border>
 
-            <Separator/>
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE9D9;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="连接与生成测试" Classes="row-title"/>
+                        <TextBlock Text="保存配置前可先验证接口连接、提醒生成和每日总结。" Classes="row-description"/>
+                    </StackPanel>
+                    <WrapPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="TestButton" Content="测试 API" Margin="0,0,8,0"/>
+                        <Button x:Name="TestReminderButton" Content="测试提醒" Margin="0,0,8,0"/>
+                        <Button x:Name="TestSummaryButton" Content="测试总结" Margin="0,0,8,0"/>
+                        <Button x:Name="SaveButton" Content="保存"/>
+                    </WrapPanel>
+                </Grid>
+            </Border>
 
-            <!-- 第 5 节：考试模式 -->
-            <TextBlock Text="考试模式" FontSize="16" FontWeight="Bold"/>
-            <StackPanel Spacing="8">
-                <TextBlock Text="打开浏览器显示考试倒计时仪表盘，实时显示当前科目和剩余时间。适用于考试期间投屏或全屏显示。"
-                           TextWrapping="Wrap" FontSize="12" Opacity="0.7"/>
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button x:Name="ExamModeButton" Content="启动考试模式"
-                            HorizontalAlignment="Left" Padding="14,7"/>
-                </StackPanel>
-            </StackPanel>
+            <Border x:Name="TestResultBorder" Classes="setting-row" CornerRadius="4" Padding="12,8" IsVisible="False">
+                <TextBlock x:Name="TestResultText" TextWrapping="Wrap"
+                           FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+            </Border>
 
-            <Separator/>
+            <TextBlock Text="生成参数" Classes="section-title"/>
 
-            <!-- 第 6 节：测试与保存 -->
-            <TextBlock Text="测试与保存" FontSize="16" FontWeight="Bold"/>
-            <StackPanel Spacing="8">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button x:Name="TestButton" Content="测试 API 连接"
-                            HorizontalAlignment="Left" Padding="16,8"/>
-                    <Button x:Name="TestReminderButton" Content="测试 AI 提醒"
-                            HorizontalAlignment="Left" Padding="16,8"/>
-                    <Button x:Name="TestSummaryButton" Content="测试 AI 总结"
-                            HorizontalAlignment="Left" Padding="16,8"/>
-                    <Button x:Name="SaveButton" Content="保存配置"
-                            HorizontalAlignment="Left" Padding="16,8"/>
-                    <Button x:Name="WelcomeWizardButton" Content="重新运行欢迎向导"
-                            HorizontalAlignment="Left" Padding="16,8"/>
-                </StackPanel>
-                <Border x:Name="TestResultBorder"
-                        CornerRadius="4" Padding="8,4"
-                        IsVisible="{Binding #TestResultBorder.IsVisible}">
-                    <TextBlock x:Name="TestResultText"
-                               TextWrapping="Wrap" FontSize="12"/>
-                </Border>
-            </StackPanel>
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,160" ColumnSpacing="14">
+                    <TextBlock Text="&#xE8A5;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="最大回复长度" Classes="row-title"/>
+                        <TextBlock Text="限制单次 AI 回复可生成的最大 token 数。" Classes="row-description"/>
+                    </StackPanel>
+                    <NumericUpDown Grid.Column="2" x:Name="MaxTokensBox"
+                                   Minimum="50" Maximum="500" Increment="50" Value="200"
+                                   VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
 
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,160" ColumnSpacing="14">
+                    <TextBlock Text="&#xE916;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="超时时间（秒）" Classes="row-title"/>
+                        <TextBlock Text="接口请求超过该时间后视为失败。" Classes="row-description"/>
+                    </StackPanel>
+                    <NumericUpDown Grid.Column="2" x:Name="TimeoutBox"
+                                   Minimum="3" Maximum="30" Value="10"
+                                   VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,160" ColumnSpacing="14">
+                    <TextBlock Text="&#xE8FD;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="缓存时长（分钟）" Classes="row-title"/>
+                        <TextBlock Text="相同课程上下文可复用 AI 回复的时间范围。" Classes="row-description"/>
+                    </StackPanel>
+                    <NumericUpDown Grid.Column="2" x:Name="CacheBox"
+                                   Minimum="1" Maximum="60" Value="5"
+                                   VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,160" ColumnSpacing="14">
+                    <TextBlock Text="&#xE72C;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="失败重试次数" Classes="row-title"/>
+                        <TextBlock Text="接口调用失败后自动重试的次数。" Classes="row-description"/>
+                    </StackPanel>
+                    <NumericUpDown Grid.Column="2" x:Name="MaxRetriesBox"
+                                   Minimum="0" Maximum="5" Value="1"
+                                   VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <TextBlock Text="功能开关" Classes="section-title"/>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE945;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="启用 AI 缓存" Classes="row-title"/>
+                        <TextBlock Text="减少重复请求，降低接口延迟和调用次数。" Classes="row-description"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="2" x:Name="EnableCacheCb" IsChecked="True"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE753;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="离线降级提示" Classes="row-title"/>
+                        <TextBlock Text="AI 不可用时使用本地句子库给出提示。" Classes="row-description"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="2" x:Name="EnableFallbackCb" IsChecked="True"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE7BE;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="考试模式严肃语气" Classes="row-title"/>
+                        <TextBlock Text="考试模式启动时自动使用正式专业语气。" Classes="row-description"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="2" x:Name="ExamSeriousToneCb" IsChecked="True"/>
+                </Grid>
+            </Border>
+
+            <TextBlock Text="本地数据" Classes="section-title"/>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE8B7;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="离线句子库与提示词" Classes="row-title"/>
+                        <TextBlock Text="可自行编辑 Data/ 下的 JSON 文件来定制 AI 提示词和降级句子。" Classes="row-description"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button x:Name="OpenFallbackBtn" Content="打开句子库"/>
+                        <Button x:Name="OpenPromptsBtn" Content="打开提示词"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
         </StackPanel>
     </ScrollViewer>
 </ci:SettingsPageBase>

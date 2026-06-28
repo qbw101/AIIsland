@@ -3,13 +3,17 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <StackPanel Spacing="12" Margin="8">
+    <StackPanel Spacing="12" Margin="12">
 
-        <TextBlock Text="显示模块" FontSize="14" FontWeight="Bold"/>
+        <TextBlock Text="显示模块" FontSize="15" FontWeight="SemiBold"/>
 
         <CheckBox x:Name="ShowOverviewCheck"
-                  Content="今日课表一句话总结"
+                  Content="今日课表总结"
                   IsChecked="{Binding Settings.ShowTodayOverview}"/>
+
+        <CheckBox x:Name="ShowHomeworkCheck"
+                  Content="作业量估算"
+                  IsChecked="{Binding Settings.ShowHomeworkEstimate}"/>
 
         <CheckBox x:Name="ShowCountdownCheck"
                   Content="倒计时 + 进度条"
@@ -20,17 +24,17 @@
                   IsChecked="{Binding Settings.ShowCurrentHint}"/>
 
         <CheckBox x:Name="ShowDifficultyCheck"
-                  Content="难度星数预估"
+                  Content="难度星数"
                   IsChecked="{Binding Settings.ShowDifficulty}"/>
 
         <CheckBox x:Name="ShowPomodoroCheck"
                   Content="番茄钟建议"
                   IsChecked="{Binding Settings.ShowPomodoro}"/>
 
-        <Separator/>
+        <Separator Margin="0,4"/>
 
         <Grid ColumnDefinitions="120,150">
-            <TextBlock Text="面板最大高度" VerticalAlignment="Center"/>
+            <TextBlock Text="面板最大高度" VerticalAlignment="Center" FontSize="13"/>
             <NumericUpDown Grid.Column="1"
                            Value="{Binding Settings.PanelMaxHeight}"
                            Minimum="80" Maximum="300" Increment="10"/>

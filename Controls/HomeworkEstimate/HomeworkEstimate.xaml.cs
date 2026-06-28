@@ -4,6 +4,7 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
+using ClassIsland.AISmartClass.Attributes;
 using ClassIsland.AISmartClass.Models;
 using ClassIsland.AISmartClass.Services;
 
@@ -12,9 +13,10 @@ namespace ClassIsland.AISmartClass.Controls.HomeworkEstimate;
 [ComponentInfo(
     "11000000-0000-0000-0000-000000000002",
     "AIIsland 作业量估算",
-    "bitmap(avares://ClassIsland.AISmartClass/icon/2.png)",
+    "fluent(\ue12f)",
     "根据科目类型估算今日作业量"
 )]
+[AIIslandIcon("\ue004")]
 public partial class HomeworkEstimate : ComponentBase<HomeworkEstimateSettings>
 {
     public static readonly DirectProperty<HomeworkEstimate, string> EstimateProperty =
@@ -51,7 +53,7 @@ public partial class HomeworkEstimate : ComponentBase<HomeworkEstimateSettings>
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"作业量估算失败: {ex.Message}");
+            Logger.Info($"作业量估算失败: {ex.Message}");
             Estimate = "分析中...";
         }
     }

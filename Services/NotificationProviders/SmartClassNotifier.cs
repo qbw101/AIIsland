@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using Avalonia.Threading;
 using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Abstractions.Services.NotificationProviders;
 using ClassIsland.Core.Attributes;
@@ -18,7 +20,8 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
     private readonly IProfileService _profileService;
     private readonly AIChatService _ai;
 
-    private Timer? _customTimer;
+    private readonly Timer _customTimer;
+    private int _customReminderChecking;
 
     /// <summary>已触发的课前提醒 key 集合，每个课间独立去重</summary>
     private readonly HashSet<string> _triggeredBeforeClassKeys = new();
@@ -39,6 +42,7 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
         _lessons.OnClass += OnClassHandler;
         _lessons.PostMainTimerTicked += OnTimerTickHandler;  // 轮询兜底：主动检测课间状态
 
+        // 自定义提醒需要独立轮询：固定时间/每日重复/科目课前 N 分钟都依赖当前时钟。
         _customTimer = new Timer(CheckCustomReminders, null,
             TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
     }
@@ -49,76 +53,54 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
 
     private async void OnBreakingTimeHandler(object? sender, EventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("[AIIsland] OnBreakingTime 触发");
+        Logger.Info("OnBreakingTime 触发");
 
-        // Settings 可能尚未被 ClassIsland 注入，防御性检查
         if (Settings == null)
         {
-            System.Diagnostics.Debug.WriteLine("[AIIsland] OnBreakingTime: Settings 为 null，跳过");
+            Logger.Info("OnBreakingTime: Settings 为 null，跳过");
             return;
         }
         if (!Settings.EnableBeforeClassReminder)
         {
-            System.Diagnostics.Debug.WriteLine("[AIIsland] OnBreakingTime: EnableBeforeClassReminder=false，跳过");
+            Logger.Info("OnBreakingTime: EnableBeforeClassReminder=false，跳过");
             return;
         }
 
         try
         {
             var nextSubject = GetNextSubjectName();
-            System.Diagnostics.Debug.WriteLine($"[AIIsland] OnBreakingTime: nextSubject={nextSubject ?? "(空)"}");
+            Logger.Info($"OnBreakingTime: nextSubject={nextSubject ?? "(空)"}");
 
             if (string.IsNullOrEmpty(nextSubject))
             {
                 await Task.Delay(500);
                 nextSubject = GetNextSubjectName();
-                System.Diagnostics.Debug.WriteLine($"[AIIsland] OnBreakingTime retry: nextSubject={nextSubject ?? "(空)"}");
+                Logger.Info($"OnBreakingTime retry: nextSubject={nextSubject ?? "(空)"}");
             }
             if (string.IsNullOrEmpty(nextSubject)) return;
 
-            // 用"科目+下节课起始时间"去重，确保每个课间独立触发
             var nextClassTime = GetNextClassStartTime();
             ResetDedupIfNeeded();
             var triggerKey = $"breaking_{nextSubject}_{nextClassTime.Hours:D2}{nextClassTime.Minutes:D2}";
-            System.Diagnostics.Debug.WriteLine($"[AIIsland] OnBreakingTime triggerKey={triggerKey}");
+            Logger.Info($"OnBreakingTime triggerKey={triggerKey}");
 
             if (!_triggeredBeforeClassKeys.Add(triggerKey))
             {
-                System.Diagnostics.Debug.WriteLine("[AIIsland] OnBreakingTime: 已触发过此课间，跳过");
+                Logger.Info("OnBreakingTime: 已触发过此课间，跳过");
                 return;
             }
 
             var previousSubject = GetCurrentSubjectName();
-            System.Diagnostics.Debug.WriteLine($"[AIIsland] OnBreakingTime: previous={previousSubject}, next={nextSubject}");
+            Logger.Info($"OnBreakingTime: previous={previousSubject}, next={nextSubject}");
 
             var aiText = await _ai.GenerateBeforeClassReminder(previousSubject, nextSubject);
-            System.Diagnostics.Debug.WriteLine($"[AIIsland] OnBreakingTime AI 返回: {aiText}");
+            Logger.Info($"OnBreakingTime AI 返回: {aiText}");
 
-            ShowNotification(new NotificationRequest
-            {
-                MaskContent = NotificationContent.CreateTwoIconsMask(
-                    nextSubject,
-                    "🔔",
-                    "🏫",
-                    Settings.EnableTTS,
-                    x =>
-                    {
-                        x.Duration = TimeSpan.FromSeconds(Settings.MaskDurationSeconds);
-                        x.SpeechContent = $"{nextSubject}课要开始了";
-                    }),
-                OverlayContent = NotificationContent.CreateSimpleTextContent(
-                    aiText,
-                    x =>
-                    {
-                        x.Duration = TimeSpan.FromSeconds(Settings.OverlayDurationSeconds);
-                        x.IsSpeechEnabled = Settings.EnableTTS;
-                        x.SpeechContent = aiText;
-                    })
-            });
+            ShowBeforeClassNotification(nextSubject, aiText);
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"课前提醒生成失败: {ex.Message}");
+            Logger.Error($"课前提醒生成失败: {ex.Message}");
         }
     }
 
@@ -139,11 +121,6 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
 
     private bool _lastWasBreaking = false;
 
-    /// <summary>
-    /// 主计时器每次 tick 后主动检测当前是否处于课间。
-    /// 如果 OnBreakingTime 事件正常触发，这里会被去重跳过（不会重复触发）。
-    /// 如果 OnBreakingTime 事件未触发（如 ClassIsland 时序问题），这里作为兜底补偿。
-    /// </summary>
     private async void OnTimerTickHandler(object? sender, EventArgs e)
     {
         if (Settings == null || !Settings.EnableBeforeClassReminder) return;
@@ -154,26 +131,23 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
             if (activePlan == null) return;
 
             var now = TimeSpan.FromTicks(DateTime.Now.TimeOfDay.Ticks);
-
-            // 检测当前是否处于课间：不在任何上课区间内，且在某两节课之间
             var currentClass = ScheduleQueryHelper.GetClassAtTime(activePlan, now);
-            bool isInBreaking = (currentClass == null);
+            var currentBreak = ScheduleQueryHelper.GetCurrentBreak(activePlan, now);
+            bool isInBreaking = currentClass == null && currentBreak != null;
 
             if (isInBreaking && !_lastWasBreaking)
             {
-                // 刚进入课间状态！尝试触发课前提醒
-                System.Diagnostics.Debug.WriteLine("[AIIsland] TimerTick 检测到进入课间，尝试触发提醒");
+                Logger.Info("TimerTick 检测到进入课间，尝试触发提醒");
                 await TryTriggerBeforeClassReminder(activePlan, now);
             }
             _lastWasBreaking = isInBreaking;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[AIIsland] TimerTick 检测失败: {ex.Message}");
+            Logger.Error($"TimerTick 检测失败: {ex.Message}");
         }
     }
 
-    /// <summary>尝试触发课前提醒（供 OnBreakingTime 和 TimerTick 共用）</summary>
     private async Task TryTriggerBeforeClassReminder(ClassPlan activePlan, TimeSpan now)
     {
         var nextSubject = GetNextSubjectNameFromPlan(activePlan, now);
@@ -183,14 +157,21 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
         ResetDedupIfNeeded();
         var triggerKey = $"breaking_{nextSubject}_{nextClassTime.Hours:D2}{nextClassTime.Minutes:D2}";
 
-        System.Diagnostics.Debug.WriteLine($"[AIIsland] TryTrigger key={triggerKey}");
+        Logger.Info($"TryTrigger key={triggerKey}");
         if (!_triggeredBeforeClassKeys.Add(triggerKey)) return;
 
         var previousSubject = GetCurrentSubjectNameFromPlan(activePlan, now);
-        System.Diagnostics.Debug.WriteLine($"[AIIsland] TryTrigger: prev={previousSubject}, next={nextSubject}");
+        Logger.Info($"TryTrigger: prev={previousSubject}, next={nextSubject}");
 
         var aiText = await _ai.GenerateBeforeClassReminder(previousSubject, nextSubject);
-        System.Diagnostics.Debug.WriteLine($"[AIIsland] TryTrigger AI: {aiText}");
+        Logger.Info($"TryTrigger AI: {aiText}");
+
+        ShowBeforeClassNotification(nextSubject, aiText);
+    }
+
+    private void ShowBeforeClassNotification(string nextSubject, string aiText)
+    {
+        if (Settings == null) return;
 
         ShowNotification(new NotificationRequest
         {
@@ -254,7 +235,7 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"放学总结生成失败: {ex.Message}");
+            Logger.Error($"放学总结生成失败: {ex.Message}");
         }
     }
 
@@ -290,70 +271,163 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"换课提醒失败: {ex.Message}");
+            Logger.Error($"换课提醒失败: {ex.Message}");
         }
     }
 
     // ========================================
-    //  触点 4：定时提醒检查
+    //  触点 4：自定义提醒
     // ========================================
 
+    /// <summary>
+    /// Timer 回调（ThreadPool 线程）。
+    /// 仅做轻量级前置检查，然后将核心逻辑 Post 到 UI 线程执行。
+    /// ShowNotification 必须在 UI 线程上调用，否则通知窗口无法创建。
+    /// </summary>
     private void CheckCustomReminders(object? state)
     {
+        // 轻量前置检查，避免无意义地 Post 到 UI 线程
         if (Settings == null || Settings.CustomReminders.Count == 0) return;
 
-        var now = DateTime.Now;
+        Dispatcher.UIThread.Post(CheckCustomRemindersCore, DispatcherPriority.Background);
+    }
 
-        foreach (var reminder in Settings.CustomReminders.ToList())
+    private void CheckCustomRemindersCore()
+    {
+        // 防止 UI 线程上并发重入（极端场景：前一轮耗时超过 1 秒）
+        if (Interlocked.Exchange(ref _customReminderChecking, 1) == 1) return;
+
+        try
         {
-            if (!reminder.IsEnabled) continue;
+            if (Settings == null || Settings.CustomReminders.Count == 0) return;
 
-            bool shouldTrigger = reminder.Type switch
+            var now = DateTime.Now;
+
+            // 快照遍历，避免在遍历期间 Settings.CustomReminders 被外部并发修改
+            foreach (var reminder in Settings.CustomReminders.ToList())
             {
-                ReminderType.FixedTime =>
-                    reminder.FixedDateTime.HasValue &&
-                    Math.Abs((reminder.FixedDateTime.Value - now).TotalSeconds) < 3 &&
-                    reminder.LastTriggeredDate?.Date != now.Date,
+                if (!reminder.IsEnabled) continue;
 
-                ReminderType.DailyRepeat =>
-                    reminder.FixedDateTime.HasValue &&
-                    Math.Abs((reminder.FixedDateTime.Value.TimeOfDay - now.TimeOfDay).TotalSeconds) < 3 &&
-                    reminder.LastTriggeredDate?.Date != now.Date,
+                var triggerKey = GetDueCustomReminderKey(reminder, now);
+                if (triggerKey == null) continue;
+                if (string.Equals(reminder.LastTriggeredKey, triggerKey, StringComparison.Ordinal)) continue;
 
-                ReminderType.SubjectLinked =>
-                    CheckSubjectReminder(reminder, now),
-
-                _ => false
-            };
-
-            if (shouldTrigger)
-            {
                 reminder.LastTriggeredDate = now;
-                ShowNotification(new NotificationRequest
+                reminder.LastTriggeredKey = triggerKey;
+
+                if (reminder.Type == ReminderType.FixedTime)
                 {
-                    MaskContent = NotificationContent.CreateTwoIconsMask(
-                        reminder.Content,
-                        "⏰",
-                        "🔔",
-                        false,
-                        x => x.Duration = TimeSpan.FromSeconds(3))
-                });
+                    // 固定时间提醒是一次性任务，触发后自动停用，避免第二天同一时间误触发。
+                    reminder.IsEnabled = false;
+                }
+
+                ShowCustomReminder(reminder);
             }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"自定义提醒检查失败: {ex.Message}");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _customReminderChecking, 0);
         }
     }
 
-    private bool CheckSubjectReminder(CustomReminder reminder, DateTime now)
+    private string? GetDueCustomReminderKey(CustomReminder reminder, DateTime now)
     {
-        if (string.IsNullOrEmpty(reminder.SubjectName)) return false;
+        return reminder.Type switch
+        {
+            ReminderType.FixedTime => GetFixedTimeReminderKey(reminder, now),
+            ReminderType.DailyRepeat => GetDailyRepeatReminderKey(reminder, now),
+            ReminderType.SubjectLinked => GetSubjectLinkedReminderKey(reminder, now),
+            _ => null
+        };
+    }
 
-        // 优先检查下节课，也检查当前课（防止时序偏差）
-        var nextSubject = GetNextSubjectName();
-        var currentSubject = GetCurrentSubjectName();
+    private static string? GetFixedTimeReminderKey(CustomReminder reminder, DateTime now)
+    {
+        if (!reminder.FixedDateTime.HasValue) return null;
 
-        bool match = nextSubject == reminder.SubjectName || currentSubject == reminder.SubjectName;
-        if (!match) return false;
+        var due = reminder.FixedDateTime.Value;
+        if (now < due || now > due.AddSeconds(90)) return null;
 
-        return reminder.LastTriggeredDate?.Date != now.Date;
+        return $"fixed:{reminder.Id}:{due:yyyyMMddHHmm}";
+    }
+
+    private static string? GetDailyRepeatReminderKey(CustomReminder reminder, DateTime now)
+    {
+        if (!reminder.FixedDateTime.HasValue) return null;
+
+        var due = now.Date + reminder.FixedDateTime.Value.TimeOfDay;
+        if (now < due || now > due.AddSeconds(90)) return null;
+
+        return $"daily:{reminder.Id}:{now:yyyyMMdd}";
+    }
+
+    private string? GetSubjectLinkedReminderKey(CustomReminder reminder, DateTime now)
+    {
+        var targetSubject = NormalizeSubjectName(reminder.SubjectName);
+        if (string.IsNullOrEmpty(targetSubject)) return null;
+
+        var activePlan = ScheduleQueryHelper.GetActivePlan(_profileService);
+        if (activePlan == null) return null;
+
+        var nowTime = TimeSpan.FromTicks(now.TimeOfDay.Ticks);
+        var minutesBefore = Math.Clamp(reminder.MinutesBefore, 0, 120);
+
+        foreach (var cls in activePlan.Classes.Where(c => c.IsEnabled))
+        {
+            var layout = cls.CurrentTimeLayoutItem;
+            if (layout == null) continue;
+
+            var subject = NormalizeSubjectName(ScheduleQueryHelper.GetSubjectName(_profileService, cls.SubjectId));
+            if (!string.Equals(subject, targetSubject, StringComparison.OrdinalIgnoreCase)) continue;
+
+            var remindAt = layout.StartTime - TimeSpan.FromMinutes(minutesBefore);
+            if (remindAt < TimeSpan.Zero) remindAt = TimeSpan.Zero;
+
+            var windowEnd = remindAt.Add(TimeSpan.FromSeconds(90));
+            if (nowTime >= remindAt && nowTime <= windowEnd)
+                return $"subject:{reminder.Id}:{now:yyyyMMdd}:{layout.StartTime:hh\\mm}";
+        }
+
+        return null;
+    }
+
+    private void ShowCustomReminder(CustomReminder reminder)
+    {
+        if (Settings == null) return;
+
+        var title = reminder.Type switch
+        {
+            ReminderType.SubjectLinked => $"{NormalizeSubjectName(reminder.SubjectName)}课提醒",
+            ReminderType.DailyRepeat => "每日提醒",
+            _ => "自定义提醒"
+        };
+        var content = string.IsNullOrWhiteSpace(reminder.Content) ? "该处理这件事了" : reminder.Content.Trim();
+
+        ShowNotification(new NotificationRequest
+        {
+            MaskContent = NotificationContent.CreateTwoIconsMask(
+                title,
+                "⏰",
+                "🔔",
+                Settings.EnableTTS,
+                x =>
+                {
+                    x.Duration = TimeSpan.FromSeconds(Settings.MaskDurationSeconds);
+                    x.SpeechContent = content;
+                }),
+            OverlayContent = NotificationContent.CreateSimpleTextContent(
+                content,
+                x =>
+                {
+                    x.Duration = TimeSpan.FromSeconds(Settings.OverlayDurationSeconds);
+                    x.IsSpeechEnabled = Settings.EnableTTS;
+                    x.SpeechContent = content;
+                })
+        });
     }
 
     // ========================================
@@ -405,28 +479,12 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
             if (activePlan == null) return "";
 
             var now = TimeSpan.FromTicks(DateTime.Now.TimeOfDay.Ticks);
-
-            // 如果正在上课，取下一节课
-            var currentClass = ScheduleQueryHelper.GetClassAtTime(activePlan, now);
-            if (currentClass != null)
-            {
-                var classes = activePlan.Classes.Where(c => c.IsEnabled).ToList();
-                var idx = classes.IndexOf(currentClass);
-                if (idx >= 0 && idx < classes.Count - 1)
-                    return ScheduleQueryHelper.GetSubjectName(_profileService, classes[idx + 1].SubjectId);
-                return ""; // 最后一节课
-            }
-
-            // 如果在课间，取即将开始的下一节课
-            var nextClass = ScheduleQueryHelper.GetNextClass(activePlan, now);
-            if (nextClass != null)
-                return ScheduleQueryHelper.GetSubjectName(_profileService, nextClass.SubjectId);
+            return GetNextSubjectNameFromPlan(activePlan, now);
         }
         catch { }
         return "";
     }
 
-    /// <summary>获取下节课的起始时间，用于去重 key 区分不同课间</summary>
     private TimeSpan GetNextClassStartTime()
     {
         try
@@ -440,10 +498,6 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
         catch { }
         return TimeSpan.Zero;
     }
-
-    // ========================================
-    //  直接接收 plan/now 参数的辅助方法（避免重复查询 GetActivePlan）
-    // ========================================
 
     private string GetNextSubjectNameFromPlan(ClassPlan plan, TimeSpan now)
     {
@@ -489,5 +543,12 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
         }
         catch { }
         return "";
+    }
+
+    private static string NormalizeSubjectName(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? ""
+            : value.Trim().TrimEnd('课');
     }
 }

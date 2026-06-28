@@ -25,7 +25,12 @@ public partial class WelcomeWizard : Window
     private bool _completionNotified;
     private int _typingIndex;
     private DispatcherTimer? _typingTimer;
+    private DispatcherTimer? _transitionTimer;
     private AISettings _settings = new();
+
+    // 导航防抖：上次导航时间，200ms 内的重复点击被忽略
+    private DateTime _lastNavigateTime = DateTime.MinValue;
+    private const int NavigateDebounceMs = 200;
 
     private static readonly List<string> StepNames = new() { "封面", "功能介绍", "选择方式", "配置 API", "偏好设置", "完成" };
 
@@ -145,9 +150,9 @@ public partial class WelcomeWizard : Window
 
     private void BuildStepIndicator()
     {
-        var dotColor = new SolidColorBrush(Color.Parse("#30363D"));
-        var dotTextColor = new SolidColorBrush(Color.Parse("#8B949E"));
-        var activeColor = new SolidColorBrush(Color.Parse("#58A6FF"));
+        var dotColor = ThemeHelper.ControlFillSecondary;
+        var dotTextColor = ThemeHelper.TextTertiary;
+        var activeColor = ThemeHelper.AccentDefault;
 
         for (var i = 0; i < StepNames.Count; i++)
         {
@@ -159,7 +164,7 @@ public partial class WelcomeWizard : Window
                 StepIndicator.Children.Add(new Border
                 {
                     Width = 24, Height = 1,
-                    Background = new SolidColorBrush(Color.Parse("#30363D")),
+                    Background = ThemeHelper.ControlFillSecondary,
                     VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
                 });
             }
@@ -186,9 +191,9 @@ public partial class WelcomeWizard : Window
 
     private void UpdateStepIndicator(int step)
     {
-        var dotColor = new SolidColorBrush(Color.Parse("#30363D"));
-        var dotTextColor = new SolidColorBrush(Color.Parse("#8B949E"));
-        var accent = new SolidColorBrush(Color.Parse("#58A6FF"));
+        var dotColor = ThemeHelper.ControlFillSecondary;
+        var dotTextColor = ThemeHelper.TextTertiary;
+        var accent = ThemeHelper.AccentDefault;
 
         foreach (var child in StepIndicator.Children)
         {
@@ -236,8 +241,30 @@ public partial class WelcomeWizard : Window
         };
     }
 
+    /// <summary>
+    /// 所有页面控件列表（用于导航时统一隐藏）。
+    /// </summary>
+    private IEnumerable<Border> AllPages => new[]
+    {
+        Page1, Page2, Page3, Page4Manual, Page4Recommended, PagePreferences, Page5
+    };
+
     private void NavigateTo(int step, bool forward = true)
     {
+        // ★ 中断旧动画：Stop timer + 把所有页面归零
+        // 这样旧动画的中间状态不会残留，新动画从干净状态开始
+        if (_transitionTimer != null)
+        {
+            _transitionTimer.Stop();
+            _transitionTimer = null;
+            foreach (var p in AllPages)
+            {
+                p.IsVisible = false;
+                p.Opacity = 0;
+                p.RenderTransform = null;
+            }
+        }
+
         var oldPage = GetPage(_currentStep);
         var newPage = GetPage(step);
 
@@ -245,10 +272,30 @@ public partial class WelcomeWizard : Window
         UpdateStepIndicator(step);
         UpdateButtons();
 
-        if (oldPage != null && newPage != null && oldPage != newPage)
-            AnimatePageTransition(oldPage, newPage, forward);
-        else if (newPage != null)
+        PageScrollViewer.Offset = Vector.Zero;
+
+        if (newPage == null) return;
+
+        // 确保 oldPage 处于完全可见状态（动画中断或异常状态修复）
+        if (oldPage != null && oldPage != newPage)
         {
+            if (!oldPage.IsVisible || oldPage.Opacity < 0.99)
+            {
+                oldPage.IsVisible = true;
+                oldPage.Opacity = 1;
+                oldPage.RenderTransform = null;
+            }
+            AnimatePageTransition(oldPage, newPage, forward);
+        }
+        else
+        {
+            // 同一页面或无 oldPage，直接显示
+            foreach (var p in AllPages)
+            {
+                p.IsVisible = false;
+                p.Opacity = 0;
+                p.RenderTransform = null;
+            }
             newPage.IsVisible = true;
             newPage.Opacity = 1;
             newPage.RenderTransform = null;
@@ -260,39 +307,52 @@ public partial class WelcomeWizard : Window
         if (step == 6) BuildCompletePage();
     }
 
+    /// <summary>
+    /// 安全的页面过渡动画。
+    /// 设计原则：
+    /// 1. 只操作 oldPage 和 newPage 的 Opacity/RenderTransform，不动 IsVisible（直到动画结束才设 IsVisible=false）
+    /// 2. 如果被 NavigateTo 中断，旧 timer 被 Stop，所有页面归零——不会有残留中间状态
+    /// 3. 动画结束时同步设置最终状态
+    /// </summary>
     private void AnimatePageTransition(Border oldPage, Border newPage, bool forward)
     {
-        var startOffset = forward ? 50.0 : -50.0;
+        var startOffset = forward ? 30.0 : -30.0;
+
+        // newPage 可见但透明，从一侧滑入
         newPage.IsVisible = true;
         newPage.Opacity = 0;
         newPage.RenderTransform = new TranslateTransform(startOffset, 0);
 
-        var oldOpacity = oldPage.Opacity;
-        oldPage.RenderTransform ??= new TranslateTransform(0, 0);
+        // oldPage 保持可见（确保 IsVisible=true），准备淡出
+        oldPage.IsVisible = true;
 
-        var steps = 14;
-        var interval = TimeSpan.FromMilliseconds(16);
+        var steps = 10;
         var current = 0;
+        _transitionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
 
-        var timer = new DispatcherTimer { Interval = interval };
-
-        timer.Tick += (_, _) =>
+        _transitionTimer.Tick += (_, _) =>
         {
             current++;
             var t = Math.Min(current / (double)steps, 1);
             var ease = 1 - Math.Pow(1 - t, 3);
 
+            // newPage 淡入 + 从一侧滑入
             newPage.Opacity = ease;
             if (newPage.RenderTransform is TranslateTransform nt)
                 nt.X = startOffset * (1 - ease);
 
-            oldPage.Opacity = Math.Max(0, oldOpacity * (1 - t * 1.2));
+            // oldPage 淡出 + 轻微向另一侧滑出
+            oldPage.Opacity = 1 - ease;
             if (oldPage.RenderTransform is TranslateTransform ot)
-                ot.X = -startOffset * t * 0.5;
+                ot.X = -startOffset * ease * 0.4;
+            else
+                oldPage.RenderTransform = new TranslateTransform(-startOffset * ease * 0.4, 0);
 
             if (current >= steps)
             {
-                timer.Stop();
+                _transitionTimer.Stop();
+                _transitionTimer = null;
+                // 最终状态：newPage 完全显示，oldPage 完全隐藏
                 newPage.Opacity = 1;
                 if (newPage.RenderTransform is TranslateTransform nf) nf.X = 0;
                 oldPage.IsVisible = false;
@@ -301,7 +361,7 @@ public partial class WelcomeWizard : Window
             }
         };
 
-        timer.Start();
+        _transitionTimer.Start();
     }
 
     private void UpdateButtons()
@@ -318,20 +378,29 @@ public partial class WelcomeWizard : Window
 
     // ---- 事件 ----
 
+    /// <summary>防抖检查：距上次导航不足 200ms 则忽略点击。</summary>
+    private bool IsDebounced => (DateTime.Now - _lastNavigateTime).TotalMilliseconds < NavigateDebounceMs;
+
     private void OnPathManualClicked(object? sender, RoutedEventArgs e)
     {
+        if (IsDebounced) return;
+        _lastNavigateTime = DateTime.Now;
         _chosenPath = "manual";
         NavigateTo(4);
     }
 
     private void OnPathRecommendedClicked(object? sender, RoutedEventArgs e)
     {
+        if (IsDebounced) return;
+        _lastNavigateTime = DateTime.Now;
         _chosenPath = "recommended";
         NavigateTo(4);
     }
 
     private void OnPathOfflineClicked(object? sender, RoutedEventArgs e)
     {
+        if (IsDebounced) return;
+        _lastNavigateTime = DateTime.Now;
         _chosenPath = "offline";
         SaveWizardBasics();
         NavigateTo(5);
@@ -339,6 +408,8 @@ public partial class WelcomeWizard : Window
 
     private void OnPrevClicked(object? sender, RoutedEventArgs e)
     {
+        if (IsDebounced) return;
+        _lastNavigateTime = DateTime.Now;
         if (_currentStep <= 1) return;
         if (_currentStep == 6)
         {
@@ -365,6 +436,8 @@ public partial class WelcomeWizard : Window
 
     private void OnNextClicked(object? sender, RoutedEventArgs e)
     {
+        if (IsDebounced) return;
+        _lastNavigateTime = DateTime.Now;
         if (_currentStep == 3)
         {
             if (_chosenPath == "offline")
@@ -421,6 +494,8 @@ public partial class WelcomeWizard : Window
 
     private void OnSkipClicked(object? sender, RoutedEventArgs e)
     {
+        if (IsDebounced) return;
+        _lastNavigateTime = DateTime.Now;
         if (_currentStep == 3)
         {
             _chosenPath = "offline";
@@ -585,14 +660,14 @@ public partial class WelcomeWizard : Window
     {
         if (testButton != null) testButton.IsEnabled = false;
         resultText.Text = "正在测试连接...";
-        resultText.Foreground = new SolidColorBrush(Color.Parse("#8B949E"));
+        resultText.Foreground = ThemeHelper.TextTertiary;
 
         try
         {
             var result = await ApiConnectionTester.FullTestAsync(endpoint, apiKey, model);
             resultText.Text = result.Success ? $"✅ {result.Message}" : $"❌ {result.Message}";
             resultText.Foreground = new SolidColorBrush(
-                result.Success ? Color.Parse("#3FB950") : Color.Parse("#F85149"));
+                result.Success ? ThemeHelper.SystemSuccessColor : ThemeHelper.SystemCriticalColor);
         }
         finally
         {
@@ -611,7 +686,7 @@ public partial class WelcomeWizard : Window
             if (b != null) b.IsEnabled = false;
 
         resultText.Text = testType == "reminder" ? "正在测试 AI 课前提醒..." : "正在测试 AI 每日总结...";
-        resultText.Foreground = new SolidColorBrush(Color.Parse("#8B949E"));
+        resultText.Foreground = ThemeHelper.TextTertiary;
 
         try
         {
@@ -620,7 +695,7 @@ public partial class WelcomeWizard : Window
             if (svc == null)
             {
                 resultText.Text = "AI 服务未初始化，请先保存配置。";
-                resultText.Foreground = new SolidColorBrush(Color.Parse("#F85149"));
+                resultText.Foreground = ThemeHelper.SystemCritical;
                 return;
             }
 
@@ -638,14 +713,14 @@ public partial class WelcomeWizard : Window
                 {
                     var reminder = await svc.GenerateBeforeClassReminder("数学", "英语");
                     resultText.Text = $"✅ AI 提醒测试成功！\n{reminder}";
-                    resultText.Foreground = new SolidColorBrush(Color.Parse("#3FB950"));
+                    resultText.Foreground = ThemeHelper.SystemSuccess;
                 }
                 else
                 {
                     var summary = await svc.GenerateDailySummary(
                         new List<string> { "语文", "数学", "英语", "物理", "体育", "化学" });
                     resultText.Text = $"✅ AI 总结测试成功！\n{summary}";
-                    resultText.Foreground = new SolidColorBrush(Color.Parse("#3FB950"));
+                    resultText.Foreground = ThemeHelper.SystemSuccess;
                 }
             }
             finally
@@ -658,7 +733,7 @@ public partial class WelcomeWizard : Window
         catch (Exception ex)
         {
             resultText.Text = $"❌ 测试失败: {ex.Message}";
-            resultText.Foreground = new SolidColorBrush(Color.Parse("#F85149"));
+            resultText.Foreground = ThemeHelper.SystemCritical;
         }
         finally
         {
@@ -698,10 +773,10 @@ public partial class WelcomeWizard : Window
 
     private void UpdateToneSelection()
     {
-        var selectedBorder = new SolidColorBrush(Color.Parse("#58A6FF"));
-        var defaultBorder = new SolidColorBrush(Color.Parse("#3A414A"));
-        var selectedBg = Color.Parse("#1C2F4A");
-        var defaultBg = Color.Parse("#1C2128");
+        var selectedBorder = ThemeHelper.AccentDefault;
+        var defaultBorder = ThemeHelper.CardStrokeDefault;
+        var selectedBg = ThemeHelper.AccentTextTertiaryColor;
+        var defaultBg = ThemeHelper.CardBackgroundColor;
 
         ToneLivelyBtn.BorderBrush = _settings.ToneStyle == 0 ? selectedBorder : defaultBorder;
         ToneLivelyBtn.Background = _settings.ToneStyle == 0
@@ -751,10 +826,10 @@ public partial class WelcomeWizard : Window
             Children =
             {
                 new TextBlock { Text = label, FontSize = 15,
-                    Foreground = new SolidColorBrush(Color.Parse("#8B949E")),
+                    Foreground = ThemeHelper.TextTertiary,
                     [DockPanel.DockProperty] = Dock.Left, Width = 110 },
                 new TextBlock { Text = value, FontSize = 15, FontWeight = FontWeight.SemiBold,
-                    Foreground = new SolidColorBrush(Color.Parse("#E6EDF3")),
+                    Foreground = ThemeHelper.TextPrimary,
                     TextWrapping = TextWrapping.Wrap }
             }
         });
@@ -763,6 +838,8 @@ public partial class WelcomeWizard : Window
     protected override void OnClosed(EventArgs e)
     {
         _typingTimer?.Stop();
+        _transitionTimer?.Stop();
+        _transitionTimer = null;
         foreach (var t in _buttonTimers.Values)
             t.Stop();
         _buttonTimers.Clear();
