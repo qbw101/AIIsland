@@ -37,6 +37,9 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
         Plugin.ProfileService = profileService;
         Plugin.LessonsService = lessonsService;
 
+        // 替换基类默认创建的 FluentIcon 为自定义字体图标（bell_badge_gearshape）
+        IconElement = SettingsPageIconPatcher.CreateNotifierIcon();
+
         _lessons.OnBreakingTime += OnBreakingTimeHandler;
         _lessons.OnAfterSchool += OnAfterSchoolHandler;
         _lessons.OnClass += OnClassHandler;
@@ -45,6 +48,85 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
         // 自定义提醒需要独立轮询：固定时间/每日重复/科目课前 N 分钟都依赖当前时钟。
         _customTimer = new Timer(CheckCustomReminders, null,
             TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+
+        // 订阅托盘菜单手动触发事件
+        AIRegenerationService.TriggerBeforeClassReminderRequested += OnManualBeforeClassReminder;
+        AIRegenerationService.TriggerAfterSchoolSummaryRequested += OnManualAfterSchoolSummary;
+    }
+
+    private void OnManualBeforeClassReminder()
+    {
+        Logger.Info("[TrayMenu] 手动触发课前提醒");
+        _ = ManualBeforeClassReminderAsync();
+    }
+
+    private async Task ManualBeforeClassReminderAsync()
+    {
+        try
+        {
+            var nextSubject = GetNextSubjectName();
+            if (string.IsNullOrEmpty(nextSubject))
+            {
+                nextSubject = "下一节课";
+                Logger.Info("[TrayMenu] 当前无下一节课，使用通用内容触发课前提醒");
+            }
+            var previousSubject = GetCurrentSubjectName();
+            if (string.IsNullOrWhiteSpace(previousSubject))
+            {
+                previousSubject = "今日课程";
+            }
+            var aiText = await _ai.GenerateBeforeClassReminder(previousSubject, nextSubject);
+            ShowBeforeClassNotification(nextSubject, aiText);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"[TrayMenu] 手动课前提醒失败: {ex.Message}");
+        }
+    }
+
+    private void OnManualAfterSchoolSummary()
+    {
+        Logger.Info("[TrayMenu] 手动触发放学总结");
+        _ = ManualAfterSchoolSummaryAsync();
+    }
+
+    private async Task ManualAfterSchoolSummaryAsync()
+    {
+        try
+        {
+            var todayClasses = GetTodayClassNames();
+            if (todayClasses.Count == 0)
+            {
+                Logger.Info("[TrayMenu] 手动放学总结：今日无课程");
+                return;
+            }
+            var aiText = await _ai.GenerateDailySummary(todayClasses);
+            ShowNotification(new NotificationRequest
+            {
+                MaskContent = NotificationContent.CreateTwoIconsMask(
+                    "今日学习总结",
+                    "📋",
+                    "✅",
+                    Settings?.EnableTTS ?? false,
+                    x =>
+                    {
+                        x.Duration = TimeSpan.FromSeconds(Settings?.MaskDurationSeconds ?? 3);
+                        x.SpeechContent = "放学啦";
+                    }),
+                OverlayContent = NotificationContent.CreateSimpleTextContent(
+                    aiText,
+                    x =>
+                    {
+                        x.Duration = TimeSpan.FromSeconds((Settings?.OverlayDurationSeconds ?? 5) + 2);
+                        x.IsSpeechEnabled = Settings?.EnableTTS ?? false;
+                        x.SpeechContent = aiText;
+                    })
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"[TrayMenu] 手动放学总结失败: {ex.Message}");
+        }
     }
 
     // ========================================

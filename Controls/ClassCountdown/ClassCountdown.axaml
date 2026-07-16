@@ -8,7 +8,8 @@
     FontSize="{Binding Settings.FontSize, FallbackValue=14}">
 
     <Border CornerRadius="8" Padding="12,8"
-            Background="{DynamicResource SystemControlBackgroundListLowBrush}">
+            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
         <StackPanel Spacing="5">
             <Grid ColumnDefinitions="Auto,*">
                 <TextBlock Grid.Column="0" Text="⏳" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0"/>

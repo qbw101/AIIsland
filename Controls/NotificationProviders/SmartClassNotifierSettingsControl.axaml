@@ -7,84 +7,230 @@
     xmlns:local="clr-namespace:ClassIsland.AISmartClass.Controls.NotificationProviders"
     xmlns:models="clr-namespace:ClassIsland.AISmartClass.Models">
 
-    <StackPanel Spacing="12" Margin="12"
-                DataContext="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=local:SmartClassNotifierSettingsControl}}">
+    <ci:NotificationProviderControlBase.Styles>
+        <Style Selector="TextBlock.section-title">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+            <Setter Property="Margin" Value="0,12,0,2"/>
+        </Style>
+        <Style Selector="Border.setting-row">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16,12"/>
+            <Setter Property="MinHeight" Value="64"/>
+        </Style>
+        <Style Selector="Border.setting-row:pointerover">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.row-title">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.row-description">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style Selector="TextBlock.status-text">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.status-text.error">
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
+        </Style>
+        <Style Selector="Button">
+            <Setter Property="MinHeight" Value="34"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="Button.danger">
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
+        </Style>
+        <Style Selector="TextBox">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="MinHeight" Value="36"/>
+        </Style>
+        <Style Selector="NumericUpDown">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="MinHeight" Value="36"/>
+        </Style>
+        <Style Selector="TextBox:pointerover">
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="NumericUpDown:pointerover">
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="TextBox:focus">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        </Style>
+        <Style Selector="NumericUpDown:focus">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        </Style>
+        <Style Selector="ToggleSwitch">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="OffContent" Value="关"/>
+            <Setter Property="OnContent" Value="开"/>
+        </Style>
+    </ci:NotificationProviderControlBase.Styles>
 
-        <TextBlock Text="自动提醒" FontSize="15" FontWeight="SemiBold"/>
+    <ScrollViewer>
+        <StackPanel Spacing="8" Margin="16"
+                    DataContext="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=local:SmartClassNotifierSettingsControl}}">
 
-        <CheckBox Content="课前提醒（课间开始时触发）"
-                  IsChecked="{Binding Settings.EnableBeforeClassReminder}"/>
+            <TextBlock Text="自动提醒" Classes="section-title"/>
 
-        <CheckBox Content="放学总结（放学时触发）"
-                  IsChecked="{Binding Settings.EnableAfterSchoolSummary}"/>
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="课前提醒" Classes="row-title"/>
+                        <TextBlock Text="课间开始时生成下一节课的个性化提醒。" Classes="row-description"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" IsChecked="{Binding Settings.EnableBeforeClassReminder, Mode=TwoWay}"/>
+                </Grid>
+            </Border>
 
-        <CheckBox Content="换课提醒（检测到临时换课时触发）"
-                  IsChecked="{Binding Settings.EnableClassChangeAlert}"/>
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="放学总结" Classes="row-title"/>
+                        <TextBlock Text="放学时生成当天的学习总结与复习建议。" Classes="row-description"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" IsChecked="{Binding Settings.EnableAfterSchoolSummary, Mode=TwoWay}"/>
+                </Grid>
+            </Border>
 
-        <Separator Margin="0,2"/>
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="换课提醒" Classes="row-title"/>
+                        <TextBlock Text="检测到临时换课时显示提醒。" Classes="row-description"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" IsChecked="{Binding Settings.EnableClassChangeAlert, Mode=TwoWay}"/>
+                </Grid>
+            </Border>
 
-        <TextBlock Text="提醒样式" FontSize="15" FontWeight="SemiBold"/>
+            <TextBlock Text="提醒样式" Classes="section-title"/>
 
-        <CheckBox Content="语音播报（默认关闭以免影响课堂）"
-                  IsChecked="{Binding Settings.EnableTTS}"/>
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="语音播报" Classes="row-title"/>
+                        <TextBlock Text="朗读提醒内容，默认关闭以免影响课堂。" Classes="row-description"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" IsChecked="{Binding Settings.EnableTTS, Mode=TwoWay}"/>
+                </Grid>
+            </Border>
 
-        <Grid ColumnDefinitions="120,150">
-            <TextBlock Text="遮罩时长（秒）" VerticalAlignment="Center" FontSize="13"/>
-            <NumericUpDown Grid.Column="1"
-                           Value="{Binding Settings.MaskDurationSeconds}"
-                           Minimum="1" Maximum="10"/>
-        </Grid>
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="*,160" ColumnSpacing="16">
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="遮罩时长" Classes="row-title"/>
+                        <TextBlock Text="提醒出现前全屏遮罩的持续时间（秒）。" Classes="row-description"/>
+                    </StackPanel>
+                    <NumericUpDown Grid.Column="1" Value="{Binding Settings.MaskDurationSeconds, Mode=TwoWay}"
+                                   Minimum="1" Maximum="10" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
 
-        <Grid ColumnDefinitions="120,150">
-            <TextBlock Text="正文时长（秒）" VerticalAlignment="Center" FontSize="13"/>
-            <NumericUpDown Grid.Column="1"
-                           Value="{Binding Settings.OverlayDurationSeconds}"
-                           Minimum="1" Maximum="15"/>
-        </Grid>
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="*,160" ColumnSpacing="16">
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="正文时长" Classes="row-title"/>
+                        <TextBlock Text="提醒正文停留在屏幕上的持续时间（秒）。" Classes="row-description"/>
+                    </StackPanel>
+                    <NumericUpDown Grid.Column="1" Value="{Binding Settings.OverlayDurationSeconds, Mode=TwoWay}"
+                                   Minimum="1" Maximum="15" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
 
-        <Separator Margin="0,2"/>
+            <TextBlock Text="自定义提醒" Classes="section-title"/>
 
-        <TextBlock Text="自定义提醒" FontSize="15" FontWeight="SemiBold"/>
-        <TextBlock Text="支持固定日期时间、每日重复、指定科目课前提醒。解析失败时可手动添加。"
-                   FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}" TextWrapping="Wrap"/>
+            <Border Classes="setting-row">
+                <StackPanel Spacing="10">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="使用自然语言添加" Classes="row-title"/>
+                        <TextBlock Text="支持固定日期时间、每日重复和指定科目课前提醒；解析失败时可手动添加。" Classes="row-description"/>
+                    </StackPanel>
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <TextBox x:Name="NlInputBox"
+                                 Watermark="例如：每天 7 点提醒我背单词"
+                                 FontSize="13"/>
+                        <Button Grid.Column="1" x:Name="ParseBtn" Content="解析并添加"
+                                Classes="primary" Click="OnParseClicked"/>
+                    </Grid>
+                    <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                            BorderThickness="1" CornerRadius="6" Padding="10,8">
+                        <TextBlock x:Name="ParseStatusText" FontSize="13" FontWeight="Medium"
+                                   Classes="status-text" IsVisible="False" TextWrapping="Wrap"/>
+                    </Border>
+                </StackPanel>
+            </Border>
 
-        <Grid ColumnDefinitions="*,Auto">
-            <TextBox x:Name="NlInputBox" Watermark="例如：明天下午3点提醒我交数学作业 / 每天7点提醒我背单词 / 数学课前5分钟提醒我带作业本"
-                     FontSize="13"/>
-            <Button Grid.Column="1" x:Name="ParseBtn" Content="解析添加"
-                    Margin="6,0,0,0" Click="OnParseClicked"/>
-        </Grid>
+            <Border Classes="setting-row" Padding="10">
+                <StackPanel Spacing="10">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="提醒列表" Classes="row-title"/>
+                            <TextBlock Text="选择一项后可以编辑或删除。" Classes="row-description"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                            <Button x:Name="ImportBtn" Content="导入" Click="OnImportRemindersClicked"/>
+                            <Button x:Name="ExportBtn" Content="导出" Click="OnExportRemindersClicked"/>
+                            <Button x:Name="AddBtn" Content="手动添加" Classes="primary" Click="OnAddClicked"/>
+                        </StackPanel>
+                    </Grid>
 
-        <TextBlock x:Name="ParseStatusText" FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                   IsVisible="False" TextWrapping="Wrap"/>
+                    <ScrollViewer MaxHeight="220">
+                        <ListBox x:Name="ReminderListBox" Background="Transparent" BorderThickness="0">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                            CornerRadius="6" Padding="12,10" Margin="0,0,0,6"
+                                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                            <StackPanel Spacing="2">
+                                                <TextBlock FontSize="13" FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                                           Text="{Binding DisplayTitle}" TextWrapping="Wrap"/>
+                                                <TextBlock FontSize="12"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                           Text="{Binding DisplaySubtitle}" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" Text="已启用" FontSize="12"
+                                                       Foreground="{DynamicResource SystemFillColorSuccessBrush}"
+                                                       VerticalAlignment="Center" IsVisible="{Binding IsEnabled}"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </ScrollViewer>
 
-        <ScrollViewer MaxHeight="180">
-            <ListBox x:Name="ReminderListBox" Background="Transparent" BorderThickness="0">
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" CornerRadius="6" Padding="10,8" Margin="0,0,0,4"
-                                BorderBrush="{DynamicResource ControlFillColorSecondaryBrush}" BorderThickness="1">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <StackPanel>
-                                    <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                               Text="{Binding DisplayTitle}" TextWrapping="Wrap"/>
-                                    <TextBlock FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                               Text="{Binding DisplaySubtitle}" TextWrapping="Wrap"/>
-                                </StackPanel>
-                                <TextBlock Grid.Column="1" Text="✓" Foreground="{DynamicResource SystemFillColorSuccessBrush}"
-                                           VerticalAlignment="Center" IsVisible="{Binding IsEnabled}"/>
-                            </Grid>
-                        </Border>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
-        </ScrollViewer>
-
-        <StackPanel Orientation="Horizontal" Spacing="8">
-            <Button x:Name="AddBtn" Content="+ 手动添加" Click="OnAddClicked"/>
-            <Button x:Name="EditBtn" Content="编辑选中" Click="OnEditClicked"/>
-            <Button x:Name="DeleteBtn" Content="删除选中" Click="OnDeleteClicked"/>
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                        <Button x:Name="EditBtn" Content="编辑选中" Click="OnEditClicked"/>
+                        <Button x:Name="DeleteBtn" Content="删除选中" Classes="danger" Click="OnDeleteClicked"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
         </StackPanel>
-
-    </StackPanel>
+    </ScrollViewer>
 </ci:NotificationProviderControlBase>

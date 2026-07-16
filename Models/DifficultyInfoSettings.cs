@@ -7,9 +7,11 @@ namespace ClassIsland.AISmartClass.Models;
 public partial class DifficultyInfoSettings : ObservableObject
 {
     [ObservableProperty]
+    [property: JsonPropertyName("showDifficulty")]
     private bool _showDifficulty = true;
 
     [ObservableProperty]
+    [property: JsonPropertyName("showPomodoro")]
     private bool _showPomodoro = true;
 
     [ObservableProperty]

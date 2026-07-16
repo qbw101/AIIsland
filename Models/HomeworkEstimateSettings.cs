@@ -7,6 +7,7 @@ namespace ClassIsland.AISmartClass.Models;
 public partial class HomeworkEstimateSettings : ObservableObject
 {
     [ObservableProperty]
+    [property: JsonPropertyName("showHomeworkEstimate")]
     private bool _showHomeworkEstimate = true;
 
     [ObservableProperty]

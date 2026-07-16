@@ -1,44 +1,49 @@
-<UserControl
+<ci:ComponentBase
     x:Class="ClassIsland.AISmartClass.Controls.SmartClassPanelSettings.SmartClassPanelSettingsControl"
+    x:TypeArguments="models:SmartClassPanelSettings"
     xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ci="clr-namespace:ClassIsland.Core.Abstractions.Controls;assembly=ClassIsland.Core"
+    xmlns:local="clr-namespace:ClassIsland.AISmartClass.Controls.SmartClassPanelSettings"
+    xmlns:models="clr-namespace:ClassIsland.AISmartClass.Models">
 
-    <StackPanel Spacing="12" Margin="12">
+    <StackPanel Spacing="12" Margin="12"
+                DataContext="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=local:SmartClassPanelSettingsControl}}">
 
         <TextBlock Text="显示模块" FontSize="15" FontWeight="SemiBold"/>
 
         <CheckBox x:Name="ShowOverviewCheck"
                   Content="今日课表总结"
-                  IsChecked="{Binding Settings.ShowTodayOverview}"/>
+                  IsChecked="{Binding Settings.ShowTodayOverview, Mode=TwoWay}"/>
 
         <CheckBox x:Name="ShowHomeworkCheck"
                   Content="作业量估算"
-                  IsChecked="{Binding Settings.ShowHomeworkEstimate}"/>
+                  IsChecked="{Binding Settings.ShowHomeworkEstimate, Mode=TwoWay}"/>
 
         <CheckBox x:Name="ShowCountdownCheck"
                   Content="倒计时 + 进度条"
-                  IsChecked="{Binding Settings.ShowCountdown}"/>
+                  IsChecked="{Binding Settings.ShowCountdown, Mode=TwoWay}"/>
 
         <CheckBox x:Name="ShowHintCheck"
                   Content="当前课程 AI 提示"
-                  IsChecked="{Binding Settings.ShowCurrentHint}"/>
+                  IsChecked="{Binding Settings.ShowCurrentHint, Mode=TwoWay}"/>
 
         <CheckBox x:Name="ShowDifficultyCheck"
                   Content="难度星数"
-                  IsChecked="{Binding Settings.ShowDifficulty}"/>
+                  IsChecked="{Binding Settings.ShowDifficulty, Mode=TwoWay}"/>
 
         <CheckBox x:Name="ShowPomodoroCheck"
                   Content="番茄钟建议"
-                  IsChecked="{Binding Settings.ShowPomodoro}"/>
+                  IsChecked="{Binding Settings.ShowPomodoro, Mode=TwoWay}"/>
 
         <Separator Margin="0,4"/>
 
         <Grid ColumnDefinitions="120,150">
             <TextBlock Text="面板最大高度" VerticalAlignment="Center" FontSize="13"/>
             <NumericUpDown Grid.Column="1"
-                           Value="{Binding Settings.PanelMaxHeight}"
+                           Value="{Binding Settings.PanelMaxHeight, Mode=TwoWay}"
                            Minimum="80" Maximum="300" Increment="10"/>
         </Grid>
 
     </StackPanel>
-</UserControl>
+</ci:ComponentBase>

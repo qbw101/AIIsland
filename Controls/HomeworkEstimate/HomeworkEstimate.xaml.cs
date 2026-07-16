@@ -1,3 +1,4 @@
+using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -37,19 +38,37 @@ public partial class HomeworkEstimate : ComponentBase<HomeworkEstimateSettings>
         DataContext = this;
         base.OnLoaded(e);
         _ = LoadAsync();
+
+        // 订阅托盘菜单手动重新生成事件
+        AIRegenerationService.RegenerateHomeworkEstimateRequested += OnRegenerateRequested;
+    }
+
+    private void OnRegenerateRequested()
+    {
+        Logger.Info("[TrayMenu] 手动重新生成作业量估算");
+        _ = LoadAsync();
+    }
+
+    protected override void OnUnloaded(RoutedEventArgs e)
+    {
+        base.OnUnloaded(e);
+        AIRegenerationService.RegenerateHomeworkEstimateRequested -= OnRegenerateRequested;
     }
 
     private async Task LoadAsync()
     {
         try
         {
-            var ps = Plugin.ProfileService;
             var ai = Plugin.GetAIService();
-            if (ps == null || ai == null) { Estimate = "服务未就绪"; return; }
+            if (ai == null) { Estimate = "服务未就绪"; return; }
 
-            var subjects = ScheduleQueryHelper.GetTodaySubjectNames(ps);
-            var result = await ai.EstimateHomeworkLoad(subjects);
-            Estimate = result;
+            // 等待 ProfileService / 课表就绪，避免启动早期误判为空课表
+            var subjects = await ScheduleQueryHelper.GetTodaySubjectNamesWhenReadyAsync(() => Plugin.ProfileService);
+            Estimate = "生成中...";
+            await ai.EstimateHomeworkLoadStream(subjects, snapshot =>
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => Estimate = snapshot);
+            });
         }
         catch (Exception ex)
         {

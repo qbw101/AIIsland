@@ -45,15 +45,15 @@ public partial class DifficultyInfo : ComponentBase<DifficultyInfoSettings>
         UpdateInfo();
     }
 
-    private void UpdateInfo()
+    private async void UpdateInfo()
     {
         try
         {
-            var ps = Plugin.ProfileService;
             var ai = Plugin.GetAIService();
-            if (ps == null || ai == null) return;
+            if (ai == null) return;
 
-            var subjects = ScheduleQueryHelper.GetTodaySubjectNames(ps);
+            // 等待 ProfileService / 课表就绪，避免启动早期误判为空课表
+            var subjects = await ScheduleQueryHelper.GetTodaySubjectNamesWhenReadyAsync(() => Plugin.ProfileService);
             var diff = ai.EstimateDifficulty(subjects);
             DifficultyStars = new string('⭐', Math.Clamp(diff, 1, 5));
             PomodoroSuggestion = subjects.Count switch { > 5 => "建议 25min", >= 4 => "建议 30min", _ => "建议 45min" };

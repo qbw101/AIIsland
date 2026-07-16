@@ -1,8 +1,10 @@
+using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using ClassIsland.Core.Abstractions.Controls;
+using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.AISmartClass.Attributes;
 using ClassIsland.AISmartClass.Services;
 using ClassIsland.Core.Attributes;
@@ -25,7 +27,12 @@ public partial class CurrentHint : ComponentBase<CurrentHintSettings>
     private string _hint = "等待课程开始...";
     public string Hint { get => _hint; set => SetAndRaise(HintProperty, ref _hint, value); }
 
-    private bool _loaded = false;
+    private bool _loaded;
+    private string _loadedSubject = "";
+    private DateOnly _loadedDate;
+    private bool _lessonsSubscribed;
+    private CancellationTokenSource? _refreshCts;
+    private long _refreshGeneration;
 
     public CurrentHint()
     {
@@ -38,52 +45,133 @@ public partial class CurrentHint : ComponentBase<CurrentHintSettings>
     {
         DataContext = this;
         base.OnLoaded(e);
-        var ls = Plugin.LessonsService;
-        if (ls != null) ls.OnClass += OnClassHandler;
-        _ = RefreshAsync();
+        TrySubscribeLessonsService();
+        AIRegenerationService.RegenerateHintRequested += OnRegenerateRequested;
+        StartRefresh(force: false);
     }
 
     protected override void OnUnloaded(RoutedEventArgs e)
     {
-        base.OnUnloaded(e);
+        AIRegenerationService.RegenerateHintRequested -= OnRegenerateRequested;
+        Interlocked.Increment(ref _refreshGeneration);
         var ls = Plugin.LessonsService;
-        if (ls != null) ls.OnClass -= OnClassHandler;
+        if (_lessonsSubscribed && ls != null)
+            ls.OnClass -= OnClassHandler;
+        _lessonsSubscribed = false;
+        _refreshCts?.Cancel();
+        _refreshCts?.Dispose();
+        _refreshCts = null;
+        base.OnUnloaded(e);
     }
 
-    private void OnClassHandler(object? sender, EventArgs e) { _loaded = false; _ = RefreshAsync(); }
-
-    private async Task RefreshAsync()
+    private void OnRegenerateRequested()
     {
-        if (_loaded) return;
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            _loaded = false;
+            StartRefresh(force: true);
+        });
+    }
+
+    private void TrySubscribeLessonsService()
+    {
+        if (_lessonsSubscribed) return;
+        var ls = Plugin.LessonsService;
+        if (ls == null) return;
+        ls.OnClass += OnClassHandler;
+        _lessonsSubscribed = true;
+    }
+
+    private void OnClassHandler(object? sender, EventArgs e)
+    {
+        _loaded = false;
+        StartRefresh(force: true);
+    }
+
+    private void StartRefresh(bool force)
+    {
+        TrySubscribeLessonsService();
+        if (!force && _loaded && _loadedDate == DateOnly.FromDateTime(DateTime.Now)) return;
+
+        _refreshCts?.Cancel();
+        _refreshCts?.Dispose();
+        _refreshCts = new CancellationTokenSource();
+        var generation = Interlocked.Increment(ref _refreshGeneration);
+        _ = RefreshAsync(generation, _refreshCts.Token);
+    }
+
+    private async Task RefreshAsync(long generation, CancellationToken ct)
+    {
         try
         {
-            var ps = Plugin.ProfileService;
             var ai = Plugin.GetAIService();
-            if (ps == null || ai == null) return;
+            if (ai == null)
+            {
+                Hint = "AI 服务加载中，请稍后刷新";
+                return;
+            }
 
-            var current = GetCurrentSubjectName(ps);
-            var userMsg = string.IsNullOrEmpty(current) ? "请给一句15字以内的学习提示。" : $"当前课程：{current}\n请给一句15字以内的学习提示。";
-            var systemPrompt = PromptTemplates.GetCurrentHintSystem(ai.EffectiveToneStyle);
-            var result = await ai.ChatAsync(systemPrompt, userMsg);
-            Hint = string.IsNullOrEmpty(result) || result.Contains("AI 暂时不可用") ? "" : result;
+            var schedule = await ScheduleQueryHelper.GetTodaySubjectsWhenReadyAsync(
+                () => Plugin.ProfileService, ct: ct);
+            TrySubscribeLessonsService();
+            if (generation != Interlocked.Read(ref _refreshGeneration)) return;
+
+            if (schedule.Readiness is not (ProfileReadiness.Ready or ProfileReadiness.ReadyWithoutCourses))
+            {
+                Hint = "课表加载中，请稍后刷新";
+                return;
+            }
+
+            var ps = Plugin.ProfileService;
+            LearningHintContext context;
+            if (schedule.Readiness == ProfileReadiness.ReadyWithoutCourses || ps == null)
+            {
+                context = new LearningHintContext("今天没有课程", "自主学习", "no-courses");
+            }
+            else
+            {
+                context = ScheduleQueryHelper.GetLearningHintContext(ps, schedule.Subjects);
+            }
+
+            if (_loaded && _loadedDate == DateOnly.FromDateTime(DateTime.Now) &&
+                string.Equals(_loadedSubject, context.CacheKey, StringComparison.Ordinal))
+                return;
+
+            Logger.Info($"[CurrentHint] 当前状态: '{context.Scene}', 学习重点: '{context.Focus}'");
+            Hint = "生成中...";
+
+            var result = await ai.GenerateLearningHintStream(context.Scene, context.Focus, snapshot =>
+            {
+                if (generation != Interlocked.Read(ref _refreshGeneration)) return;
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    if (generation == Interlocked.Read(ref _refreshGeneration) &&
+                        !string.IsNullOrWhiteSpace(snapshot))
+                    {
+                        Hint = snapshot;
+                    }
+                });
+            }, ct);
+
+            if (generation != Interlocked.Read(ref _refreshGeneration)) return;
+            _loaded = !string.IsNullOrWhiteSpace(result) && !ai.IsFallbackResult(result);
+            if (_loaded)
+            {
+                _loadedSubject = context.CacheKey;
+                _loadedDate = DateOnly.FromDateTime(DateTime.Now);
+            }
+            else if (string.IsNullOrWhiteSpace(Hint))
+            {
+                Hint = "课程提示暂不可用，请稍后刷新";
+            }
         }
-        catch (Exception ex) { Logger.Info($"课程提示失败: {ex.Message}"); }
-    }
-
-    private static string GetCurrentSubjectName(ClassIsland.Core.Abstractions.Services.IProfileService ps)
-    {
-        try
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (Exception ex)
         {
-            if (ps?.Profile == null) return "";
-            var plan = ps.Profile.ClassPlans.Values.FirstOrDefault(p => p.IsActivated && p.IsEnabled);
-            if (plan == null) return "";
-            var now = TimeSpan.FromTicks(DateTime.Now.TimeOfDay.Ticks);
-            var cls = ScheduleQueryHelper.GetClassAtTime(plan, now);
-            if (cls != null) return ScheduleQueryHelper.GetSubjectName(ps, cls.SubjectId);
-            var next = ScheduleQueryHelper.GetNextClass(plan, now);
-            if (next != null) return ScheduleQueryHelper.GetSubjectName(ps, next.SubjectId);
+            Logger.Info($"课程提示失败: {ex.Message}");
+            if (generation == Interlocked.Read(ref _refreshGeneration))
+                Hint = "课程提示生成失败，请稍后刷新";
         }
-        catch { }
-        return "";
     }
+
 }

@@ -8,11 +8,13 @@
     FontSize="{Binding Settings.FontSize, FallbackValue=14}">
 
     <Border CornerRadius="8" Padding="12,8"
-            Background="{DynamicResource SystemControlBackgroundListLowBrush}">
+            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
         <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
             <TextBlock Text="📝" FontSize="18" VerticalAlignment="Center"/>
             <StackPanel Spacing="1" VerticalAlignment="Center">
-                <TextBlock Text="作业量预估" FontSize="11" Opacity="0.6"/>
+                <TextBlock Text="作业量预估" FontSize="11"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                 <TextBlock Text="{Binding Estimate}"
                            TextWrapping="Wrap" MaxLines="2"
                            TextTrimming="CharacterEllipsis"

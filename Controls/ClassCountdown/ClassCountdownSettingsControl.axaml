@@ -5,7 +5,11 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:ci="clr-namespace:ClassIsland.Core.Abstractions.Controls;assembly=ClassIsland.Core"
     xmlns:local="clr-namespace:ClassIsland.AISmartClass.Controls.ClassCountdown"
-    xmlns:models="clr-namespace:ClassIsland.AISmartClass.Models">
+    xmlns:models="clr-namespace:ClassIsland.AISmartClass.Models"
+    xmlns:converters="clr-namespace:ClassIsland.AISmartClass.Converters;assembly=ClassIsland.AISmartClass">
+    <ci:ComponentBase.Resources>
+        <converters:EnumDescriptionConverter x:Key="EnumDescriptionConverter"/>
+    </ci:ComponentBase.Resources>
     <ScrollViewer DataContext="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=local:ClassCountdownSettingsControl}}">
         <StackPanel Spacing="12" Margin="8">
             <TextBlock Text="字体大小" FontWeight="Bold"/>
@@ -14,6 +18,21 @@
                 <Slider Grid.Column="1" Minimum="10" Maximum="24"
                         TickFrequency="1" IsSnapToTickEnabled="True"
                         Value="{Binding Settings.FontSize, Mode=TwoWay}"/>
+            </Grid>
+
+            <TextBlock Text="时间来源" FontWeight="Bold"/>
+            <Grid ColumnDefinitions="*,160">
+                <TextBlock Text="倒计时使用" VerticalAlignment="Center"/>
+                <ComboBox Grid.Column="1" HorizontalAlignment="Stretch"
+                          SelectedItem="{Binding Settings.TimeSource, Mode=TwoWay}">
+                    <models:CountdownTimeSource>SystemTime</models:CountdownTimeSource>
+                    <models:CountdownTimeSource>ClassIslandTime</models:CountdownTimeSource>
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}"/>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
             </Grid>
         </StackPanel>
     </ScrollViewer>

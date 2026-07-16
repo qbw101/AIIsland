@@ -18,12 +18,12 @@
         <Border IsVisible="{Binding IsAIThinking}"
                 CornerRadius="3"
                 Padding="4,2"
-                Background="{DynamicResource SystemAccentColor}">
+                Background="{DynamicResource AccentFillColorDefaultBrush}">
             <StackPanel Orientation="Horizontal" Spacing="4">
                 <TextBlock Text="🤖" FontSize="11" VerticalAlignment="Center"/>
                 <TextBlock Text="{Binding AIStatusText}"
                            FontSize="11"
-                           Foreground="White"
+                           Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}"
                            VerticalAlignment="Center"/>
             </StackPanel>
         </Border>
@@ -32,15 +32,17 @@
         <Border IsVisible="{Binding Settings.ShowTodayOverview}"
                 CornerRadius="4"
                 Padding="6,3"
-                Background="{DynamicResource SystemControlBackgroundListLowBrush}">
+                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
             <StackPanel Spacing="2">
-                <TextBlock Text="📋 课表总结" FontSize="10" Opacity="0.5"/>
+                <TextBlock Text="📋 课表总结" FontSize="10"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                 <TextBlock Text="{Binding TodaySummary}"
                            FontSize="12"
                            TextWrapping="Wrap"
                            MaxLines="2"
                            TextTrimming="CharacterEllipsis"
-                           Opacity="0.8"/>
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
             </StackPanel>
         </Border>
 
@@ -48,14 +50,15 @@
         <Border IsVisible="{Binding Settings.ShowHomeworkEstimate}"
                 CornerRadius="4"
                 Padding="6,3"
-                Background="{DynamicResource SystemControlBackgroundListLowBrush}">
+                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
             <StackPanel Orientation="Horizontal" Spacing="6">
                 <TextBlock Text="📝" FontSize="13" VerticalAlignment="Center"/>
                 <TextBlock Text="{Binding HomeworkEstimate}"
                            FontSize="12"
                            TextWrapping="Wrap"
                            VerticalAlignment="Center"
-                           Opacity="0.8"/>
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
             </StackPanel>
         </Border>
 
@@ -79,12 +82,12 @@
         <Border IsVisible="{Binding Settings.ShowCurrentHint}"
                 CornerRadius="6"
                 Padding="8,4"
-                Background="{DynamicResource SystemAccentColor}">
+                Background="{DynamicResource AccentFillColorDefaultBrush}">
             <StackPanel Orientation="Horizontal" Spacing="6">
                 <TextBlock Text="💡" FontSize="13" VerticalAlignment="Center"/>
                 <TextBlock Text="{Binding CurrentHint}"
                            FontSize="12"
-                           Foreground="White"
+                           Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}"
                            TextWrapping="Wrap"
                            VerticalAlignment="Center"/>
             </StackPanel>
@@ -103,7 +106,7 @@
                 <TextBlock Text="难度：" FontSize="11" VerticalAlignment="Center"/>
                 <TextBlock Text="{Binding DifficultyStars}"
                            FontSize="11"
-                           Foreground="{DynamicResource SystemAccentColor}"
+                           Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
                            VerticalAlignment="Center"/>
             </StackPanel>
 

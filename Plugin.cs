@@ -13,7 +13,6 @@ using ClassIsland.AISmartClass.Controls.NotificationProviders;
 using ClassIsland.AISmartClass.Views.SettingsPages;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 
 namespace ClassIsland.AISmartClass;
 
@@ -40,11 +39,58 @@ public class Plugin : PluginBase
     public static IProfileService? ProfileService { get; internal set; }
     public static ILessonsService? LessonsService { get; internal set; }
 
-    /// <summary>设置页面保存后调用，实时同步 API 配置到 AI 服务。</summary>
+    /// <summary>AI 设置发生变更时触发，供设置页面等 UI 自动刷新。</summary>
+    public static event Action<AISettings>? AISettingsChanged;
+
+    /// <summary>检查配置 JSON 是否来自尚未记录托盘默认版本的旧版。</summary>
+    public static bool IsLegacyTrayMenuSettings(string json)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            return !document.RootElement.TryGetProperty("trayMenuDefaultsVersion", out _);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>将旧版托盘菜单默认值迁移为当前默认组合。</summary>
+    public static bool MigrateAISettings(AISettings settings, bool isLegacyConfig)
+    {
+        if (!isLegacyConfig && settings.TrayMenuDefaultsVersion >= 1) return false;
+
+        settings.TrayShowBeforeClassReminder = false;
+        settings.TrayShowAfterSchoolSummary = false;
+        settings.TrayShowRegenerateHomework = false;
+        settings.TrayShowExamMode = true;
+        settings.TrayShowRegenerateSummary = true;
+        settings.TrayShowRegenerateHint = true;
+        settings.TrayMenuDefaultsVersion = 1;
+        Logger.Info("已迁移托盘菜单默认选项");
+        return true;
+    }
+
+    /// <summary>设置页面保存后调用，实时同步 API 配置到 AI 服务并通知所有订阅者刷新 UI。</summary>
     public static void SyncAISettings(AISettings settings)
     {
+        _sharedSettings = settings;
         _sharedAiService?.SyncFrom(settings);
-        Logger.Info("设置已实时同步到 AIChatService");
+
+        try
+        {
+            var examServer = ExamModeServer.GetOrCreate();
+            examServer.Enabled = settings.EnableExamModeLocalServer;
+            TrayMenuRegistrar.Refresh(settings);
+            AISettingsChanged?.Invoke(settings);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"实时应用设置失败: {ex}");
+        }
+
+        Logger.Info("设置已实时同步到 AI 服务与托盘菜单");
     }
 
     /// <summary>获取全局 AI 服务实例，供测试按钮使用。</summary>
@@ -58,22 +104,76 @@ public class Plugin : PluginBase
     {
         private readonly IProfileService _profileService;
         private readonly ILessonsService _lessonsService;
-        private readonly ILogger<PluginInitializer> _logger;
+        private readonly ClassIsland.Core.Abstractions.Services.ITaskBarIconService? _taskBarIconService;
 
-        public PluginInitializer(IProfileService profileService, ILessonsService lessonsService, ILogger<PluginInitializer> logger)
+        public PluginInitializer(
+            IProfileService profileService,
+            ILessonsService lessonsService,
+            ClassIsland.Core.Abstractions.Services.ITaskBarIconService? taskBarIconService)
         {
             _profileService = profileService;
             _lessonsService = lessonsService;
-            _logger = logger;
+            _taskBarIconService = taskBarIconService;
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
             ProfileService = _profileService;
             LessonsService = _lessonsService;
-            _logger.LogInformation("[AIIsland] ProfileService 和 LessonsService 已获取");
             Logger.Info("ProfileService / LessonsService 已写入静态属性");
+
+            // 注册托盘菜单快捷操作（IHostedService 启动阶段主窗口尚未初始化，
+            // TaskBarIconService.MoreOptionsMenu 为 null，需等待 AppStarted 事件后再注册）
+            if (_taskBarIconService != null)
+                RegisterTrayMenuWhenReady(_taskBarIconService);
+            else
+                Logger.Info("ITaskBarIconService 未注入，跳过托盘菜单注册");
+
             return Task.CompletedTask;
+        }
+
+        private void RegisterTrayMenuWhenReady(ITaskBarIconService taskBarService)
+        {
+            try
+            {
+                var app = ClassIsland.Core.AppBase.Current;
+                if (app?.MainWindow is not null)
+                {
+                    TrayMenuRegistrar.Register(taskBarService);
+                    Logger.Info("[TrayMenu] 主窗口已存在，直接注册托盘菜单");
+                    return;
+                }
+
+                if (app is null)
+                {
+                    Logger.Warn("[TrayMenu] AppBase.Current 为空，无法注册托盘菜单");
+                    return;
+                }
+
+                Logger.Info("[TrayMenu] 主窗口尚未初始化，等待 AppStarted 事件后注册");
+                EventHandler? handler = null;
+                handler = (_, _) =>
+                {
+                    try
+                    {
+                        TrayMenuRegistrar.Register(taskBarService);
+                        Logger.Info("[TrayMenu] AppStarted 事件触发，托盘菜单已注册");
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Error($"[TrayMenu] AppStarted 中注册托盘菜单失败: {ex.Message}");
+                    }
+                    finally
+                    {
+                        app.AppStarted -= handler;
+                    }
+                };
+                app.AppStarted += handler;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"[TrayMenu] 准备托盘菜单注册失败: {ex.Message}");
+            }
         }
 
         public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -99,7 +199,7 @@ public class Plugin : PluginBase
             Logger.Info("PromptTemplates 初始化完成");
 
             // 2. 初始化 AI 聊天服务（统一后端：缓存 + 重试 + 降级）
-            var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            var http = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
             var aiService = new AIChatService(http, fallback);
             _sharedAiService = aiService;
             services.AddSingleton(aiService);
@@ -112,7 +212,13 @@ public class Plugin : PluginBase
                 if (File.Exists(configPath))
                 {
                     var json = File.ReadAllText(configPath);
-                    var settings = JsonSerializer.Deserialize<AISettings>(json) ?? new AISettings();
+                    var settings = JsonSerializer.Deserialize<AISettings>(json,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new AISettings();
+                    if (MigrateAISettings(settings, IsLegacyTrayMenuSettings(json)))
+                    {
+                        File.WriteAllText(configPath, JsonSerializer.Serialize(settings,
+                            new JsonSerializerOptions { WriteIndented = true }));
+                    }
                     aiService.SyncFrom(settings);
                     _sharedSettings = settings;
                     Logger.Info("已加载 AI 设置");
@@ -151,6 +257,7 @@ public class Plugin : PluginBase
             // 7. 注册 AI 设置页面（API 端点 / Key / 模型配置）
             services.AddSingleton(PluginConfigFolder);
             services.AddSettingsPage<AISettingsPage>();
+            SettingsPageIconPatcher.Initialize();
             Logger.Info("AISettingsPage 已注册");
 
             // 8. 注册考试模式 HTTP 服务器
@@ -177,10 +284,11 @@ public class Plugin : PluginBase
                                     try
                                     {
                                         var configPath = System.IO.Path.Combine(ConfigFolderPath!, "aisettings.json");
-                                        var json = System.Text.Json.JsonSerializer.Serialize(settings);
+                                        var json = System.Text.Json.JsonSerializer.Serialize(settings,
+                                            new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
                                         System.IO.File.WriteAllText(configPath, json);
-                                        _sharedAiService?.SyncFrom(settings);
-                                        Logger.Info("欢迎向导完成，设置已自动保存");
+                                        SyncAISettings(settings);
+                                        Logger.Info("欢迎向导完成，设置已自动保存并立即应用");
                                     }
                                     catch (Exception ex)
                                     {
@@ -224,28 +332,22 @@ public class Plugin : PluginBase
                 Logger.Error($"启动状态提醒失败: {ex.Message}");
             }
 
-            // 10. 提前获取核心服务（BuildServiceProvider 在这里是安全的，因为主程序已完成注册）
-            try
+        // 10. 同步 ExamModeServer 开关（无需构建独立 ServiceProvider）
+        try
+        {
+            var examServer = ExamModeServer.GetOrCreate();
+            if (_sharedSettings != null)
             {
-                var sp = services.BuildServiceProvider();
-                ProfileService = sp.GetService<IProfileService>();
-                LessonsService = sp.GetService<ILessonsService>();
-                Logger.Info($"核心服务获取: ProfileService={ProfileService != null}, LessonsService={LessonsService != null}");
-
-                // 同步 ExamModeServer 开关
-                var examServer = sp.GetService<ExamModeServer>();
-                if (examServer != null && _sharedSettings != null)
-                {
-                    examServer.Enabled = _sharedSettings.EnableExamModeLocalServer;
-                    Logger.Info($"ExamModeServer Enabled={examServer.Enabled}");
-                }
+                examServer.Enabled = _sharedSettings.EnableExamModeLocalServer;
+                Logger.Info($"ExamModeServer Enabled={examServer.Enabled}");
             }
-            catch (Exception ex)
-            {
-                Logger.Error($"核心服务获取失败（将由 PluginInitializer 兜底）: {ex.Message}");
-            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"同步 ExamModeServer 开关失败: {ex.Message}");
+        }
 
-            Logger.Info("插件初始化完成 ✓");
+        Logger.Info("插件初始化完成 ✓");
         }
         catch (Exception ex)
         {

@@ -8,6 +8,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Avalonia.Platform.Storage;
 using ClassIsland.AISmartClass.Models;
 using ClassIsland.AISmartClass.Services;
 
@@ -150,10 +151,6 @@ public partial class WelcomeWizard : Window
 
     private void BuildStepIndicator()
     {
-        var dotColor = ThemeHelper.ControlFillSecondary;
-        var dotTextColor = ThemeHelper.TextTertiary;
-        var activeColor = ThemeHelper.AccentDefault;
-
         for (var i = 0; i < StepNames.Count; i++)
         {
             var idx = i;
@@ -161,29 +158,31 @@ public partial class WelcomeWizard : Window
 
             if (i > 0)
             {
-                StepIndicator.Children.Add(new Border
+                var connector = new Border
                 {
                     Width = 24, Height = 1,
-                    Background = ThemeHelper.ControlFillSecondary,
                     VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
-                });
+                };
+                connector.Classes.Add("step-connector");
+                StepIndicator.Children.Add(connector);
             }
+
+            var numberText = new TextBlock
+            {
+                Text = number.ToString(), FontSize = 12, FontWeight = FontWeight.SemiBold,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
+            };
+            numberText.Classes.Add("step-number");
 
             var dot = new Border
             {
                 Width = 24, Height = 24, CornerRadius = new CornerRadius(12),
-                Background = Brushes.Transparent,
-                BorderBrush = dotColor,
                 BorderThickness = new Thickness(2),
-                Child = new TextBlock
-                {
-                    Text = number.ToString(), FontSize = 12, FontWeight = FontWeight.SemiBold,
-                    Foreground = dotTextColor,
-                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
-                },
+                Child = numberText,
                 Tag = number
             };
+            dot.Classes.Add("step-dot");
             ToolTip.SetTip(dot, StepNames[idx]);
             StepIndicator.Children.Add(dot);
         }
@@ -191,31 +190,25 @@ public partial class WelcomeWizard : Window
 
     private void UpdateStepIndicator(int step)
     {
-        var dotColor = ThemeHelper.ControlFillSecondary;
-        var dotTextColor = ThemeHelper.TextTertiary;
-        var accent = ThemeHelper.AccentDefault;
-
         foreach (var child in StepIndicator.Children)
         {
             if (child is not Border dot || dot.Tag is not int n) continue;
-            var txt = dot.Child as TextBlock;
+            var numberText = dot.Child as TextBlock;
+
+            dot.Classes.Remove("completed");
+            dot.Classes.Remove("current");
+            numberText?.Classes.Remove("completed");
+            numberText?.Classes.Remove("current");
+
             if (n < step)
             {
-                dot.Background = accent;
-                dot.BorderBrush = accent;
-                if (txt != null) txt.Foreground = Brushes.White;
+                dot.Classes.Add("completed");
+                numberText?.Classes.Add("completed");
             }
             else if (n == step)
             {
-                dot.Background = Brushes.Transparent;
-                dot.BorderBrush = accent;
-                if (txt != null) txt.Foreground = accent;
-            }
-            else
-            {
-                dot.Background = Brushes.Transparent;
-                dot.BorderBrush = dotColor;
-                if (txt != null) txt.Foreground = dotTextColor;
+                dot.Classes.Add("current");
+                numberText?.Classes.Add("current");
             }
         }
 
@@ -406,6 +399,62 @@ public partial class WelcomeWizard : Window
         NavigateTo(5);
     }
 
+    private async void OnPathImportClicked(object? sender, RoutedEventArgs e)
+    {
+        if (IsDebounced) return;
+        _lastNavigateTime = DateTime.Now;
+
+        try
+        {
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel == null) return;
+
+            var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "导入已有配置",
+                AllowMultiple = false,
+                FileTypeFilter = new[]
+                {
+                    new FilePickerFileType("JSON 文件") { Patterns = new[] { "*.json" } }
+                }
+            });
+
+            if (files.Count == 0) return;
+
+            await using var stream = await files[0].OpenReadAsync();
+            using var reader = new System.IO.StreamReader(stream, System.Text.Encoding.UTF8);
+            var json = await reader.ReadToEndAsync();
+
+            var imported = System.Text.Json.JsonSerializer.Deserialize<AISettings>(json,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            if (imported == null)
+            {
+                StepLabel.Text = "配置文件为空或格式不正确。";
+                return;
+            }
+
+            _settings = imported;
+            _chosenPath = "import";
+            SaveWizardBasics();
+
+            // 同步到手动/推荐输入框，便于用户继续编辑
+            ManualEndpointBox.Text = _settings.Endpoint;
+            ManualModelBox.Text = _settings.Model;
+            ManualKeyBox.Text = _settings.ApiKey;
+            RecommendedEndpointBox.Text = _settings.Endpoint;
+            RecommendedModelBox.Text = _settings.Model;
+            RecommendedKeyBox.Text = _settings.ApiKey;
+
+            NavigateTo(5);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"欢迎向导导入配置失败: {ex.Message}");
+            StepLabel.Text = $"导入失败: {ex.Message}";
+        }
+    }
+
     private void OnPrevClicked(object? sender, RoutedEventArgs e)
     {
         if (IsDebounced) return;
@@ -416,7 +465,7 @@ public partial class WelcomeWizard : Window
             NavigateTo(5, false);
             return;
         }
-        if (_currentStep == 5 && _chosenPath == "offline")
+        if (_currentStep == 5 && (_chosenPath == "offline" || _chosenPath == "import"))
         {
             NavigateTo(3, false);
             return;
@@ -440,7 +489,7 @@ public partial class WelcomeWizard : Window
         _lastNavigateTime = DateTime.Now;
         if (_currentStep == 3)
         {
-            if (_chosenPath == "offline")
+            if (_chosenPath == "offline" || _chosenPath == "import")
             {
                 SaveWizardBasics();
                 NavigateTo(5);
@@ -659,15 +708,14 @@ public partial class WelcomeWizard : Window
         TextBlock resultText, Button? testButton)
     {
         if (testButton != null) testButton.IsEnabled = false;
+        SetTestResultState(resultText);
         resultText.Text = "正在测试连接...";
-        resultText.Foreground = ThemeHelper.TextTertiary;
 
         try
         {
             var result = await ApiConnectionTester.FullTestAsync(endpoint, apiKey, model);
             resultText.Text = result.Success ? $"✅ {result.Message}" : $"❌ {result.Message}";
-            resultText.Foreground = new SolidColorBrush(
-                result.Success ? ThemeHelper.SystemSuccessColor : ThemeHelper.SystemCriticalColor);
+            SetTestResultState(resultText, result.Success ? "success" : "error");
         }
         finally
         {
@@ -686,7 +734,7 @@ public partial class WelcomeWizard : Window
             if (b != null) b.IsEnabled = false;
 
         resultText.Text = testType == "reminder" ? "正在测试 AI 课前提醒..." : "正在测试 AI 每日总结...";
-        resultText.Foreground = ThemeHelper.TextTertiary;
+        SetTestResultState(resultText);
 
         try
         {
@@ -695,7 +743,7 @@ public partial class WelcomeWizard : Window
             if (svc == null)
             {
                 resultText.Text = "AI 服务未初始化，请先保存配置。";
-                resultText.Foreground = ThemeHelper.SystemCritical;
+                SetTestResultState(resultText, "error");
                 return;
             }
 
@@ -711,16 +759,16 @@ public partial class WelcomeWizard : Window
 
                 if (testType == "reminder")
                 {
-                    var reminder = await svc.GenerateBeforeClassReminder("数学", "英语");
+                    var reminder = await svc.GenerateBeforeClassReminder("数学", "英语", throwOnError: true);
                     resultText.Text = $"✅ AI 提醒测试成功！\n{reminder}";
-                    resultText.Foreground = ThemeHelper.SystemSuccess;
+                    SetTestResultState(resultText, "success");
                 }
                 else
                 {
                     var summary = await svc.GenerateDailySummary(
-                        new List<string> { "语文", "数学", "英语", "物理", "体育", "化学" });
+                        new List<string> { "语文", "数学", "英语", "物理", "体育", "化学" }, throwOnError: true);
                     resultText.Text = $"✅ AI 总结测试成功！\n{summary}";
-                    resultText.Foreground = ThemeHelper.SystemSuccess;
+                    SetTestResultState(resultText, "success");
                 }
             }
             finally
@@ -733,7 +781,7 @@ public partial class WelcomeWizard : Window
         catch (Exception ex)
         {
             resultText.Text = $"❌ 测试失败: {ex.Message}";
-            resultText.Foreground = ThemeHelper.SystemCritical;
+            SetTestResultState(resultText, "error");
         }
         finally
         {
@@ -741,6 +789,14 @@ public partial class WelcomeWizard : Window
             foreach (var b in siblingButtons)
                 if (b != null) b.IsEnabled = true;
         }
+    }
+
+    private static void SetTestResultState(TextBlock resultText, string? state = null)
+    {
+        resultText.Classes.Remove("success");
+        resultText.Classes.Remove("error");
+        if (!string.IsNullOrWhiteSpace(state))
+            resultText.Classes.Add(state);
     }
 
     // ---- 保存与完成 ----
@@ -773,20 +829,17 @@ public partial class WelcomeWizard : Window
 
     private void UpdateToneSelection()
     {
-        var selectedBorder = ThemeHelper.AccentDefault;
-        var defaultBorder = ThemeHelper.CardStrokeDefault;
-        var selectedBg = ThemeHelper.AccentTextTertiaryColor;
-        var defaultBg = ThemeHelper.CardBackgroundColor;
+        SetSelectedState(ToneLivelyBtn, _settings.ToneStyle == 0);
+        SetSelectedState(ToneNormalBtn, _settings.ToneStyle == 1);
+        SetSelectedState(ToneSeriousBtn, _settings.ToneStyle == 2);
+    }
 
-        ToneLivelyBtn.BorderBrush = _settings.ToneStyle == 0 ? selectedBorder : defaultBorder;
-        ToneLivelyBtn.Background = _settings.ToneStyle == 0
-            ? new SolidColorBrush(selectedBg) : new SolidColorBrush(defaultBg);
-        ToneNormalBtn.BorderBrush = _settings.ToneStyle == 1 ? selectedBorder : defaultBorder;
-        ToneNormalBtn.Background = _settings.ToneStyle == 1
-            ? new SolidColorBrush(selectedBg) : new SolidColorBrush(defaultBg);
-        ToneSeriousBtn.BorderBrush = _settings.ToneStyle == 2 ? selectedBorder : defaultBorder;
-        ToneSeriousBtn.Background = _settings.ToneStyle == 2
-            ? new SolidColorBrush(selectedBg) : new SolidColorBrush(defaultBg);
+    private static void SetSelectedState(Button button, bool isSelected)
+    {
+        if (isSelected)
+            button.Classes.Add("selected");
+        else
+            button.Classes.Remove("selected");
     }
 
     // ---- 完成页 ----
@@ -799,6 +852,7 @@ public partial class WelcomeWizard : Window
         {
             "manual" => "手动填写",
             "recommended" => _customMode ? "自定义接口" : _selectedPreset?.Name ?? "推荐平台",
+            "import" => "导入已有配置",
             _ => "先离线体验"
         });
         if (!string.IsNullOrWhiteSpace(_settings.Endpoint))
@@ -820,18 +874,28 @@ public partial class WelcomeWizard : Window
 
     private void AddCheckItem(string label, string value)
     {
+        var labelText = new TextBlock
+        {
+            Text = label,
+            FontSize = 13,
+            [DockPanel.DockProperty] = Dock.Left,
+            Width = 96
+        };
+        labelText.Classes.Add("check-label");
+
+        var valueText = new TextBlock
+        {
+            Text = value,
+            FontSize = 13,
+            FontWeight = FontWeight.SemiBold,
+            TextWrapping = TextWrapping.Wrap
+        };
+        valueText.Classes.Add("check-value");
+
         ChecklistPanel.Children.Add(new DockPanel
         {
             Margin = new Thickness(0, 6),
-            Children =
-            {
-                new TextBlock { Text = label, FontSize = 15,
-                    Foreground = ThemeHelper.TextTertiary,
-                    [DockPanel.DockProperty] = Dock.Left, Width = 110 },
-                new TextBlock { Text = value, FontSize = 15, FontWeight = FontWeight.SemiBold,
-                    Foreground = ThemeHelper.TextPrimary,
-                    TextWrapping = TextWrapping.Wrap }
-            }
+            Children = { labelText, valueText }
         });
     }
 

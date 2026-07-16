@@ -1,3 +1,4 @@
+using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -25,6 +26,9 @@ public partial class ScheduleInsight : ComponentBase<ScheduleInsightSettings>
     private string _summary = "加载中...";
     public string Summary { get => _summary; set => SetAndRaise(SummaryProperty, ref _summary, value); }
 
+    private CancellationTokenSource? _loadCts;
+    private long _loadGeneration;
+
     public ScheduleInsight()
     {
         DataContext = this;
@@ -36,25 +40,78 @@ public partial class ScheduleInsight : ComponentBase<ScheduleInsightSettings>
     {
         DataContext = this;
         base.OnLoaded(e);
-        _ = LoadAsync();
+        AIRegenerationService.RegenerateSummaryRequested += OnRegenerateRequested;
+        StartLoad();
     }
 
-    private async Task LoadAsync()
+    protected override void OnUnloaded(RoutedEventArgs e)
+    {
+        AIRegenerationService.RegenerateSummaryRequested -= OnRegenerateRequested;
+        Interlocked.Increment(ref _loadGeneration);
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+        _loadCts = null;
+        base.OnUnloaded(e);
+    }
+
+    private void OnRegenerateRequested()
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            Summary = "生成中...";
+            StartLoad();
+        });
+    }
+
+    private void StartLoad()
+    {
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+        _loadCts = new CancellationTokenSource();
+        var generation = Interlocked.Increment(ref _loadGeneration);
+        _ = LoadAsync(generation, _loadCts.Token);
+    }
+
+    private async Task LoadAsync(long generation, CancellationToken ct)
     {
         try
         {
-            var ps = Plugin.ProfileService;
             var ai = Plugin.GetAIService();
-            if (ps == null || ai == null) { Summary = "服务未就绪"; return; }
+            if (ai == null) { Summary = "服务未就绪，稍后重试"; return; }
 
-            var subjects = ScheduleQueryHelper.GetTodaySubjectNames(ps);
-            var result = await ai.SummarizeToday(subjects);
-            Summary = string.IsNullOrEmpty(result) ? "今天没有课程安排~" : result;
+            var schedule = await ScheduleQueryHelper.GetTodaySubjectsWhenReadyAsync(
+                () => Plugin.ProfileService, ct: ct);
+            if (generation != Interlocked.Read(ref _loadGeneration)) return;
+
+            if (schedule.Readiness == ProfileReadiness.ReadyWithoutCourses)
+            {
+                Summary = "今天没有课程安排~";
+                return;
+            }
+
+            if (schedule.Readiness != ProfileReadiness.Ready)
+            {
+                Summary = "课表加载中，请稍后刷新";
+                return;
+            }
+
+            Summary = "生成中...";
+            await ai.SummarizeTodayStream(schedule.Subjects, snapshot =>
+            {
+                if (generation != Interlocked.Read(ref _loadGeneration)) return;
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    if (generation == Interlocked.Read(ref _loadGeneration))
+                        Summary = snapshot;
+                });
+            }, ct);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         catch (Exception ex)
         {
             Logger.Info($"课表总结加载失败: {ex.Message}");
-            Summary = "课表分析中...";
+            if (generation == Interlocked.Read(ref _loadGeneration))
+                Summary = "课表分析失败，请稍后刷新";
         }
     }
 }

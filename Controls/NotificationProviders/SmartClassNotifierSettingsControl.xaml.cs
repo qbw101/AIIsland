@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using Avalonia.Platform.Storage;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.AISmartClass.Models;
 using ClassIsland.AISmartClass.Services;
@@ -103,6 +105,118 @@ public partial class SmartClassNotifierSettingsControl : NotificationProviderCon
         RefreshReminderList();
     }
 
+    private async void OnExportRemindersClicked(object? sender, RoutedEventArgs e)
+    {
+        if (Settings == null || Settings.CustomReminders.Count == 0)
+        {
+            SetStatus("当前没有可导出的自定义提醒。", true);
+            return;
+        }
+
+        try
+        {
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel == null) return;
+
+            var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "导出自定义提醒",
+                SuggestedFileName = "aiisland-reminders.json",
+                FileTypeChoices = new[]
+                {
+                    new FilePickerFileType("JSON 文件") { Patterns = new[] { "*.json" } }
+                }
+            });
+
+            if (file == null) return;
+
+            var json = JsonSerializer.Serialize(Settings.CustomReminders, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+
+            await using var stream = await file.OpenWriteAsync();
+            await using var writer = new System.IO.StreamWriter(stream, System.Text.Encoding.UTF8);
+            await writer.WriteAsync(json);
+
+            SetStatus($"已导出 {Settings.CustomReminders.Count} 条提醒到：{file.Path.LocalPath}", false);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"导出提醒失败: {ex.Message}");
+            SetStatus($"导出失败: {ex.Message}", true);
+        }
+    }
+
+    private async void OnImportRemindersClicked(object? sender, RoutedEventArgs e)
+    {
+        if (Settings == null)
+        {
+            SetStatus("设置尚未加载，无法导入提醒。", true);
+            return;
+        }
+
+        try
+        {
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel == null) return;
+
+            var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "导入自定义提醒",
+                AllowMultiple = false,
+                FileTypeFilter = new[]
+                {
+                    new FilePickerFileType("JSON 文件") { Patterns = new[] { "*.json" } }
+                }
+            });
+
+            if (files.Count == 0) return;
+
+            await using var stream = await files[0].OpenReadAsync();
+            var imported = await JsonSerializer.DeserializeAsync<List<CustomReminder>>(stream,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            if (imported == null || imported.Count == 0)
+            {
+                SetStatus("配置文件为空或没有有效提醒。", true);
+                return;
+            }
+
+            // 重置触发状态，避免导入的提醒因旧状态跳过触发
+            foreach (var r in imported)
+            {
+                r.LastTriggeredDate = null;
+                r.LastTriggeredKey = null;
+            }
+
+            // 去重合并：以 Id 为键，相同 Id 覆盖，新增则追加
+            var existing = Settings.CustomReminders.ToDictionary(r => r.Id);
+            int added = 0, updated = 0;
+            foreach (var r in imported)
+            {
+                if (existing.TryGetValue(r.Id, out var target))
+                {
+                    target.CopyFrom(r);
+                    updated++;
+                }
+                else
+                {
+                    Settings.CustomReminders.Add(r);
+                    added++;
+                }
+            }
+
+            RefreshReminderList();
+            SetStatus($"导入完成：新增 {added} 条，更新 {updated} 条。", false);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"导入提醒失败: {ex.Message}");
+            SetStatus($"导入失败: {ex.Message}", true);
+        }
+    }
+
     private async void OnParseClicked(object? sender, RoutedEventArgs e)
     {
         var input = _nlInputBox?.Text?.Trim();
@@ -169,7 +283,10 @@ public partial class SmartClassNotifierSettingsControl : NotificationProviderCon
     {
         if (_parseStatusText == null) return;
         _parseStatusText.Text = message;
-        _parseStatusText.Foreground = isError ? ThemeHelper.SystemCritical : ThemeHelper.TextTertiary;
+        if (isError)
+            _parseStatusText.Classes.Add("error");
+        else
+            _parseStatusText.Classes.Remove("error");
         _parseStatusText.IsVisible = true;
     }
 }

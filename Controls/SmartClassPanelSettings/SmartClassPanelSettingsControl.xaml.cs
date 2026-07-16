@@ -1,22 +1,9 @@
-using Avalonia.Controls;
-using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using ClassIsland.Core.Abstractions.Controls;
 
 namespace ClassIsland.AISmartClass.Controls.SmartClassPanelSettings;
 
-public partial class SmartClassPanelSettingsControl : UserControl
+public partial class SmartClassPanelSettingsControl : ComponentBase<Models.SmartClassPanelSettings>
 {
-    public ClassIsland.AISmartClass.Models.SmartClassPanelSettings Settings { get; }
-
-    public SmartClassPanelSettingsControl()
-    {
-        InitializeComponent();
-        Settings = new ClassIsland.AISmartClass.Models.SmartClassPanelSettings();
-        DataContext = this;
-    }
-
-    private void InitializeComponent()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
+    public SmartClassPanelSettingsControl() => AvaloniaXamlLoader.Load(this);
 }

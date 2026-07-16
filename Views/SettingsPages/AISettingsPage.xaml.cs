@@ -3,20 +3,24 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Markup.Xaml;
 using Avalonia.Media;
+using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Avalonia.Platform.Storage;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 using ClassIsland.AISmartClass.Models;
 using ClassIsland.AISmartClass.Services;
+using FluentAvalonia.UI.Controls;
 
 namespace ClassIsland.AISmartClass.Views.SettingsPages;
 
 [SettingsPageInfo(
     "aisettings.aisettingspage",
-    "AIIsland"
+    "AIIsland",
+    "\ue006",
+    "\ue006"
 )]
 public partial class AISettingsPage : SettingsPageBase
 {
@@ -46,13 +50,22 @@ public partial class AISettingsPage : SettingsPageBase
     private ToggleSwitch? _enableFallbackCb;
     private ToggleSwitch? _examSeriousToneCb;
 
+    // 托盘菜单快捷操作复选框
+    private CheckBox? _trayBeforeClassReminderCb;
+    private CheckBox? _trayAfterSchoolSummaryCb;
+    private CheckBox? _trayRegenerateHomeworkCb;
+    private CheckBox? _trayExamModeCb;
+    private CheckBox? _trayRegenerateSummaryCb;
+    private CheckBox? _trayRegenerateHintCb;
+
     // 按钮缩放动画（复用 WelcomeWizard 风格）
     private readonly List<Button> _animatedButtons = new();
     private readonly Dictionary<Button, ScaleTransform> _buttonTransforms = new();
     private readonly Dictionary<Button, DispatcherTimer> _buttonTimers = new();
     private const double PressScale = 0.98;
 
-    private bool _disposed;
+    private bool _controlsInitialized;
+    private bool _applyingSettings;
 
     public AISettingsPage(string configFolder)
     {
@@ -68,9 +81,13 @@ public partial class AISettingsPage : SettingsPageBase
     protected override void OnLoaded(RoutedEventArgs e)
     {
         base.OnLoaded(e);
+        SettingsPageIconPatcher.PatchNavigationIcon(this);
         InitializeControls();
         LoadSettings();
         RegisterButtonAnimations(this);
+
+        // 订阅外部设置变更事件（例如欢迎向导保存、其他入口修改），自动刷新 UI
+        Plugin.AISettingsChanged += OnExternalSettingsChanged;
     }
 
     /// <summary>递归注册所有 Button 的缩放动画（复用 WelcomeWizard 风格）</summary>
@@ -134,6 +151,9 @@ public partial class AISettingsPage : SettingsPageBase
 
     private void InitializeControls()
     {
+        if (_controlsInitialized) return;
+        _controlsInitialized = true;
+
         // ---- 文本 / 下拉 / 数字框 ----
         _endpointBox = this.FindControl<TextBox>("EndpointBox");
         _apiKeyBox = this.FindControl<TextBox>("ApiKeyBox");
@@ -155,6 +175,9 @@ public partial class AISettingsPage : SettingsPageBase
         WireButton("WelcomeWizardButton", OnWelcomeWizardClicked);
         WireButton("OpenFallbackBtn", OnOpenFallbackFolderClicked);
         WireButton("OpenPromptsBtn", OnOpenPromptsFolderClicked);
+        WireButton("ImportConfigBtn", OnImportConfigClicked);
+        WireButton("ExportConfigBtn", OnExportConfigClicked);
+        WireButton("RestoreDefaultsBtn", OnRestoreDefaultsClicked);
 
         // ---- 功能开关 ----
         _enableCacheCb = this.FindControl<ToggleSwitch>("EnableCacheCb");
@@ -166,7 +189,52 @@ public partial class AISettingsPage : SettingsPageBase
         _examSeriousToneCb = this.FindControl<ToggleSwitch>("ExamSeriousToneCb");
         if (_examSeriousToneCb != null) _examSeriousToneCb.IsCheckedChanged += (_, _) => AutoSaveSettings();
 
-        // ---- 语气风格下拉（自动保存） ----
+        // 托盘菜单快捷操作复选框
+        _trayBeforeClassReminderCb = this.FindControl<CheckBox>("TrayBeforeClassReminderCb");
+        if (_trayBeforeClassReminderCb != null)
+        {
+            _trayBeforeClassReminderCb.IsCheckedChanged += (_, _) => AutoSaveSettings();
+        }
+
+        _trayAfterSchoolSummaryCb = this.FindControl<CheckBox>("TrayAfterSchoolSummaryCb");
+        if (_trayAfterSchoolSummaryCb != null)
+        {
+            _trayAfterSchoolSummaryCb.IsCheckedChanged += (_, _) => AutoSaveSettings();
+        }
+
+        _trayRegenerateHomeworkCb = this.FindControl<CheckBox>("TrayRegenerateHomeworkCb");
+        if (_trayRegenerateHomeworkCb != null)
+        {
+            _trayRegenerateHomeworkCb.IsCheckedChanged += (_, _) => AutoSaveSettings();
+        }
+
+        _trayExamModeCb = this.FindControl<CheckBox>("TrayExamModeCb");
+        if (_trayExamModeCb != null)
+        {
+            _trayExamModeCb.IsCheckedChanged += (_, _) => AutoSaveSettings();
+        }
+
+        _trayRegenerateSummaryCb = this.FindControl<CheckBox>("TrayRegenerateSummaryCb");
+        if (_trayRegenerateSummaryCb != null)
+        {
+            _trayRegenerateSummaryCb.IsCheckedChanged += (_, _) => AutoSaveSettings();
+        }
+
+        _trayRegenerateHintCb = this.FindControl<CheckBox>("TrayRegenerateHintCb");
+        if (_trayRegenerateHintCb != null)
+        {
+            _trayRegenerateHintCb.IsCheckedChanged += (_, _) => AutoSaveSettings();
+        }
+
+        // ---- 文本 / 数字 / 语气风格（自动保存） ----
+        WireTextBoxAutoSave(_endpointBox);
+        WireTextBoxAutoSave(_apiKeyBox);
+        WireTextBoxAutoSave(_modelBox);
+        WireNumericAutoSave(_maxTokensBox);
+        WireNumericAutoSave(_timeoutBox);
+        WireNumericAutoSave(_cacheBox);
+        WireNumericAutoSave(_maxRetriesBox);
+
         if (_toneStyleComboBox != null)
             _toneStyleComboBox.SelectionChanged += (_, _) => AutoSaveSettings();
 
@@ -188,6 +256,18 @@ public partial class AISettingsPage : SettingsPageBase
         return btn;
     }
 
+    private void WireTextBoxAutoSave(TextBox? textBox)
+    {
+        if (textBox != null)
+            textBox.LostFocus += (_, _) => AutoSaveSettings();
+    }
+
+    private void WireNumericAutoSave(NumericUpDown? numericBox)
+    {
+        if (numericBox != null)
+            numericBox.ValueChanged += (_, _) => AutoSaveSettings();
+    }
+
     #endregion
 
     #region 设置加载与保存
@@ -200,7 +280,12 @@ public partial class AISettingsPage : SettingsPageBase
             if (System.IO.File.Exists(configPath))
             {
                 var json = System.IO.File.ReadAllText(configPath);
-                _settings = System.Text.Json.JsonSerializer.Deserialize<AISettings>(json) ?? new AISettings();
+                _settings = System.Text.Json.JsonSerializer.Deserialize<AISettings>(json,
+                    new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new AISettings();
+                if (Plugin.MigrateAISettings(_settings, Plugin.IsLegacyTrayMenuSettings(json)))
+                {
+                    SaveSettingsFile();
+                }
             }
         }
         catch (Exception ex)
@@ -212,6 +297,19 @@ public partial class AISettingsPage : SettingsPageBase
     }
 
     private void ApplySettingsToControls()
+    {
+        _applyingSettings = true;
+        try
+        {
+            ApplySettingsToControlsCore();
+        }
+        finally
+        {
+            _applyingSettings = false;
+        }
+    }
+
+    private void ApplySettingsToControlsCore()
     {
         if (_endpointBox != null) _endpointBox.Text = _settings.Endpoint;
         if (_apiKeyBox != null) _apiKeyBox.Text = _settings.ApiKey;
@@ -226,6 +324,14 @@ public partial class AISettingsPage : SettingsPageBase
         if (_enableCacheCb != null) _enableCacheCb.IsChecked = _settings.EnableApiCache;
         if (_enableFallbackCb != null) _enableFallbackCb.IsChecked = _settings.EnableFallbackWhenAiUnavailable;
         if (_examSeriousToneCb != null) _examSeriousToneCb.IsChecked = _settings.UseSeriousToneInExamMode;
+
+        // 托盘菜单快捷操作开关
+        if (_trayBeforeClassReminderCb != null) _trayBeforeClassReminderCb.IsChecked = _settings.TrayShowBeforeClassReminder;
+        if (_trayAfterSchoolSummaryCb != null) _trayAfterSchoolSummaryCb.IsChecked = _settings.TrayShowAfterSchoolSummary;
+        if (_trayRegenerateHomeworkCb != null) _trayRegenerateHomeworkCb.IsChecked = _settings.TrayShowRegenerateHomework;
+        if (_trayExamModeCb != null) _trayExamModeCb.IsChecked = _settings.TrayShowExamMode;
+        if (_trayRegenerateSummaryCb != null) _trayRegenerateSummaryCb.IsChecked = _settings.TrayShowRegenerateSummary;
+        if (_trayRegenerateHintCb != null) _trayRegenerateHintCb.IsChecked = _settings.TrayShowRegenerateHint;
 
         // 考试模式状态恢复：如果服务器正在运行，刷新按钮文案并锁定语气下拉
         RefreshExamModeState();
@@ -259,6 +365,9 @@ public partial class AISettingsPage : SettingsPageBase
     /// <summary>收集 UI 控件值 → 持久化到 JSON → 实时同步到 AIChatService</summary>
     private void AutoSaveSettings()
     {
+        // 正在把设置值写回控件时，禁止反向读取保存，避免递归和事件风暴
+        if (_applyingSettings) return;
+
         try
         {
             _settings.Endpoint = _endpointBox?.Text ?? "";
@@ -280,15 +389,15 @@ public partial class AISettingsPage : SettingsPageBase
             _settings.EnableFallbackWhenAiUnavailable = _enableFallbackCb?.IsChecked ?? true;
             _settings.UseSeriousToneInExamMode = _examSeriousToneCb?.IsChecked ?? true;
 
-            System.IO.Directory.CreateDirectory(_configFolder);
-            var configPath = System.IO.Path.Combine(_configFolder, "aisettings.json");
-            var json = System.Text.Json.JsonSerializer.Serialize(_settings, new System.Text.Json.JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
-            System.IO.File.WriteAllText(configPath, json);
-            Logger.Info($"设置已保存到 {configPath}");
+            // 托盘菜单快捷操作开关
+            _settings.TrayShowBeforeClassReminder = _trayBeforeClassReminderCb?.IsChecked ?? false;
+            _settings.TrayShowAfterSchoolSummary = _trayAfterSchoolSummaryCb?.IsChecked ?? false;
+            _settings.TrayShowRegenerateHomework = _trayRegenerateHomeworkCb?.IsChecked ?? false;
+            _settings.TrayShowExamMode = _trayExamModeCb?.IsChecked ?? true;
+            _settings.TrayShowRegenerateSummary = _trayRegenerateSummaryCb?.IsChecked ?? true;
+            _settings.TrayShowRegenerateHint = _trayRegenerateHintCb?.IsChecked ?? true;
 
+            SaveSettingsFile();
             Plugin.SyncAISettings(_settings);
         }
         catch (Exception ex)
@@ -297,11 +406,138 @@ public partial class AISettingsPage : SettingsPageBase
         }
     }
 
+    private void SaveSettingsFile()
+    {
+        System.IO.Directory.CreateDirectory(_configFolder);
+        var configPath = System.IO.Path.Combine(_configFolder, "aisettings.json");
+        var json = System.Text.Json.JsonSerializer.Serialize(_settings, new System.Text.Json.JsonSerializerOptions
+        {
+            WriteIndented = true
+        });
+        System.IO.File.WriteAllText(configPath, json);
+        Logger.Info($"设置已保存到 {configPath}");
+    }
+
     #endregion
 
     #region 按钮事件
 
     private void OnSaveClicked(object? sender, RoutedEventArgs e) => AutoSaveSettings();
+
+    private void OnRestoreDefaultsClicked(object? sender, RoutedEventArgs e)
+    {
+        _settings = new AISettings();
+        ApplySettingsToControls();
+        AutoSaveSettings();
+        ShowTestResult(true, "✅ 已恢复默认设置并保存。");
+    }
+
+    private async void OnExportConfigClicked(object? sender, RoutedEventArgs e)
+    {
+        var confirmed = await ShowApiKeyLeakWarningAsync();
+        if (!confirmed) return;
+
+        try
+        {
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel == null) return;
+
+            var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "导出 API 配置",
+                SuggestedFileName = "aiisland-api-config.json",
+                FileTypeChoices = new[]
+                {
+                    new FilePickerFileType("JSON 文件") { Patterns = new[] { "*.json" } }
+                }
+            });
+
+            if (file == null) return;
+
+            var json = System.Text.Json.JsonSerializer.Serialize(_settings, new System.Text.Json.JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+
+            await using var stream = await file.OpenWriteAsync();
+            await using var writer = new System.IO.StreamWriter(stream, System.Text.Encoding.UTF8);
+            await writer.WriteAsync(json);
+
+            ShowTestResult(true, $"✅ 配置已导出到：{file.Path.LocalPath}");
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"导出配置失败: {ex.Message}");
+            ShowTestResult(false, $"❌ 导出失败: {ex.Message}");
+        }
+    }
+
+    private async void OnImportConfigClicked(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel == null) return;
+
+            var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "导入 API 配置",
+                AllowMultiple = false,
+                FileTypeFilter = new[]
+                {
+                    new FilePickerFileType("JSON 文件") { Patterns = new[] { "*.json" } }
+                }
+            });
+
+            if (files.Count == 0) return;
+
+            await using var stream = await files[0].OpenReadAsync();
+            using var reader = new System.IO.StreamReader(stream, System.Text.Encoding.UTF8);
+            var json = await reader.ReadToEndAsync();
+
+            var imported = System.Text.Json.JsonSerializer.Deserialize<AISettings>(json,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            if (imported == null)
+            {
+                ShowTestResult(false, "❌ 配置文件为空或格式不正确。");
+                return;
+            }
+
+            _settings = imported;
+            ApplySettingsToControls();
+            AutoSaveSettings();
+            ShowTestResult(true, "✅ 配置已导入并保存。");
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"导入配置失败: {ex.Message}");
+            ShowTestResult(false, $"❌ 导入失败: {ex.Message}");
+        }
+    }
+
+    private async Task<bool> ShowApiKeyLeakWarningAsync()
+    {
+        try
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "API Key 泄露风险",
+                Content = "导出的配置文件包含你的 API Key。请妥善保管，不要上传到公共仓库、网盘或发送给他人，否则可能导致密钥泄露和额外费用。",
+                PrimaryButtonText = "仍要导出",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Close
+            };
+            var result = await dialog.ShowAsync();
+            return result == ContentDialogResult.Primary;
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"显示导出确认对话框失败: {ex.Message}");
+            // 对话框失败时默认允许导出，避免功能不可用
+            return true;
+        }
+    }
 
     private async void OnTestClicked(object? sender, RoutedEventArgs e)
     {
@@ -331,7 +567,7 @@ public partial class AISettingsPage : SettingsPageBase
         {
             var aiService = Plugin.GetAIService();
             if (aiService == null) { ShowTestResult(false, "❌ AI 服务未初始化，请先保存配置"); return; }
-            var result = await aiService.GenerateBeforeClassReminder("数学", "英语");
+            var result = await aiService.GenerateBeforeClassReminder("数学", "英语", throwOnError: true);
             ShowTestResult(true, $"✅ AI 课前提醒测试成功！\n\n模拟：数学 → 英语\n\nAI 回复：{result}");
         }
         catch (Exception ex) { ShowTestResult(false, $"❌ 测试失败: {ex.Message}"); }
@@ -350,14 +586,14 @@ public partial class AISettingsPage : SettingsPageBase
             var aiService = Plugin.GetAIService();
             if (aiService == null) { ShowTestResult(false, "❌ AI 服务未初始化，请先保存配置"); return; }
             var subjects = new List<string> { "语文", "数学", "英语", "物理", "体育", "化学" };
-            var result = await aiService.GenerateDailySummary(subjects);
+            var result = await aiService.GenerateDailySummary(subjects, throwOnError: true);
             ShowTestResult(true, $"✅ AI 每日总结测试成功！\n\n模拟：语数英理化体\n\nAI 回复：{result}");
         }
         catch (Exception ex) { ShowTestResult(false, $"❌ 测试失败: {ex.Message}"); }
         finally { _testSummaryButton.IsEnabled = true; }
     }
 
-    private void OnExamModeClicked(object? sender, RoutedEventArgs e)
+    private async void OnExamModeClicked(object? sender, RoutedEventArgs e)
     {
         if (_examModeButton == null) return;
         _examModeButton.IsEnabled = false;
@@ -376,7 +612,7 @@ public partial class AISettingsPage : SettingsPageBase
             }
             else
             {
-                server.Start();
+                await server.StartAsync();
                 var url = $"{server.Url}/?t={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
@@ -505,30 +741,53 @@ public partial class AISettingsPage : SettingsPageBase
     private void ShowTestProgress(string message)
     {
         if (_testResultBorder == null || _testResultText == null) return;
+        SetTestResultState();
         _testResultBorder.IsVisible = true;
         _testResultText.Text = message;
-        _testResultBorder.Background = Brushes.Transparent;
     }
 
     private void ShowTestResult(bool success, string message)
     {
         if (_testResultBorder == null || _testResultText == null) return;
+        SetTestResultState(success ? "success" : "error");
         _testResultBorder.IsVisible = true;
         _testResultText.Text = message;
-        _testResultBorder.Background = success
-            ? new SolidColorBrush(Color.FromRgb(40, 80, 40))
-            : new SolidColorBrush(Color.FromRgb(80, 40, 40));
+    }
+
+    private void SetTestResultState(string? state = null)
+    {
+        if (_testResultBorder == null || _testResultText == null) return;
+        _testResultBorder.Classes.Remove("success");
+        _testResultBorder.Classes.Remove("error");
+        _testResultText.Classes.Remove("success");
+        _testResultText.Classes.Remove("error");
+        if (string.IsNullOrWhiteSpace(state)) return;
+        _testResultBorder.Classes.Add(state);
+        _testResultText.Classes.Add(state);
     }
 
     #endregion
 
     #region 生命周期
 
+    /// <summary>外部设置发生变更时刷新 UI（例如欢迎向导完成）</summary>
+    private void OnExternalSettingsChanged(AISettings settings)
+    {
+        try
+        {
+            _settings = settings;
+            ApplySettingsToControls();
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"设置页同步外部变更失败: {ex.Message}");
+        }
+    }
+
     protected override void OnUnloaded(RoutedEventArgs e)
     {
         base.OnUnloaded(e);
-        if (_disposed) return;
-        _disposed = true;
+        Plugin.AISettingsChanged -= OnExternalSettingsChanged;
 
         // 页面关闭时兜底保存，确保即使事件未触发也不会丢设置
         AutoSaveSettings();

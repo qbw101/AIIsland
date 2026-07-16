@@ -8,17 +8,19 @@
     FontSize="{Binding Settings.FontSize, FallbackValue=14}">
 
     <Border CornerRadius="8" Padding="12,8"
-            Background="{DynamicResource SystemControlBackgroundListLowBrush}">
+            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
         <Grid ColumnDefinitions="*,*">
             <!-- 左：难度 -->
             <StackPanel Grid.Column="0"
                         IsVisible="{Binding Settings.ShowDifficulty}"
                         Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                 <TextBlock Text="📊" FontSize="16" VerticalAlignment="Center"/>
-                <TextBlock Text="今日难度" VerticalAlignment="Center" Opacity="0.75"/>
+                <TextBlock Text="今日难度" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                 <TextBlock Text="{Binding DifficultyStars}"
                            VerticalAlignment="Center"
-                           Foreground="#FFB300"/>
+                           Foreground="{DynamicResource SystemFillColorCautionBrush}"/>
             </StackPanel>
 
             <!-- 右：番茄钟 -->
@@ -27,7 +29,8 @@
                         Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
                         HorizontalAlignment="Right">
                 <TextBlock Text="🍅" FontSize="16" VerticalAlignment="Center"/>
-                <TextBlock Text="专注" VerticalAlignment="Center" Opacity="0.75"/>
+                <TextBlock Text="专注" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                 <TextBlock Text="{Binding PomodoroSuggestion}"
                            VerticalAlignment="Center" FontWeight="Medium"/>
             </StackPanel>

@@ -7,6 +7,7 @@ namespace ClassIsland.AISmartClass.Models;
 public partial class ScheduleInsightSettings : ObservableObject
 {
     [ObservableProperty]
+    [property: JsonPropertyName("showScheduleInsight")]
     private bool _showScheduleInsight = true;
 
     [ObservableProperty]

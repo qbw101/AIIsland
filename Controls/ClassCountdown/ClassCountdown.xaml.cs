@@ -22,6 +22,8 @@ public partial class ClassCountdown : ComponentBase<ClassCountdownSettings>
     private enum LessonState { OnClass, Breaking, AfterSchool, Unknown }
     private LessonState _state = LessonState.Unknown;
 
+    private CountdownTimeSource TimeSource => Settings?.TimeSource ?? CountdownTimeSource.ClassIslandTime;
+
     public static readonly DirectProperty<ClassCountdown, double> ProgressPercentProperty =
         AvaloniaProperty.RegisterDirect<ClassCountdown, double>(nameof(ProgressPercent),
             o => o.ProgressPercent, (o, v) => o.ProgressPercent = v);
@@ -76,6 +78,12 @@ public partial class ClassCountdown : ComponentBase<ClassCountdownSettings>
 
     private void UpdateClassCountdown()
     {
+        if (TimeSource == CountdownTimeSource.ClassIslandTime)
+        {
+            UpdateClassCountdownFromLessonsService();
+            return;
+        }
+
         var ps = Plugin.ProfileService;
         if (ps == null) return;
         var layout = ScheduleQueryHelper.GetCurrentLayoutItem(ps);
@@ -91,8 +99,43 @@ public partial class ClassCountdown : ComponentBase<ClassCountdownSettings>
         else { CountdownText = "即将下课"; ProgressPercent = 100; }
     }
 
+    private void UpdateClassCountdownFromLessonsService()
+    {
+        var ls = Plugin.LessonsService;
+        if (ls == null) return;
+
+        var layout = ls.CurrentTimeLayoutItem;
+        if (layout == null) return;
+
+        var remaining = ls.OnBreakingTimeLeftTime;
+        var total = (layout.EndTime - layout.StartTime).TotalSeconds;
+        if (total > 0)
+        {
+            var remainingSeconds = remaining.TotalSeconds;
+            ProgressPercent = Math.Clamp((total - remainingSeconds) / total * 100, 0, 100);
+        }
+
+        if (remaining > TimeSpan.Zero)
+        {
+            var m = (int)(remaining.TotalMinutes);
+            var s = remaining.Seconds;
+            CountdownText = $"距下课还有 {m:D2}:{s:D2}";
+        }
+        else
+        {
+            CountdownText = "即将下课";
+            ProgressPercent = 100;
+        }
+    }
+
     private void UpdateBreakCountdown()
     {
+        if (TimeSource == CountdownTimeSource.ClassIslandTime)
+        {
+            UpdateBreakCountdownFromLessonsService();
+            return;
+        }
+
         var ps = Plugin.ProfileService;
         if (ps == null) return;
         var layout = ScheduleQueryHelper.GetCurrentLayoutItem(ps);
@@ -105,10 +148,37 @@ public partial class ClassCountdown : ComponentBase<ClassCountdownSettings>
         CountdownText = $"课间剩余 {m:D2}:{s:D2}"; ProgressPercent = 100;
     }
 
+    private void UpdateBreakCountdownFromLessonsService()
+    {
+        var ls = Plugin.LessonsService;
+        if (ls == null) return;
+
+        var layout = ls.CurrentTimeLayoutItem;
+        if (layout == null) return;
+
+        var remaining = ls.OnClassLeftTime;
+        if (remaining <= TimeSpan.Zero)
+        {
+            _state = LessonState.OnClass;
+            return;
+        }
+
+        var m = (int)(remaining.TotalMinutes);
+        var s = remaining.Seconds;
+        CountdownText = $"课间剩余 {m:D2}:{s:D2}";
+        ProgressPercent = 100;
+    }
+
     private void TryInitFromTime()
     {
         try
         {
+            if (TimeSource == CountdownTimeSource.ClassIslandTime)
+            {
+                TryInitFromLessonsService();
+                return;
+            }
+
             var ps = Plugin.ProfileService;
             if (ps?.Profile == null) return;
             var plan = ps.Profile.ClassPlans.Values.FirstOrDefault(p => p.IsActivated && p.IsEnabled);
@@ -125,5 +195,31 @@ public partial class ClassCountdown : ComponentBase<ClassCountdownSettings>
             }
         }
         catch { }
+    }
+
+    private void TryInitFromLessonsService()
+    {
+        var ls = Plugin.LessonsService;
+        if (ls == null) return;
+
+        var remainingClass = ls.OnBreakingTimeLeftTime;
+        var remainingBreak = ls.OnClassLeftTime;
+
+        if (remainingClass > TimeSpan.Zero)
+        {
+            _state = LessonState.OnClass;
+            UpdateClassCountdownFromLessonsService();
+        }
+        else if (remainingBreak > TimeSpan.Zero)
+        {
+            _state = LessonState.Breaking;
+            UpdateBreakCountdownFromLessonsService();
+        }
+        else if (ls.CurrentTimeLayoutItem == null)
+        {
+            _state = LessonState.AfterSchool;
+            ProgressPercent = 100;
+            CountdownText = "放学啦";
+        }
     }
 }

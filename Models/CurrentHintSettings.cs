@@ -7,6 +7,7 @@ namespace ClassIsland.AISmartClass.Models;
 public partial class CurrentHintSettings : ObservableObject
 {
     [ObservableProperty]
+    [property: JsonPropertyName("showCurrentHint")]
     private bool _showCurrentHint = true;
 
     [ObservableProperty]

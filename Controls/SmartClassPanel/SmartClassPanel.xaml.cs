@@ -1,3 +1,4 @@
+using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -118,9 +119,16 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
     private string _homeworkEstimate = "";
     public string HomeworkEstimate { get => _homeworkEstimate; set => SetAndRaise(HomeworkEstimateProperty, ref _homeworkEstimate, value); }
 
-    private bool _todayOverviewLoaded = false;
-    private bool _currentHintLoaded = false;
+    private bool _todayOverviewLoaded;
+    private bool _currentHintLoaded;
+    private string _loadedHintSubject = "";
+    private DateOnly _loadedHintDate;
     private CancellationTokenSource? _loadingCts;
+    private CancellationTokenSource? _hintCts;
+    private long _summaryGeneration;
+    private long _homeworkGeneration;
+    private long _hintGeneration;
+    private DateOnly _summaryLoadedDate;
 
     // ===== 构造函数 =====
 
@@ -150,6 +158,9 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
         _lessons.OnAfterSchool += OnOnAfterSchool;
         _lessons.CurrentTimeStateChanged += OnTimeStateChanged;
 
+        AIRegenerationService.RegenerateSummaryRequested += OnRegenerateSummaryRequested;
+        AIRegenerationService.RegenerateHintRequested += OnRegenerateHintRequested;
+
         _ = InitializeAsync();
     }
 
@@ -163,8 +174,40 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
         _lessons.OnAfterSchool -= OnOnAfterSchool;
         _lessons.CurrentTimeStateChanged -= OnTimeStateChanged;
 
+        AIRegenerationService.RegenerateSummaryRequested -= OnRegenerateSummaryRequested;
+        AIRegenerationService.RegenerateHintRequested -= OnRegenerateHintRequested;
+
+        Interlocked.Increment(ref _summaryGeneration);
+        Interlocked.Increment(ref _homeworkGeneration);
+        Interlocked.Increment(ref _hintGeneration);
         _loadingCts?.Cancel();
+        _loadingCts?.Dispose();
         _loadingCts = null;
+        _hintCts?.Cancel();
+        _hintCts?.Dispose();
+        _hintCts = null;
+    }
+
+    private void OnRegenerateSummaryRequested()
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            _todayOverviewLoaded = false;
+            _summaryLoadedDate = default;
+            TodaySummary = "生成中...";
+            _loadingCts ??= new CancellationTokenSource();
+            _ = LoadTodaySummary(_loadingCts.Token);
+        });
+    }
+
+    private void OnRegenerateHintRequested()
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            _currentHintLoaded = false;
+            CurrentHint = "生成中...";
+            StartHintRefresh();
+        });
     }
 
     // ===== 事件处理 =====
@@ -174,12 +217,39 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
         _state = LessonState.OnClass;
         ShowExtras = true;
         _currentHintLoaded = false;
-        SetAIStatus(true, "AI 思考中...");
-        _ = RefreshHintAsync().ContinueWith(_ =>
+        SetAIStatus(true, "生成中...");
+        StartHintRefresh();
+    }
+
+    private void StartHintRefresh()
+    {
+        _hintCts?.Cancel();
+        _hintCts?.Dispose();
+        _hintCts = new CancellationTokenSource();
+        var generation = Interlocked.Increment(ref _hintGeneration);
+        _ = RefreshHintAndStatusAsync(generation, _hintCts.Token);
+    }
+
+    private async Task RefreshHintAndStatusAsync(long generation, CancellationToken ct)
+    {
+        try
         {
-            SetAIStatus(false, "AI 就绪");
-            _ = ClearAIStatusAfterDelay(3000);
-        }, TaskScheduler.Default);
+            await RefreshHintAsync(generation, ct);
+            if (generation != Interlocked.Read(ref _hintGeneration)) return;
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                SetAIStatus(false, "AI 就绪"));
+            _ = ClearAIStatusAfterDelay(3000, generation);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            Logger.Info($"课程提示刷新失败: {ex.Message}");
+            if (generation == Interlocked.Read(ref _hintGeneration))
+            {
+                await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                    SetAIStatus(false, "AI 离线"));
+            }
+        }
     }
 
     private void OnOnBreakingTime(object? sender, EventArgs e)
@@ -206,10 +276,14 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
         var ct = _loadingCts.Token;
         try
         {
-            SetAIStatus(true, "AI 分析课表中...");
+            SetAIStatus(true, "生成中...");
 
-            await Task.WhenAll(LoadTodaySummary(ct), RefreshHintAsync(ct), LoadHomeworkEstimate(ct));
-            UpdateDifficultyAndPomodoro();
+            var hintGeneration = Interlocked.Increment(ref _hintGeneration);
+            await Task.WhenAll(
+                LoadTodaySummary(ct),
+                RefreshHintAsync(hintGeneration, ct),
+                LoadHomeworkEstimate(ct));
+            await UpdateDifficultyAndPomodoro();
 
             SetAIStatus(false, "AI 就绪");
             _ = ClearAIStatusAfterDelay(3000);
@@ -230,51 +304,118 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
     }
 
     /// <summary>延迟清除 AI 状态文本</summary>
-    private async Task ClearAIStatusAfterDelay(int ms)
+    private async Task ClearAIStatusAfterDelay(int ms, long? hintGeneration = null)
     {
-        await Task.Delay(ms);
-        AIStatusText = "";
+        await Task.Delay(ms).ConfigureAwait(false);
+        if (hintGeneration.HasValue &&
+            hintGeneration.Value != Interlocked.Read(ref _hintGeneration))
+            return;
+
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => AIStatusText = "");
     }
 
     private async Task LoadTodaySummary(CancellationToken ct)
     {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        if (_summaryLoadedDate != today)
+            _todayOverviewLoaded = false;
         if (!Settings.ShowTodayOverview || _todayOverviewLoaded) return;
-        var subjects = GetTodaySubjectNames();
-        var result = await _ai.SummarizeToday(subjects, ct);
-        TodaySummary = result;
-        // 只有真正拿到 AI 结果（非降级句子）才标记为已加载，允许失败后重试
-        _todayOverviewLoaded = !IsFallbackResult(result);
+        var generation = Interlocked.Increment(ref _summaryGeneration);
+        var schedule = await ScheduleQueryHelper.GetTodaySubjectsWhenReadyAsync(
+            () => _profileService, ct: ct);
+
+        if (schedule.Readiness == ProfileReadiness.ReadyWithoutCourses)
+        {
+            TodaySummary = "今天没有课程安排~";
+            _todayOverviewLoaded = true;
+            _summaryLoadedDate = today;
+            return;
+        }
+
+        if (schedule.Readiness != ProfileReadiness.Ready)
+        {
+            TodaySummary = "课表加载中，请稍后刷新";
+            _todayOverviewLoaded = false;
+            return;
+        }
+
+        var result = await _ai.SummarizeTodayStream(schedule.Subjects, snapshot =>
+        {
+            if (generation != Interlocked.Read(ref _summaryGeneration)) return;
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (generation == Interlocked.Read(ref _summaryGeneration))
+                    TodaySummary = snapshot;
+            });
+        }, ct);
+        if (generation != Interlocked.Read(ref _summaryGeneration)) return;
+        _todayOverviewLoaded = !_ai.IsFallbackResult(result);
+        if (_todayOverviewLoaded)
+            _summaryLoadedDate = today;
     }
 
     private async Task LoadHomeworkEstimate(CancellationToken ct)
     {
         if (!Settings.ShowHomeworkEstimate) return;
-        var subjects = GetTodaySubjectNames();
-        var result = await _ai.EstimateHomeworkLoad(subjects, ct);
-        HomeworkEstimate = result;
+        var generation = Interlocked.Increment(ref _homeworkGeneration);
+        var subjects = await GetTodaySubjectNamesAsync(ct);
+        await _ai.EstimateHomeworkLoadStream(subjects, snapshot =>
+        {
+            if (generation != Interlocked.Read(ref _homeworkGeneration)) return;
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (generation == Interlocked.Read(ref _homeworkGeneration))
+                    HomeworkEstimate = snapshot;
+            });
+        }, ct);
     }
 
-    private async Task RefreshHintAsync(CancellationToken ct = default)
+    private async Task RefreshHintAsync(long generation, CancellationToken ct = default)
     {
-        if (!Settings.ShowCurrentHint || _currentHintLoaded) return;
-        var current = GetCurrentSubjectName();
-        var userMsg = string.IsNullOrEmpty(current) ? "请给一句15字以内的学习提示。" : $"当前课程：{current}\n请给一句15字以内的学习提示。";
-        var result = await _ai.ChatAsync(PromptTemplates.GetCurrentHintSystem(_ai.EffectiveToneStyle), userMsg, ct: ct);
-        CurrentHint = result;
-        _currentHintLoaded = !IsFallbackResult(result);
+        if (!Settings.ShowCurrentHint) return;
+
+        var schedule = await ScheduleQueryHelper.GetTodaySubjectsWhenReadyAsync(
+            () => _profileService, ct: ct);
+        if (generation != Interlocked.Read(ref _hintGeneration)) return;
+
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        if (schedule.Readiness is not (ProfileReadiness.Ready or ProfileReadiness.ReadyWithoutCourses))
+        {
+            CurrentHint = "课表加载中，请稍后刷新";
+            _currentHintLoaded = false;
+            return;
+        }
+
+        var context = schedule.Readiness == ProfileReadiness.ReadyWithoutCourses
+            ? new LearningHintContext("今天没有课程", "自主学习", "no-courses")
+            : ScheduleQueryHelper.GetLearningHintContext(_profileService, schedule.Subjects);
+
+        if (_currentHintLoaded && _loadedHintDate == today &&
+            string.Equals(_loadedHintSubject, context.CacheKey, StringComparison.Ordinal))
+            return;
+
+        CurrentHint = "生成中...";
+        var result = await _ai.GenerateLearningHintStream(context.Scene, context.Focus, snapshot =>
+        {
+            if (generation != Interlocked.Read(ref _hintGeneration)) return;
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (generation == Interlocked.Read(ref _hintGeneration))
+                    CurrentHint = snapshot;
+            });
+        }, ct);
+        if (generation != Interlocked.Read(ref _hintGeneration)) return;
+        _currentHintLoaded = !_ai.IsFallbackResult(result);
+        if (_currentHintLoaded)
+        {
+            _loadedHintSubject = context.CacheKey;
+            _loadedHintDate = today;
+        }
     }
 
-    /// <summary>判断结果是否为降级句子（AI 不可用时的回退文本）</summary>
-    private static bool IsFallbackResult(string result)
+    private async Task UpdateDifficultyAndPomodoro()
     {
-        if (string.IsNullOrEmpty(result)) return true;
-        // 降级句子特征：包含特定关键词
-        return result.Contains("请在设置中配置") || result.Contains("AI 暂时不可用");
-    }
-
-    private void UpdateDifficultyAndPomodoro()
-    {
-        var subjects = GetTodaySubjectNames();
+        var subjects = await GetTodaySubjectNamesAsync(_loadingCts?.Token ?? default);
         var diff = _ai.EstimateDifficulty(subjects);
         DifficultyStars = new string('⭐', Math.Clamp(diff, 1, 5));
         PomodoroSuggestion = subjects.Count switch { > 5 => "建议 25min", >= 4 => "建议 30min", _ => "建议 45min" };
@@ -412,46 +553,13 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
 
     private List<string> GetTodaySubjectNames()
     {
-        try
-        {
-            var profile = _profileService.Profile;
-            if (profile == null) return new List<string>();
-
-            var activePlan = profile.ClassPlans.Values.FirstOrDefault(p => p.IsActivated && p.IsEnabled);
-            if (activePlan == null) return new List<string>();
-
-            var subjectNames = new List<string>();
-            foreach (var cls in activePlan.Classes.Where(c => c.IsEnabled))
-            {
-                if (profile.Subjects.TryGetValue(cls.SubjectId, out var subject) && !string.IsNullOrEmpty(subject.Name))
-                    subjectNames.Add(subject.Name);
-            }
-            return subjectNames.Distinct().ToList();
-        }
-        catch { return new List<string>(); }
+        return ScheduleQueryHelper.GetTodaySubjectNames(_profileService, distinct: true);
     }
 
-    private string GetCurrentSubjectName()
+    private Task<List<string>> GetTodaySubjectNamesAsync(CancellationToken ct = default)
     {
-        try
-        {
-            var profile = _profileService.Profile;
-            if (profile == null) return "";
-            var activePlan = profile.ClassPlans.Values.FirstOrDefault(p => p.IsActivated && p.IsEnabled);
-            if (activePlan == null) return "";
-
-            var now = TimeSpan.FromTicks(DateTime.Now.TimeOfDay.Ticks);
-            var currentClass = Services.ScheduleQueryHelper.GetClassAtTime(activePlan, now);
-
-            if (currentClass != null)
-                return Services.ScheduleQueryHelper.GetSubjectName(_profileService, currentClass.SubjectId);
-
-            // 如果不在上课区间，取下一节课名称
-            var nextClass = Services.ScheduleQueryHelper.GetNextClass(activePlan, now);
-            if (nextClass != null)
-                return Services.ScheduleQueryHelper.GetSubjectName(_profileService, nextClass.SubjectId);
-        }
-        catch { }
-        return "";
+        return ScheduleQueryHelper.GetTodaySubjectNamesWhenReadyAsync(
+            () => _profileService, distinct: true, ct: ct);
     }
+
 }

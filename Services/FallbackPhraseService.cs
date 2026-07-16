@@ -31,6 +31,13 @@ public class FallbackPhraseService
         }
     }
 
+    /// <summary>加载默认降级句子（用于测试或文件缺失时）</summary>
+    public void LoadDefaults()
+    {
+        for (int i = 0; i <= 2; i++)
+            _tonePhrases[i] = GetDefaultPhrases(i);
+    }
+
     /// <summary>根据类别和当前语气风格获取随机句子</summary>
     public string GetRandomPhrase(string category, string? parameter = null)
     {
@@ -102,6 +109,14 @@ public class FallbackPhraseService
                 {
                     "AI 小助手暂时摸鱼中...先用预设提醒凑合下吧~",
                 },
+                ["current_hint"] = new()
+                {
+                    "{subject} 当前课程，专注听讲哦~ OvO",
+                    "{subject} 时间，跟紧老师思路！",
+                    "{subject} 进行时，记得记笔记~",
+                    "{subject} 这节很关键，别走神啦！",
+                    "认真听 {subject}，效率翻倍！",
+                },
             },
             2 => new Dictionary<string, List<string>>
             {
@@ -131,6 +146,14 @@ public class FallbackPhraseService
                 {
                     "AI 服务不可用，将使用预设提醒。",
                 },
+                ["current_hint"] = new()
+                {
+                    "请专注 {subject} 课程听讲。",
+                    "{subject} 课程进行中，请保持专注。",
+                    "{subject} 当前课程，建议做好笔记。",
+                    "请紧跟 {subject} 课程思路。",
+                    "{subject} 课程重要，请勿走神。",
+                },
             },
             _ => new Dictionary<string, List<string>>
             {
@@ -159,6 +182,14 @@ public class FallbackPhraseService
                 ["api_error"] = new()
                 {
                     "AI 暂时不可用，先用预设提醒代替吧~",
+                },
+                ["current_hint"] = new()
+                {
+                    "{subject} 这节课，专心听讲~",
+                    "{subject} 时间，跟紧老师节奏",
+                    "{subject} 进行时，记得记重点",
+                    "{subject} 这节比较关键，别走神",
+                    "认真听 {subject}，效率会更高",
                 },
             },
         };

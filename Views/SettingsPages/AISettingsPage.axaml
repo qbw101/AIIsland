@@ -12,20 +12,20 @@
             <Setter Property="Margin" Value="0,14,0,2"/>
         </Style>
         <Style Selector="Border.setting-card">
-            <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
-            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="Padding" Value="16,13"/>
             <Setter Property="Margin" Value="0,4"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
         </Style>
         <Style Selector="Border.setting-row">
-            <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
-            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="Padding" Value="16,12"/>
             <Setter Property="Margin" Value="0,3"/>
             <Setter Property="MinHeight" Value="66"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
         </Style>
         <Style Selector="Border.setting-row:pointerover">
@@ -45,7 +45,7 @@
         </Style>
         <Style Selector="TextBlock.row-description">
             <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
         </Style>
         <Style Selector="Button">
@@ -56,6 +56,14 @@
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="Button.danger">
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
+        </Style>
         <Style Selector="Button.icon-button">
             <Setter Property="Width" Value="32"/>
             <Setter Property="Height" Value="32"/>
@@ -64,7 +72,7 @@
             <Setter Property="FontSize" Value="15"/>
         </Style>
         <Style Selector="TextBox">
-            <Setter Property="Background" Value="{DynamicResource ControlFillColorInputBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
@@ -74,13 +82,13 @@
             <Setter Property="FontSize" Value="13"/>
         </Style>
         <Style Selector="TextBox:pointerover">
-            <Setter Property="BorderBrush" Value="{DynamicResource TextFillColorTertiaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorSecondaryBrush}"/>
         </Style>
         <Style Selector="TextBox:focus">
             <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
         </Style>
         <Style Selector="ComboBox">
-            <Setter Property="Background" Value="{DynamicResource ControlFillColorInputBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
@@ -90,13 +98,13 @@
             <Setter Property="FontSize" Value="13"/>
         </Style>
         <Style Selector="ComboBox:pointerover">
-            <Setter Property="BorderBrush" Value="{DynamicResource TextFillColorTertiaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorSecondaryBrush}"/>
         </Style>
         <Style Selector="ComboBox:focus">
             <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
         </Style>
         <Style Selector="NumericUpDown">
-            <Setter Property="Background" Value="{DynamicResource ControlFillColorInputBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
@@ -105,7 +113,7 @@
             <Setter Property="FontSize" Value="13"/>
         </Style>
         <Style Selector="NumericUpDown:pointerover">
-            <Setter Property="BorderBrush" Value="{DynamicResource TextFillColorTertiaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorSecondaryBrush}"/>
         </Style>
         <Style Selector="NumericUpDown:focus">
             <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
@@ -116,6 +124,25 @@
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="OffContent" Value="关"/>
             <Setter Property="OnContent" Value="开"/>
+        </Style>
+        <Style Selector="Border.test-result">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+        </Style>
+        <Style Selector="Border.test-result.success">
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorSuccessBrush}"/>
+        </Style>
+        <Style Selector="Border.test-result.error">
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.result-text">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.result-text.success">
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.result-text.error">
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
         </Style>
     </ci:SettingsPageBase.Styles>
 
@@ -143,8 +170,8 @@
                                    FontSize="12"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                         <TextBlock Text="用于 ClassIsland 的智能提醒、总结与考试倒计时辅助插件。"
-                                   FontSize="11"
-                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                     </StackPanel>
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                         <Button x:Name="GitHubBtn" Classes="icon-button" Content="&#xE8A7;" ToolTip.Tip="GitHub 主页"/>
@@ -170,7 +197,7 @@
             <TextBlock Text="API 连接" Classes="section-title"/>
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,460" ColumnSpacing="14">
+                <Grid ColumnDefinitions="28,*,2*" ColumnSpacing="14">
                     <TextBlock Text="&#xE71B;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="API 地址" Classes="row-title"/>
@@ -183,7 +210,7 @@
             </Border>
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,460" ColumnSpacing="14">
+                <Grid ColumnDefinitions="28,*,2*" ColumnSpacing="14">
                     <TextBlock Text="&#xE192;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="API Key" Classes="row-title"/>
@@ -196,7 +223,7 @@
             </Border>
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,260" ColumnSpacing="14">
+                <Grid ColumnDefinitions="28,*,320" ColumnSpacing="14">
                     <TextBlock Text="&#xE950;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="模型名称" Classes="row-title"/>
@@ -209,7 +236,7 @@
             </Border>
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,260" ColumnSpacing="14">
+                <Grid ColumnDefinitions="28,*,320" ColumnSpacing="14">
                     <TextBlock Text="&#xE8BD;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="语气风格" Classes="row-title"/>
@@ -234,14 +261,14 @@
                         <Button x:Name="TestButton" Content="测试 API" Margin="0,0,8,0"/>
                         <Button x:Name="TestReminderButton" Content="测试提醒" Margin="0,0,8,0"/>
                         <Button x:Name="TestSummaryButton" Content="测试总结" Margin="0,0,8,0"/>
-                        <Button x:Name="SaveButton" Content="保存"/>
+                        <Button x:Name="SaveButton" Content="保存" Classes="primary"/>
                     </WrapPanel>
                 </Grid>
             </Border>
 
-            <Border x:Name="TestResultBorder" Classes="setting-row" CornerRadius="4" Padding="12,8" IsVisible="False">
-                <TextBlock x:Name="TestResultText" TextWrapping="Wrap"
-                           FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+            <Border x:Name="TestResultBorder" Classes="setting-row test-result" CornerRadius="4" Padding="12,8" IsVisible="False">
+                <TextBlock x:Name="TestResultText" Classes="result-text" TextWrapping="Wrap"
+                           FontSize="12"/>
             </Border>
 
             <TextBlock Text="生成参数" Classes="section-title"/>
@@ -330,6 +357,45 @@
                         <TextBlock Text="考试模式启动时自动使用正式专业语气。" Classes="row-description"/>
                     </StackPanel>
                     <ToggleSwitch Grid.Column="2" x:Name="ExamSeriousToneCb" IsChecked="True"/>
+                </Grid>
+            </Border>
+
+            <TextBlock Text="托盘菜单快捷操作" Classes="section-title"/>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*" ColumnSpacing="14">
+                    <TextBlock Text="&#xE7F4;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="10" VerticalAlignment="Center">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="显示的快捷操作" Classes="row-title"/>
+                            <TextBlock Text="选择右键 ClassIsland 托盘图标时显示在 AIIsland 菜单中的操作，修改后立即生效。" Classes="row-description" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <WrapPanel Orientation="Horizontal">
+                            <CheckBox x:Name="TrayExamModeCb" Content="启动考试模式" Margin="0,0,24,8"/>
+                            <CheckBox x:Name="TrayRegenerateSummaryCb" Content="重新生成课表总结" Margin="0,0,24,8"/>
+                            <CheckBox x:Name="TrayRegenerateHintCb" Content="重新生成学习提示" Margin="0,0,24,8"/>
+                            <CheckBox x:Name="TrayRegenerateHomeworkCb" Content="重新生成作业量估算" Margin="0,0,24,8"/>
+                            <CheckBox x:Name="TrayBeforeClassReminderCb" Content="触发课前提醒" Margin="0,0,24,8"/>
+                            <CheckBox x:Name="TrayAfterSchoolSummaryCb" Content="触发放学总结" Margin="0,0,24,8"/>
+                        </WrapPanel>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <TextBlock Text="配置管理" Classes="section-title"/>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE713;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="API 配置" Classes="row-title"/>
+                        <TextBlock Text="导出或导入 API 配置。导出文件包含 API Key，请妥善保管。" Classes="row-description"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button x:Name="ImportConfigBtn" Content="导入配置"/>
+                        <Button x:Name="ExportConfigBtn" Content="导出配置"/>
+                        <Button x:Name="RestoreDefaultsBtn" Content="恢复默认" Classes="danger"/>
+                    </StackPanel>
                 </Grid>
             </Border>
 

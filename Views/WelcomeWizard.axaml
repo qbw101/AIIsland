@@ -15,37 +15,12 @@
     FontFamily="Microsoft YaHei,Segoe UI,sans-serif">
 
     <Window.Styles>
-        <!-- 默认按钮：使用自定义极简模板，彻底绕开 Avalonia 默认主题模板的状态层/过渡动画，避免悬停闪烁 -->
+        <!-- WinUI 风格按钮，保留主题自带模板以获得完整焦点、键盘与禁用状态。 -->
         <Style Selector="Button">
-            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="CornerRadius" Value="4"/>
             <Setter Property="MinHeight" Value="34"/>
-            <Setter Property="Padding" Value="14,8"/>
-            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
-            <Setter Property="Template">
-                <ControlTemplate>
-                    <Border Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="{TemplateBinding CornerRadius}"
-                            MinHeight="{TemplateBinding MinHeight}"
-                            Padding="{TemplateBinding Padding}">
-                        <ContentPresenter Content="{TemplateBinding Content}"
-                                          ContentTemplate="{TemplateBinding ContentTemplate}"
-                                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"/>
-                    </Border>
-                </ControlTemplate>
-            </Setter>
-        </Style>
-        <Style Selector="Button:pointerover">
-            <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource TextFillColorTertiaryBrush}"/>
-        </Style>
-        <Style Selector="Button:pressed">
-            <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorBaseBrush}"/>
+            <Setter Property="Padding" Value="14,6"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
         </Style>
         <Style Selector="Button:disabled">
             <Setter Property="Opacity" Value="0.4"/>
@@ -54,7 +29,7 @@
         <Style Selector="Button.primary">
             <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
-            <Setter Property="Foreground" Value="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}"/>
         </Style>
         <Style Selector="Button.primary:pointerover">
             <Setter Property="Background" Value="{DynamicResource AccentFillColorSecondaryBrush}"/>
@@ -80,11 +55,12 @@
         </Style>
         <!-- 文本框 -->
         <Style Selector="TextBox">
-            <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="MinHeight" Value="36"/>
             <Setter Property="Padding" Value="10,6"/>
         </Style>
         <Style Selector="TextBox:pointerover">
@@ -92,6 +68,49 @@
         </Style>
         <Style Selector="TextBox:focus">
             <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        </Style>
+        <!-- 动态创建元素仅切换 Classes，颜色始终由 DynamicResource 跟随宿主主题。 -->
+        <Style Selector="Border.step-connector">
+            <Setter Property="Background" Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
+        </Style>
+        <Style Selector="Border.step-dot">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="Border.step-dot.current">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        </Style>
+        <Style Selector="Border.step-dot.completed">
+            <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.step-number">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.step-number.current">
+            <Setter Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.step-number.completed">
+            <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="Button.wizard-choice.selected">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.test-result">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.test-result.success">
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.test-result.error">
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.check-label">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.check-value">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
         </Style>
     </Window.Styles>
 
@@ -114,7 +133,7 @@
                                        HorizontalAlignment="Center"/>
                             <TextBlock Text="为 ClassIsland 带来 AI 能力"
                                        FontSize="14"
-                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                        HorizontalAlignment="Center"/>
                         </StackPanel>
                     </StackPanel>
@@ -133,99 +152,99 @@
 
                         <TextBlock Text="下面这些功能已经可以使用，不配置 API 也能使用离线降级和考试模式。"
                                    FontSize="14"
-                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    HorizontalAlignment="Center"
                                    TextWrapping="Wrap" TextAlignment="Center" MaxWidth="460"/>
 
                         <WrapPanel HorizontalAlignment="Center" MaxWidth="520" Orientation="Horizontal">
-                            <Border Background="{DynamicResource SolidBackgroundFillColorBaseBrush}" BorderBrush="{DynamicResource ControlStrokeColorSecondaryBrush}" BorderThickness="1"
+                            <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                                     CornerRadius="8" Padding="14,10" Margin="5" Width="158" Height="76">
                                 <StackPanel Spacing="4" VerticalAlignment="Center">
                                     <TextBlock Text="课前提醒" FontSize="14" FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
                                     <TextBlock Text="课间开始时生成个性化全屏提醒" FontSize="12"
                                                TextWrapping="Wrap"
-                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                 </StackPanel>
                             </Border>
-                            <Border Background="{DynamicResource SolidBackgroundFillColorBaseBrush}" BorderBrush="{DynamicResource ControlStrokeColorSecondaryBrush}" BorderThickness="1"
+                            <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                                     CornerRadius="8" Padding="14,10" Margin="5" Width="158" Height="76">
                                 <StackPanel Spacing="4" VerticalAlignment="Center">
                                     <TextBlock Text="放学总结" FontSize="14" FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
                                     <TextBlock Text="放学时生成学习总结和复习建议" FontSize="12"
                                                TextWrapping="Wrap"
-                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                 </StackPanel>
                             </Border>
-                            <Border Background="{DynamicResource SolidBackgroundFillColorBaseBrush}" BorderBrush="{DynamicResource ControlStrokeColorSecondaryBrush}" BorderThickness="1"
+                            <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                                     CornerRadius="8" Padding="14,10" Margin="5" Width="158" Height="76">
                                 <StackPanel Spacing="4" VerticalAlignment="Center">
                                     <TextBlock Text="换课提醒" FontSize="14" FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
                                     <TextBlock Text="检测临时换课并直接弹出提示" FontSize="12"
                                                TextWrapping="Wrap"
-                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                 </StackPanel>
                             </Border>
-                            <Border Background="{DynamicResource SolidBackgroundFillColorBaseBrush}" BorderBrush="{DynamicResource ControlStrokeColorSecondaryBrush}" BorderThickness="1"
+                            <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                                     CornerRadius="8" Padding="14,10" Margin="5" Width="158" Height="76">
                                 <StackPanel Spacing="4" VerticalAlignment="Center">
                                     <TextBlock Text="课表总结" FontSize="14" FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
                                     <TextBlock Text="一句话解读今日课程节奏" FontSize="12"
                                                TextWrapping="Wrap"
-                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                 </StackPanel>
                             </Border>
-                            <Border Background="{DynamicResource SolidBackgroundFillColorBaseBrush}" BorderBrush="{DynamicResource ControlStrokeColorSecondaryBrush}" BorderThickness="1"
+                            <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                                     CornerRadius="8" Padding="14,10" Margin="5" Width="158" Height="76">
                                 <StackPanel Spacing="4" VerticalAlignment="Center">
                                     <TextBlock Text="作业量估算" FontSize="14" FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
                                     <TextBlock Text="按科目估算今日作业压力" FontSize="12"
                                                TextWrapping="Wrap"
-                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                 </StackPanel>
                             </Border>
-                            <Border Background="{DynamicResource SolidBackgroundFillColorBaseBrush}" BorderBrush="{DynamicResource ControlStrokeColorSecondaryBrush}" BorderThickness="1"
+                            <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                                     CornerRadius="8" Padding="14,10" Margin="5" Width="158" Height="76">
                                 <StackPanel Spacing="4" VerticalAlignment="Center">
                                     <TextBlock Text="课时倒计时" FontSize="14" FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
                                     <TextBlock Text="当前课时剩余时间和进度条" FontSize="12"
                                                TextWrapping="Wrap"
-                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                 </StackPanel>
                             </Border>
-                            <Border Background="{DynamicResource SolidBackgroundFillColorBaseBrush}" BorderBrush="{DynamicResource ControlStrokeColorSecondaryBrush}" BorderThickness="1"
+                            <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                                     CornerRadius="8" Padding="14,10" Margin="5" Width="158" Height="76">
                                 <StackPanel Spacing="4" VerticalAlignment="Center">
                                     <TextBlock Text="课程提示" FontSize="14" FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
                                     <TextBlock Text="上课时生成当前课程学习提示" FontSize="12"
                                                TextWrapping="Wrap"
-                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                 </StackPanel>
                             </Border>
-                            <Border Background="{DynamicResource SolidBackgroundFillColorBaseBrush}" BorderBrush="{DynamicResource ControlStrokeColorSecondaryBrush}" BorderThickness="1"
+                            <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                                     CornerRadius="8" Padding="14,10" Margin="5" Width="158" Height="76">
                                 <StackPanel Spacing="4" VerticalAlignment="Center">
                                     <TextBlock Text="难度与番茄钟" FontSize="14" FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
                                     <TextBlock Text="课程难度星数和专注时长建议" FontSize="12"
                                                TextWrapping="Wrap"
-                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                 </StackPanel>
                             </Border>
-                            <Border Background="{DynamicResource SolidBackgroundFillColorBaseBrush}" BorderBrush="{DynamicResource ControlStrokeColorSecondaryBrush}" BorderThickness="1"
+                            <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                                     CornerRadius="8" Padding="14,10" Margin="5" Width="158" Height="76">
                                 <StackPanel Spacing="4" VerticalAlignment="Center">
                                     <TextBlock Text="考试模式" FontSize="14" FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
                                     <TextBlock Text="投屏用考试倒计时仪表盘" FontSize="12"
                                                TextWrapping="Wrap"
-                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                 </StackPanel>
                             </Border>
                         </WrapPanel>
@@ -240,7 +259,7 @@
                                    HorizontalAlignment="Center"/>
                         <TextBlock Text="不会配置也没关系，可以先离线体验"
                                    FontSize="14"
-                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    HorizontalAlignment="Center" Margin="0,0,0,8"/>
 
                         <Button x:Name="PathManualBtn" Click="OnPathManualClicked"
@@ -251,7 +270,7 @@
                                 <TextBlock Text="我有 API Key" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
                                 <TextBlock Text="已经注册了 DeepSeek、阿里百炼等平台，直接填入即可"
                                            FontSize="13" TextWrapping="Wrap"
-                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                             </StackPanel>
                         </Button>
 
@@ -263,7 +282,7 @@
                                 <TextBlock Text="帮我推荐" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
                                 <TextBlock Text="从主流平台中选择，自动填入地址和模型，只需粘贴 Key"
                                            FontSize="13" TextWrapping="Wrap"
-                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                             </StackPanel>
                         </Button>
 
@@ -275,7 +294,19 @@
                                 <TextBlock Text="先离线体验" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
                                 <TextBlock Text="暂不配置 API，使用本地降级提示体验基础功能"
                                            FontSize="13" TextWrapping="Wrap"
-                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button x:Name="PathImportBtn" Click="OnPathImportClicked"
+                                HorizontalAlignment="Stretch" Padding="20,18"
+                                HorizontalContentAlignment="Left"
+                                Classes="wizard-choice">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="导入已有配置" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                                <TextBlock Text="从之前导出的 JSON 文件恢复 API 配置"
+                                           FontSize="13" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                             </StackPanel>
                         </Button>
                     </StackPanel>
@@ -289,21 +320,21 @@
                                    HorizontalAlignment="Center"/>
                         <TextBlock Text="兼容所有 OpenAI Chat Completions 格式的 API"
                                    FontSize="13"
-                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    HorizontalAlignment="Center" Margin="0,0,0,8"/>
 
                         <TextBlock Text="API 地址" FontSize="13"
-                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                         <TextBox x:Name="ManualEndpointBox" FontSize="14"
                                  Watermark="https://api.deepseek.com/v1/chat/completions"/>
 
                         <TextBlock Text="API Key" FontSize="13"
-                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                         <TextBox x:Name="ManualKeyBox" PasswordChar="*" FontSize="14"
                                  Watermark="sk-..."/>
 
                         <TextBlock Text="模型名称" FontSize="13"
-                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                         <TextBox x:Name="ManualModelBox" FontSize="14"
                                  Watermark="deepseek-chat"/>
 
@@ -315,8 +346,8 @@
                             <Button x:Name="ManualSummaryTestBtn" Content="测试 AI 总结" FontSize="13"
                                     Padding="14,8" Click="OnManualSummaryTestClicked"/>
                         </StackPanel>
-                        <TextBlock x:Name="ManualTestResult" FontSize="13"
-                                   TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                        <TextBlock x:Name="ManualTestResult" FontSize="13" Classes="test-result"
+                                   TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
 
@@ -328,7 +359,7 @@
                                    HorizontalAlignment="Center"/>
                         <TextBlock Text="选择平台后会自动填入 API 地址，你也可以手动修改模型名称。"
                                    FontSize="13"
-                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    HorizontalAlignment="Center" Margin="0,0,0,8"/>
 
                         <ScrollViewer MaxHeight="170" AllowAutoHide="False">
@@ -339,8 +370,8 @@
                                     <DataTemplate>
                                         <Border Padding="12,10" Margin="0,0,0,2"
                                                 CornerRadius="6"
-                                                Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
-                                                BorderBrush="{DynamicResource ControlFillColorSecondaryBrush}" BorderThickness="1">
+                                                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
                                             <DockPanel>
                                                 <TextBlock Text="{Binding Badge}" FontSize="11"
                                                            Foreground="{DynamicResource AccentFillColorDefaultBrush}"
@@ -352,7 +383,7 @@
                                                         <Run Text="{Binding Index}"/><Run Text=". "/><Run Text="{Binding Name}"/>
                                                     </TextBlock>
                                                     <TextBlock FontSize="12"
-                                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                                                TextWrapping="Wrap">
                                                         <Run Text="{Binding Model}"/>
                                                     </TextBlock>
@@ -373,17 +404,17 @@
 
                         <StackPanel Spacing="10" Margin="0,4,0,0">
                             <TextBlock Text="API 地址" FontSize="13"
-                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                             <TextBox x:Name="RecommendedEndpointBox" FontSize="14"
                                      Watermark="选择平台后自动填写，也可手动修改"/>
                             <TextBlock Text="模型名称" FontSize="13"
-                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                             <TextBox x:Name="RecommendedModelBox" FontSize="14"
                                      Watermark="例如 qwen/qwen3.6-flash"/>
                         </StackPanel>
 
                         <TextBlock Text="API Key" FontSize="13"
-                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    Margin="0,2,0,0"/>
                         <TextBox x:Name="RecommendedKeyBox" PasswordChar="*" FontSize="14"
                                  Watermark="sk-... 粘贴到这里"/>
@@ -400,8 +431,8 @@
                             <Button x:Name="RecommendedSummaryTestBtn" Content="测试 AI 总结" FontSize="13"
                                     Padding="14,8" Click="OnRecommendedSummaryTestClicked"/>
                         </StackPanel>
-                        <TextBlock x:Name="RecommendedTestResult" FontSize="13"
-                                   TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                        <TextBlock x:Name="RecommendedTestResult" FontSize="13" Classes="test-result"
+                                   TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
 
@@ -413,7 +444,7 @@
                                    HorizontalAlignment="Center"/>
                         <TextBlock Text="选择 AI 的语气风格，后续可随时修改"
                                    FontSize="14"
-                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    HorizontalAlignment="Center" Margin="0,0,0,8"/>
 
                         <Button x:Name="ToneLivelyBtn" Click="OnToneLivelyClicked"
@@ -424,7 +455,7 @@
                                 <TextBlock Text="活泼" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
                                 <TextBlock Text="轻二次元风格，像校园番里的同伴提醒，元气但不尬"
                                            FontSize="13" TextWrapping="Wrap"
-                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                             </StackPanel>
                         </Button>
 
@@ -436,7 +467,7 @@
                                 <TextBlock Text="标准" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
                                 <TextBlock Text="自然随和，像同学之间随口提醒，实用不啰嗦"
                                            FontSize="13" TextWrapping="Wrap"
-                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                             </StackPanel>
                         </Button>
 
@@ -448,7 +479,7 @@
                                 <TextBlock Text="严肃" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
                                 <TextBlock Text="正式专业，像老师的提醒，客观简练不啰嗦"
                                            FontSize="13" TextWrapping="Wrap"
-                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                             </StackPanel>
                         </Button>
                     </StackPanel>
@@ -465,15 +496,20 @@
                                    HorizontalAlignment="Center"
                                    TextAlignment="Center" TextWrapping="Wrap"/>
 
-                        <StackPanel x:Name="ChecklistPanel" Spacing="8" Margin="0,12,0,0"/>
+                        <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="16,10"
+                                Margin="0,12,0,0" HorizontalAlignment="Stretch">
+                            <StackPanel x:Name="ChecklistPanel" Spacing="2"/>
+                        </Border>
 
                         <TextBlock Text="你随时可以在设置中修改以上配置。"
                                    FontSize="13"
-                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    HorizontalAlignment="Center" Margin="0,8,0,0"/>
                         <TextBlock Text="AIIsland  ·  AI 驱动的智能课表助手"
                                    FontSize="12"
-                                   Foreground="{DynamicResource TextFillColorDisabledBrush}"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Border>
@@ -488,7 +524,7 @@
                         Click="OnSkipClicked" IsVisible="False"/>
                 <TextBlock Grid.Column="1" Text=" " x:Name="StepLabel"
                            FontSize="13"
-                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                            VerticalAlignment="Center" HorizontalAlignment="Center"/>
                 <Button x:Name="PrevBtn" Grid.Column="2" Content="上一步" FontSize="14"
                         Padding="20,8" Margin="0,0,8,0"
