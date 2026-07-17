@@ -15,7 +15,7 @@
 > 早期开发代号为 `AISmartClass`，后统一更名为 **AIIsland**。为避免破坏 `using` 引用、`avares://` 资源路径和 manifest 入口指向，技术标识符仍保留 `ClassIsland.AISmartClass`，仅更改对用户展示的名称。两者指向同一个插件。
 
 ## 目前已实现的功能
-![](http://image.qbwnas.top/picture/ganyu2.png)
+<img alt="image" src="http://image.qbwnas.top/picture/ganyu2.png" />
 ### 提醒
 | 功能 | 触发时机 | 说明 |
 |---|---|---|
@@ -44,23 +44,23 @@
 
 ### 功能展示
 * 课前提醒
-![](http://image.qbwnas.top/picture/课前提醒.png)
+<img alt="image" src="http://image.qbwnas.top/picture/课前提醒.png" />
 * 放学总结
-![](http://image.qbwnas.top/picture/放学总结.png)
+<img alt="image" src="http://image.qbwnas.top/picture/放学总结.png" />
 * 换课提醒
-![](http://image.qbwnas.top/picture/换课提醒.png)
+<img alt="image" src="http://image.qbwnas.top/picture/换课提醒.png" />
 * 组件
-![](http://image.qbwnas.top/picture/组件.png)
+<img alt="image" src="http://image.qbwnas.top/picture/组件.png" />
 * 自定义提醒
-![](http://image.qbwnas.top/picture/自定义提醒.png)
+<img alt="image" src="http://image.qbwnas.top/picture/自定义提醒.png" />
 * 考试模式
-![](http://image.qbwnas.top/picture/考试模式.png)
+<img alt="image" src="http://image.qbwnas.top/picture/考试模式.png" />
 * 欢迎向导
-![](http://image.qbwnas.top/picture/欢迎向导.png)
+<img alt="image" src="http://image.qbwnas.top/picture/欢迎向导.png" />
 
 
 ## 一些未来的计划 ~~画饼~~  
-![](http://image.qbwnas.top/picture/ganyu1.png)
+<img alt="image" src="http://image.qbwnas.top/picture/ganyu1.png" />
 * 语音播报优化：
     * 目前此功能尚不稳定，尽量不要使用    
     * 在未来我们将适配花儿不哭大佬的GPT-SoVITS在线推理api
