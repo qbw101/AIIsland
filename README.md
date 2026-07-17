@@ -15,7 +15,7 @@
 > 早期开发代号为 `AISmartClass`，后统一更名为 **AIIsland**。为避免破坏 `using` 引用、`avares://` 资源路径和 manifest 入口指向，技术标识符仍保留 `ClassIsland.AISmartClass`，仅更改对用户展示的名称。两者指向同一个插件。
 
 ## 目前已实现的功能
-![](http://image.qbwnas.top/picture/ganyu2.png)
+![ganyu2.png](http://image.qbwnas.top/openlist/d/图床/ganyu2.png?sign=6K5ByOZ9e5fGcpCQTCqvuI3FP8XZvMNG7-MJnDbaVss=:0)
 ### 提醒
 | 功能 | 触发时机 | 说明 |
 |---|---|---|
@@ -44,23 +44,23 @@
 
 ### 功能展示
 * 课前提醒
-![](http://image.qbwnas.top/picture/课前提醒.png)
+![课前提醒.png](http://image.qbwnas.top/openlist/d/图床/课前提醒.png?sign=iGUOB4bTmpDoA5S5vaItNyk7PYafPzVz83LSlh5oQ1w=:0)
 * 放学总结
-![](http://image.qbwnas.top/picture/放学总结.png)
+![放学总结.png](http://image.qbwnas.top/openlist/d/图床/放学总结.png?sign=_LCgKfxKbB44QeUyjfe-cv5wkuYQ5LxfgoRvr3KcY34=:0)
 * 换课提醒
-![](http://image.qbwnas.top/picture/换课提醒.png)
+![换课提醒.png](http://image.qbwnas.top/openlist/d/图床/换课提醒.png?sign=u6ksJ-zHjJRqZMTPpWcsaxmNH-7flD2LDuTMMKPswGA=:0)
 * 组件
-![](http://image.qbwnas.top/picture/组件.png)
+![组件.png](http://image.qbwnas.top/openlist/d/图床/组件.png?sign=QfY-e4BB0cqPdMrByBM_3ZPu66DY0q7ujYIdVjeuWy8=:0)
 * 自定义提醒
-![](http://image.qbwnas.top/picture/自定义提醒.png)
+![自定义提醒.png](http://image.qbwnas.top/openlist/d/图床/自定义提醒.png?sign=6OB-nYMiakO2ujRDQZvC45DSYmpgtqpe4ImyBHBsoJ4=:0)
 * 考试模式
-![](http://image.qbwnas.top/picture/考试模式.png)
+![考试模式.png](http://image.qbwnas.top/openlist/d/图床/考试模式.png?sign=DDVZ-hzaNeO6sGd0NXH-2W3arBOzPBSl9oAA3aQKcL0=:0)
 * 欢迎向导
-![](http://image.qbwnas.top/picture/欢迎向导.png)
+![欢迎向导.png](http://image.qbwnas.top/openlist/d/图床/欢迎向导.png?sign=HqZAe9cEQYRGWjBv8znE1m32SHMAz4kRQGJR7SQ8t7U=:0)
 
 
 ## 一些未来的计划 ~~画饼~~  
-![](http://image.qbwnas.top/picture/ganyu1.png)
+![ganyu1.png](http://image.qbwnas.top/openlist/d/图床/ganyu1.png?sign=XT0Dolm9YWKTcRjMosh337Nr5JqozRG27SbPMpxE2-4=:0)
 * 语音播报优化：
     * 目前此功能尚不稳定，尽量不要使用    
     * 在未来我们将适配花儿不哭大佬的GPT-SoVITS在线推理api
