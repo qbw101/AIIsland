@@ -46,7 +46,7 @@
 
 ### 功能展示
 * 智能每日简报 
-![智能每日简报.png](http://image.qbwnas.top/d/图床/智能每日简报.png?sign=TaipzHevGipcxoYlvAEhO0NcfcbOedjm8Mb2etZDjHE=:0)
+![智能每日简报.png](http://image.qbwnas.top/openlist/d/%E5%9B%BE%E5%BA%8A/%E6%99%BA%E8%83%BD%E6%AF%8F%E6%97%A5%E7%AE%80%E6%8A%A5.png?sign=TaipzHevGipcxoYlvAEhO0NcfcbOedjm8Mb2etZDjHE%3D%3A0)
 * 课间贴心提醒
 ![课前提醒.png](http://image.qbwnas.top/openlist/d/图床/课前提醒.png?sign=iGUOB4bTmpDoA5S5vaItNyk7PYafPzVz83LSlh5oQ1w=:0)
 * 放学贴心总结
@@ -58,7 +58,8 @@
 * 自定义提醒
 ![自定义提醒.png](http://image.qbwnas.top/openlist/d/图床/自定义提醒.png?sign=6OB-nYMiakO2ujRDQZvC45DSYmpgtqpe4ImyBHBsoJ4=:0)
 * 播放岛
-![播放岛.png](http://image.qbwnas.top/d/图床/播放岛.png?sign=UxafYI2ephvW4YGRYmBl0mSLRxb9ris1eqF_HVpgZVo=:0)
+  
+  ![播放岛.png](http://image.qbwnas.top/openlist/d/%E5%9B%BE%E5%BA%8A/%E6%92%AD%E6%94%BE%E5%B2%9B.png?sign=UxafYI2ephvW4YGRYmBl0mSLRxb9ris1eqF_HVpgZVo%3D%3A0)
 * 考试模式
 ![考试模式.png](http://image.qbwnas.top/openlist/d/图床/考试模式.png?sign=DDVZ-hzaNeO6sGd0NXH-2W3arBOzPBSl9oAA3aQKcL0=:0)
 * 欢迎向导
