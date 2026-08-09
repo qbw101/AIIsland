@@ -19,8 +19,10 @@
 ### 提醒
 | 功能 | 触发时机 | 说明 |
 |---|---|---|
-| 课前提醒 | 课间开始时 | AI 根据刚上完的课 + 下节课科目生成个性化全屏提醒 |
-| 放学总结 | 放学时 | AI 生成本日学习总结全屏遮罩，含复习建议 |
+| 智能每日简报 | 第一节课前 5 分钟 | 结合第一节课、当前时间、天气、自定义提醒和今日新闻生成简报 |
+| 课间贴心提醒 | 课间开始时 | 结合前后课程、当前时间、天气生成提醒 |
+| 放学贴心总结 | 最后一节课结束时 | 根据真实时间问候，总结今日课程并给出明日天气与准备建议 |
+| 播放岛 | 检测到电脑开始播放音乐时 | 独立调用 AI 展示歌曲相关信息；上课期间不提醒 |
 | 换课提醒 | 检测到临时换课时 | 自动弹出提示告知课表变动 |
 | 语音播报 | 随提醒触发	 | 可选开启，默认关闭以免影响课堂 |
 | 自定义提醒 | 支持三种：固定时间（一次性）、每日重复、关联科目课前 N 分钟 | 自由设置提醒内容和触发条件，可随时开关/编辑/删除 |
@@ -32,7 +34,7 @@
 | 组件 |	显示名 | 功能 |
 |----|----|----|
 |ScheduleInsight |	AIIsland 课表总结 |	AI 生成一句话解读今日课表|
-|HomeworkEstimate | AIIsland 作业量估算 | 根据科目类型估算今日作业量（AI + 规则兜底）|
+|HomeworkEstimate | AIIsland 作业量估算 | 根据科目类型估算今日作业量|
 |ClassCountdown | 课时倒计时 | 当前课时剩余时间 + 进度条，实时刷新|
 |CurrentHint | AIIsland 课程提示 | 每次上课自动生成当前课程学习提示，换课自动更新|
 |DifficultyInfo | 难度与番茄钟 | 今日课程难度星数+ 专注时长建议|
@@ -43,9 +45,11 @@
 
 
 ### 功能展示
-* 课前提醒
+* 智能每日简报 
+![智能每日简报.png](http://image.qbwnas.top/d/图床/智能每日简报.png?sign=TaipzHevGipcxoYlvAEhO0NcfcbOedjm8Mb2etZDjHE=:0)
+* 课间贴心提醒
 ![课前提醒.png](http://image.qbwnas.top/openlist/d/图床/课前提醒.png?sign=iGUOB4bTmpDoA5S5vaItNyk7PYafPzVz83LSlh5oQ1w=:0)
-* 放学总结
+* 放学贴心总结
 ![放学总结.png](http://image.qbwnas.top/openlist/d/图床/放学总结.png?sign=_LCgKfxKbB44QeUyjfe-cv5wkuYQ5LxfgoRvr3KcY34=:0)
 * 换课提醒
 ![换课提醒.png](http://image.qbwnas.top/openlist/d/图床/换课提醒.png?sign=u6ksJ-zHjJRqZMTPpWcsaxmNH-7flD2LDuTMMKPswGA=:0)
@@ -53,11 +57,17 @@
 ![组件.png](http://image.qbwnas.top/openlist/d/图床/组件.png?sign=QfY-e4BB0cqPdMrByBM_3ZPu66DY0q7ujYIdVjeuWy8=:0)
 * 自定义提醒
 ![自定义提醒.png](http://image.qbwnas.top/openlist/d/图床/自定义提醒.png?sign=6OB-nYMiakO2ujRDQZvC45DSYmpgtqpe4ImyBHBsoJ4=:0)
+* 播放岛
+![播放岛.png](http://image.qbwnas.top/d/图床/播放岛.png?sign=UxafYI2ephvW4YGRYmBl0mSLRxb9ris1eqF_HVpgZVo=:0)
 * 考试模式
 ![考试模式.png](http://image.qbwnas.top/openlist/d/图床/考试模式.png?sign=DDVZ-hzaNeO6sGd0NXH-2W3arBOzPBSl9oAA3aQKcL0=:0)
 * 欢迎向导
 ![欢迎向导.png](http://image.qbwnas.top/openlist/d/图床/欢迎向导.png?sign=HqZAe9cEQYRGWjBv8znE1m32SHMAz4kRQGJR7SQ8t7U=:0)
 
+## 插件API
+本插件在1.4.0.0版本中加入了api接口，方便其他插件调用ai服务
+
+api文档在插件目录的PLUGIN-API.md文件中
 
 ## 一些未来的计划 ~~画饼~~  
 ![ganyu1.png](http://image.qbwnas.top/openlist/d/图床/ganyu1.png?sign=XT0Dolm9YWKTcRjMosh337Nr5JqozRG27SbPMpxE2-4=:0)
@@ -65,7 +75,6 @@
     * 目前此功能尚不稳定，尽量不要使用    
     * 在未来我们将适配花儿不哭大佬的GPT-SoVITS在线推理api
 * 体验与功能打磨
-* 接入自动化
 
 
 本项目使用了鸿蒙系统内的图标，非常感谢！！！

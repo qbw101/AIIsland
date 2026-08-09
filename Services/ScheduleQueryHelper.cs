@@ -40,13 +40,14 @@ public static class ScheduleQueryHelper
     {
         if (plan == null) return null;
 
-        foreach (var cls in plan.Classes)
+        foreach (var cls in plan.Classes
+                     .Where(c => c.IsEnabled && c.CurrentTimeLayoutItem != null)
+                     .OrderBy(c => c.CurrentTimeLayoutItem!.StartTime))
         {
-            if (!cls.IsEnabled) continue;
             var layout = cls.CurrentTimeLayoutItem;
-            if (layout == null) continue;
 
-            if (now >= layout.StartTime && now <= layout.EndTime)
+            // EndTime 是课间开始的边界；此刻不应再把刚结束的课程当作当前课程。
+            if (now >= layout!.StartTime && now < layout.EndTime)
                 return cls;
         }
 
@@ -61,7 +62,10 @@ public static class ScheduleQueryHelper
     {
         if (plan == null) return null;
 
-        var classes = plan.Classes.Where(c => c.IsEnabled).ToList();
+        var classes = plan.Classes
+            .Where(c => c.IsEnabled && c.CurrentTimeLayoutItem != null)
+            .OrderBy(c => c.CurrentTimeLayoutItem!.StartTime)
+            .ToList();
 
         for (int i = 0; i < classes.Count - 1; i++)
         {
@@ -69,7 +73,7 @@ public static class ScheduleQueryHelper
             var nextLayout = classes[i + 1].CurrentTimeLayoutItem;
             if (prevLayout == null || nextLayout == null) continue;
 
-            if (now > prevLayout.EndTime && now < nextLayout.StartTime)
+            if (now >= prevLayout.EndTime && now < nextLayout.StartTime)
                 return classes[i]; // 上一节课的信息
         }
 
@@ -83,13 +87,13 @@ public static class ScheduleQueryHelper
     {
         if (plan == null) return null;
 
-        foreach (var cls in plan.Classes)
+        foreach (var cls in plan.Classes
+                     .Where(c => c.IsEnabled && c.CurrentTimeLayoutItem != null)
+                     .OrderBy(c => c.CurrentTimeLayoutItem!.StartTime))
         {
-            if (!cls.IsEnabled) continue;
             var layout = cls.CurrentTimeLayoutItem;
-            if (layout == null) continue;
 
-            if (now < layout.StartTime)
+            if (now < layout!.StartTime)
                 return cls;
         }
 
@@ -116,7 +120,7 @@ public static class ScheduleQueryHelper
                 if (layout == null) continue;
 
                 // 上课区间
-                if (now >= layout.StartTime && now <= layout.EndTime)
+                if (now >= layout.StartTime && now < layout.EndTime)
                     return layout;
             }
 
@@ -128,7 +132,7 @@ public static class ScheduleQueryHelper
                 var nextLayout = enabledClasses[i + 1].CurrentTimeLayoutItem;
                 if (prevLayout == null || nextLayout == null) continue;
 
-                if (now > prevLayout.EndTime && now < nextLayout.StartTime)
+                if (now >= prevLayout.EndTime && now < nextLayout.StartTime)
                 {
                     // 返回一个"虚拟"的课间区间
                     return new TimeLayoutItem
@@ -164,6 +168,22 @@ public static class ScheduleQueryHelper
         catch { return null; }
     }
 
+    /// <summary>
+    /// 将 ClassIsland 返回的科目名称转换为可安全写入提示词的文本。
+    /// 空值以及由半角/全角问号组成的运行时占位符（如 ???）均视为无效。
+    /// </summary>
+    public static string NormalizeSubjectName(string? subjectName, string fallback)
+    {
+        var normalized = subjectName?.Trim();
+        if (string.IsNullOrWhiteSpace(normalized) ||
+            normalized.All(character => character is '?' or '？'))
+        {
+            return fallback;
+        }
+
+        return normalized;
+    }
+
     /// <summary>根据 ClassInfo 获取科目名称</summary>
     public static string GetSubjectName(IProfileService profileService, Guid subjectId)
     {
@@ -172,7 +192,7 @@ public static class ScheduleQueryHelper
             var profile = profileService?.Profile;
             if (profile == null) return "";
             return profile.Subjects.TryGetValue(subjectId, out var subject)
-                ? subject.Name ?? ""
+                ? NormalizeSubjectName(subject.Name, "")
                 : "";
         }
         catch { return ""; }
@@ -306,13 +326,19 @@ public static class ScheduleQueryHelper
                 await Task.Delay(delayMs, ct).ConfigureAwait(false);
         }
 
+        // Profile 已加载且等待窗口内始终没有激活计划，代表当天确实没有课表，
+        // 不应让组件永久停留在“课表加载中”。
+        if (lastReadiness == ProfileReadiness.NoActivePlan && getter()?.Profile != null)
+            lastReadiness = ProfileReadiness.ReadyWithoutCourses;
+
         return new TodaySubjectsResult(lastNames, lastReadiness);
     }
 
     /// <summary>根据当前时间生成学习提示上下文，覆盖上课前、上课中、课间、放学和无课日。</summary>
     public static LearningHintContext GetLearningHintContext(
         IProfileService profileService,
-        IReadOnlyList<string>? todaySubjects = null)
+        IReadOnlyList<string>? todaySubjects = null,
+        bool preferNextClass = false)
     {
         try
         {
@@ -322,18 +348,25 @@ public static class ScheduleQueryHelper
 
             var now = DateTime.Now.TimeOfDay;
             var current = GetCurrentClass(plan, now);
-            if (current != null)
+            if (current != null && !preferNextClass)
             {
                 var subject = GetSubjectName(profileService, current.SubjectId);
                 if (string.IsNullOrWhiteSpace(subject)) subject = "当前课程";
                 return new LearningHintContext("正在上课", subject, $"class:{current.SubjectId}");
             }
 
-            var next = GetNextClass(plan, now);
             var enabled = plan.Classes
                 .Where(c => c.IsEnabled && c.CurrentTimeLayoutItem != null)
                 .OrderBy(c => c.CurrentTimeLayoutItem!.StartTime)
                 .ToList();
+            var next = GetNextClass(plan, now);
+            if (preferNextClass && current != null)
+            {
+                var currentIndex = enabled.IndexOf(current);
+                next = currentIndex >= 0 && currentIndex < enabled.Count - 1
+                    ? enabled[currentIndex + 1]
+                    : null;
+            }
 
             if (next != null)
             {

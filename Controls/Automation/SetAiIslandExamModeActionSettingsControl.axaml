@@ -1,0 +1,29 @@
+<ci:ActionSettingsControlBase
+    x:Class="ClassIsland.AISmartClass.Controls.Automation.SetAiIslandExamModeActionSettingsControl"
+    x:TypeArguments="models:SetAiIslandExamModeSettings"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ci="clr-namespace:ClassIsland.Core.Abstractions.Controls;assembly=ClassIsland.Core"
+    xmlns:local="clr-namespace:ClassIsland.AISmartClass.Controls.Automation"
+    xmlns:models="clr-namespace:ClassIsland.AISmartClass.Models.Automation"
+    xmlns:converters="clr-namespace:ClassIsland.AISmartClass.Converters">
+    <ci:ActionSettingsControlBase.Resources>
+        <converters:EnumDescriptionConverter x:Key="EnumDescriptionConverter"/>
+    </ci:ActionSettingsControlBase.Resources>
+    <StackPanel Margin="8" Spacing="12"
+                DataContext="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=local:SetAiIslandExamModeActionSettingsControl}}">
+        <TextBlock Text="考试模式设置" FontWeight="Bold"/>
+        <Grid ColumnDefinitions="130,*">
+            <TextBlock Text="目标状态" VerticalAlignment="Center"/>
+            <ComboBox Grid.Column="1" SelectedItem="{Binding Settings.Mode, Mode=TwoWay}">
+                <models:AiIslandExamMode>Start</models:AiIslandExamMode>
+                <models:AiIslandExamMode>Stop</models:AiIslandExamMode>
+                <ComboBox.ItemTemplate>
+                    <DataTemplate><TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}"/></DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </Grid>
+        <ToggleSwitch Content="启动或已运行时打开仪表盘"
+                      IsChecked="{Binding Settings.OpenDashboard, Mode=TwoWay}"/>
+    </StackPanel>
+</ci:ActionSettingsControlBase>

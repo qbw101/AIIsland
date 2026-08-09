@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.IO;
 using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -23,6 +24,10 @@ public partial class SmartClassNotifierSettingsControl : NotificationProviderCon
     private ListBox? _reminderListBox;
     private TextBox? _nlInputBox;
     private TextBlock? _parseStatusText;
+    private TextBlock? _windowsContextTestResult;
+    private TextBlock? _rssTestResult;
+    private ComboBox? _rssSourceComboBox;
+    private TextBox? _customRssTextBox;
     private INotifyCollectionChanged? _subscribedCollection;
 
     public SmartClassNotifierSettingsControl()
@@ -41,9 +46,118 @@ public partial class SmartClassNotifierSettingsControl : NotificationProviderCon
         _reminderListBox = this.FindControl<ListBox>("ReminderListBox");
         _nlInputBox = this.FindControl<TextBox>("NlInputBox");
         _parseStatusText = this.FindControl<TextBlock>("ParseStatusText");
+        _windowsContextTestResult = this.FindControl<TextBlock>("WindowsContextTestResult");
+        _rssTestResult = this.FindControl<TextBlock>("RssTestResult");
+        _rssSourceComboBox = this.FindControl<ComboBox>("RssSourceComboBox");
+        _customRssTextBox = this.FindControl<TextBox>("CustomRssTextBox");
+        SelectRssSource();
+
+        ApplyWindowsContextAvailability();
 
         SubscribeCollectionChanged();
         RefreshReminderList();
+    }
+
+    private void SelectRssSource()
+    {
+        if (_rssSourceComboBox == null || Settings == null) return;
+        var value = Settings.RssFeedUrls?.Trim() ?? "";
+        var isLegacySource = value.Contains("rss.watchrss.cn", StringComparison.OrdinalIgnoreCase) ||
+                             value.Equals("https://www.ithome.com/rss", StringComparison.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(value) || isLegacySource)
+        {
+            value = "http://www.ithome.com/rss/";
+            Settings.RssFeedUrls = value;
+        }
+        var index = value switch
+        {
+            "http://www.ithome.com/rss/" => 0,
+            "https://36kr.com/feed" => 1,
+            _ => 2
+        };
+        _rssSourceComboBox.SelectedIndex = index;
+        if (_customRssTextBox != null) _customRssTextBox.IsVisible = index == 2;
+    }
+
+    private void OnRssSourceChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_rssSourceComboBox?.SelectedItem is not ComboBoxItem item || Settings == null) return;
+        var tag = item.Tag?.ToString() ?? "";
+        if (tag == "__custom__")
+        {
+            if (_customRssTextBox != null) _customRssTextBox.IsVisible = true;
+            return;
+        }
+        if (_customRssTextBox != null) _customRssTextBox.IsVisible = false;
+        Settings.RssFeedUrls = tag;
+    }
+
+    private async void OnRssTestClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_rssTestResult == null || Settings == null) return;
+        _rssTestResult.Text = "正在读取 RSS...";
+        try
+        {
+            var service = new DailyBriefingDataService();
+            var news = await service.GetNewsAsync(Settings.ClassIslandInstallDirectory, Settings.RssFeedUrls);
+            _rssTestResult.Text = news.Count == 0
+                ? "未读取到新闻，请检查地址或网络。"
+                : $"读取成功：{string.Join("；", news.Take(2))}";
+        }
+        catch (Exception ex)
+        {
+            _rssTestResult.Text = $"RSS 测试失败：{ex.Message}";
+        }
+    }
+
+    private void ApplyWindowsContextAvailability()
+    {
+        if (Settings == null || WindowsSystemContextService.IsWindowsSystemContextSupported) return;
+
+        // Persist a disabled state so an unsupported host cannot repeatedly enter
+        // the Windows-only polling paths after restart.
+        Settings.EnableWeatherReminder = false;
+        Settings.EnableTemperatureReminder = false;
+        Settings.EnableWeatherAlertReminder = false;
+        Settings.EnableMusicReminder = false;
+        if (_windowsContextTestResult != null)
+            _windowsContextTestResult.Text = $"Windows 功能已禁用：{WindowsSystemContextService.GetSupportStatus()}";
+    }
+
+    private async void OnWindowsContextTestClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_windowsContextTestResult == null || Settings == null) return;
+
+        _windowsContextTestResult.Text = "正在检测定位、媒体会话和小米天气...";
+        try
+        {
+            var service = new WindowsSystemContextService();
+            var music = await service.GetCurrentMusicAsync();
+
+            var locationService = new LocationService(
+                () => Settings.ClassIslandInstallDirectory);
+            var location = await locationService.GetLocationAsync();
+            var locationText = location == null
+                ? "定位：不可用"
+                : $"定位：{location.Address} ({location.Latitude:F4}, {location.Longitude:F4}) [{location.Provider}]";
+
+            var weather = await service.GetCurrentWeatherAsync(location);
+            var weatherText = weather == null
+                ? "小米天气：未取得天气数据"
+                : $"小米天气：{WindowsSystemContextService.DescribeWeatherCode(weather.WeatherCode)}，" +
+                  $"{weather.TemperatureC:0.#}°C" +
+                  (weather.ApparentTemperatureC is double apparent ? $" / 体感 {apparent:0.#}°C" : "") +
+                  (weather.Alerts.Count > 0
+                      ? $" / 预警：{string.Join("、", weather.Alerts.Select(a => string.IsNullOrWhiteSpace(a.Level) ? a.Title : $"{a.Title}({a.Level})"))}"
+                      : "");
+
+            var musicText = music == null ? "未检测到正在播放的音乐" : $"音乐：{music.Title}";
+            _windowsContextTestResult.Text = $"{locationText}；{musicText}；{weatherText}";
+        }
+        catch (Exception ex)
+        {
+            _windowsContextTestResult.Text = $"Windows 功能测试失败：{ex.Message}";
+        }
     }
 
     protected override void OnUnloaded(RoutedEventArgs e)

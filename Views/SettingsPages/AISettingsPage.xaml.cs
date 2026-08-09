@@ -11,7 +11,9 @@ using Avalonia.Platform.Storage;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 using ClassIsland.AISmartClass.Models;
+using ClassIsland.AISmartClass.PublicApi;
 using ClassIsland.AISmartClass.Services;
+using ClassIsland.AISmartClass.Services.NotificationProviders;
 using FluentAvalonia.UI.Controls;
 
 namespace ClassIsland.AISmartClass.Views.SettingsPages;
@@ -37,7 +39,9 @@ public partial class AISettingsPage : SettingsPageBase
     private NumericUpDown? _timeoutBox;
     private NumericUpDown? _cacheBox;
     private NumericUpDown? _maxRetriesBox;
+    private NumericUpDown? _aiLogRetentionDaysBox;
     private Button? _testButton;
+    private Button? _testBeforeSchoolButton;
     private Button? _testReminderButton;
     private Button? _testSummaryButton;
     private TextBlock? _testResultText;
@@ -52,11 +56,18 @@ public partial class AISettingsPage : SettingsPageBase
 
     // 托盘菜单快捷操作复选框
     private CheckBox? _trayBeforeClassReminderCb;
+    private CheckBox? _trayBeforeSchoolReminderCb;
     private CheckBox? _trayAfterSchoolSummaryCb;
+    private CheckBox? _trayCustomRemindersCb;
     private CheckBox? _trayRegenerateHomeworkCb;
     private CheckBox? _trayExamModeCb;
     private CheckBox? _trayRegenerateSummaryCb;
     private CheckBox? _trayRegenerateHintCb;
+
+    // 外部插件授权管理
+    private ToggleSwitch? _defaultAuthTrustedSwitch;
+    private ItemsControl? _pluginAuthList;
+    private TextBlock? _noPluginsText;
 
     // 按钮缩放动画（复用 WelcomeWizard 风格）
     private readonly List<Button> _animatedButtons = new();
@@ -67,9 +78,9 @@ public partial class AISettingsPage : SettingsPageBase
     private bool _controlsInitialized;
     private bool _applyingSettings;
 
-    public AISettingsPage(string configFolder)
+    public AISettingsPage(AiIslandConfigPath configPath)
     {
-        _configFolder = configFolder;
+        _configFolder = configPath.Value;
         InitializeComponent();
     }
 
@@ -88,6 +99,7 @@ public partial class AISettingsPage : SettingsPageBase
 
         // 订阅外部设置变更事件（例如欢迎向导保存、其他入口修改），自动刷新 UI
         Plugin.AISettingsChanged += OnExternalSettingsChanged;
+        Plugin.PluginAuthorizationsChanged += OnPluginAuthorizationsChanged;
     }
 
     /// <summary>递归注册所有 Button 的缩放动画（复用 WelcomeWizard 风格）</summary>
@@ -163,9 +175,11 @@ public partial class AISettingsPage : SettingsPageBase
         _timeoutBox = this.FindControl<NumericUpDown>("TimeoutBox");
         _cacheBox = this.FindControl<NumericUpDown>("CacheBox");
         _maxRetriesBox = this.FindControl<NumericUpDown>("MaxRetriesBox");
+        _aiLogRetentionDaysBox = this.FindControl<NumericUpDown>("AiLogRetentionDaysBox");
 
         // ---- 按钮 ----
         _testButton = WireButton("TestButton", OnTestClicked);
+        _testBeforeSchoolButton = WireButton("TestBeforeSchoolButton", OnTestBeforeSchoolClicked);
         _testReminderButton = WireButton("TestReminderButton", OnTestReminderClicked);
         _testSummaryButton = WireButton("TestSummaryButton", OnTestSummaryClicked);
         _examModeButton = WireButton("ExamModeButton", OnExamModeClicked);
@@ -173,6 +187,7 @@ public partial class AISettingsPage : SettingsPageBase
         WireButton("GitHubBtn", OnGitHubClicked);
         WireButton("IssuesBtn", OnIssuesClicked);
         WireButton("WelcomeWizardButton", OnWelcomeWizardClicked);
+        WireButton("OpenAiLogsBtn", OnOpenAiLogsFolderClicked);
         WireButton("OpenFallbackBtn", OnOpenFallbackFolderClicked);
         WireButton("OpenPromptsBtn", OnOpenPromptsFolderClicked);
         WireButton("ImportConfigBtn", OnImportConfigClicked);
@@ -190,6 +205,10 @@ public partial class AISettingsPage : SettingsPageBase
         if (_examSeriousToneCb != null) _examSeriousToneCb.IsCheckedChanged += (_, _) => AutoSaveSettings();
 
         // 托盘菜单快捷操作复选框
+        _trayBeforeSchoolReminderCb = this.FindControl<CheckBox>("TrayBeforeSchoolReminderCb");
+        if (_trayBeforeSchoolReminderCb != null)
+            _trayBeforeSchoolReminderCb.IsCheckedChanged += (_, _) => AutoSaveSettings();
+
         _trayBeforeClassReminderCb = this.FindControl<CheckBox>("TrayBeforeClassReminderCb");
         if (_trayBeforeClassReminderCb != null)
         {
@@ -200,6 +219,12 @@ public partial class AISettingsPage : SettingsPageBase
         if (_trayAfterSchoolSummaryCb != null)
         {
             _trayAfterSchoolSummaryCb.IsCheckedChanged += (_, _) => AutoSaveSettings();
+        }
+
+        _trayCustomRemindersCb = this.FindControl<CheckBox>("TrayCustomRemindersCb");
+        if (_trayCustomRemindersCb != null)
+        {
+            _trayCustomRemindersCb.IsCheckedChanged += (_, _) => AutoSaveSettings();
         }
 
         _trayRegenerateHomeworkCb = this.FindControl<CheckBox>("TrayRegenerateHomeworkCb");
@@ -234,6 +259,7 @@ public partial class AISettingsPage : SettingsPageBase
         WireNumericAutoSave(_timeoutBox);
         WireNumericAutoSave(_cacheBox);
         WireNumericAutoSave(_maxRetriesBox);
+        WireNumericAutoSave(_aiLogRetentionDaysBox);
 
         if (_toneStyleComboBox != null)
             _toneStyleComboBox.SelectionChanged += (_, _) => AutoSaveSettings();
@@ -247,6 +273,62 @@ public partial class AISettingsPage : SettingsPageBase
         _versionLabel = this.FindControl<TextBlock>("VersionLabel");
         if (_versionLabel != null)
             _versionLabel.Text = $"v{ReadManifestVersion()}";
+
+        // ---- 外部插件授权管理 ----
+        _defaultAuthTrustedSwitch = this.FindControl<ToggleSwitch>("DefaultAuthTrustedSwitch");
+        if (_defaultAuthTrustedSwitch != null)
+            _defaultAuthTrustedSwitch.IsCheckedChanged += (_, _) => AutoSaveSettings();
+
+        _pluginAuthList = this.FindControl<ItemsControl>("PluginAuthList");
+        _noPluginsText = this.FindControl<TextBlock>("NoPluginsText");
+        RefreshPluginAuthList();
+    }
+
+    /// <summary>刷新已授权插件列表的显示</summary>
+    private void RefreshPluginAuthList()
+    {
+        if (_pluginAuthList != null)
+        {
+            // 授权项不是可观察对象，重建 ItemsSource 才能立即刷新模式和调用统计。
+            _pluginAuthList.ItemsSource = null;
+            _pluginAuthList.ItemsSource = _settings.PluginAuthEntries.ToList();
+        }
+        if (_noPluginsText != null)
+            _noPluginsText.IsVisible = _settings.PluginAuthEntries.Count == 0;
+    }
+
+    /// <summary>「切换授权」按钮：在直接授权与每次确认之间切换</summary>
+    private void OnTogglePluginAuthClicked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not string pluginId) return;
+        var authGuard = Plugin.GetAuthGuard();
+        if (authGuard == null) return;
+
+        var entry = _settings.PluginAuthEntries.FirstOrDefault(e => e.PluginId == pluginId);
+        if (entry == null) return;
+
+        if (entry.AuthMode == AIIslandAuthMode.Trusted)
+        {
+            authGuard.RevokeTrust(pluginId);
+            Logger.Info($"[AuthUI] 插件 {pluginId} 切换为每次确认");
+        }
+        else
+        {
+            authGuard.Trust(pluginId, entry.PluginName);
+            Logger.Info($"[AuthUI] 插件 {pluginId} 切换为直接授权");
+        }
+
+    }
+
+    /// <summary>「撤销」按钮：完全移除插件的授权记录</summary>
+    private void OnRevokePluginAuthClicked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not string pluginId) return;
+        var authGuard = Plugin.GetAuthGuard();
+        if (authGuard == null) return;
+
+        authGuard.RemoveEntry(pluginId);
+        Logger.Info($"[AuthUI] 已撤销插件 {pluginId} 的授权记录");
     }
 
     private Button? WireButton(string name, EventHandler<RoutedEventArgs> handler)
@@ -276,6 +358,14 @@ public partial class AISettingsPage : SettingsPageBase
     {
         try
         {
+            var sharedSettings = Plugin.GetAISettings();
+            if (sharedSettings != null)
+            {
+                _settings = sharedSettings;
+                ApplySettingsToControls();
+                return;
+            }
+
             var configPath = System.IO.Path.Combine(_configFolder, "aisettings.json");
             if (System.IO.File.Exists(configPath))
             {
@@ -319,6 +409,7 @@ public partial class AISettingsPage : SettingsPageBase
         if (_timeoutBox != null) _timeoutBox.Value = _settings.TimeoutSeconds;
         if (_cacheBox != null) _cacheBox.Value = _settings.CacheMinutes;
         if (_maxRetriesBox != null) _maxRetriesBox.Value = _settings.MaxRetries;
+        if (_aiLogRetentionDaysBox != null) _aiLogRetentionDaysBox.Value = _settings.AiLogRetentionDays;
 
         // 功能开关
         if (_enableCacheCb != null) _enableCacheCb.IsChecked = _settings.EnableApiCache;
@@ -326,12 +417,18 @@ public partial class AISettingsPage : SettingsPageBase
         if (_examSeriousToneCb != null) _examSeriousToneCb.IsChecked = _settings.UseSeriousToneInExamMode;
 
         // 托盘菜单快捷操作开关
+        if (_trayBeforeSchoolReminderCb != null) _trayBeforeSchoolReminderCb.IsChecked = _settings.TrayShowBeforeSchoolReminder;
         if (_trayBeforeClassReminderCb != null) _trayBeforeClassReminderCb.IsChecked = _settings.TrayShowBeforeClassReminder;
         if (_trayAfterSchoolSummaryCb != null) _trayAfterSchoolSummaryCb.IsChecked = _settings.TrayShowAfterSchoolSummary;
         if (_trayRegenerateHomeworkCb != null) _trayRegenerateHomeworkCb.IsChecked = _settings.TrayShowRegenerateHomework;
         if (_trayExamModeCb != null) _trayExamModeCb.IsChecked = _settings.TrayShowExamMode;
         if (_trayRegenerateSummaryCb != null) _trayRegenerateSummaryCb.IsChecked = _settings.TrayShowRegenerateSummary;
         if (_trayRegenerateHintCb != null) _trayRegenerateHintCb.IsChecked = _settings.TrayShowRegenerateHint;
+        if (_trayCustomRemindersCb != null) _trayCustomRemindersCb.IsChecked = _settings.TrayShowCustomReminders;
+
+        // 外部插件授权管理
+        if (_defaultAuthTrustedSwitch != null) _defaultAuthTrustedSwitch.IsChecked = _settings.DefaultAuthMode == 1;
+        RefreshPluginAuthList();
 
         // 考试模式状态恢复：如果服务器正在运行，刷新按钮文案并锁定语气下拉
         RefreshExamModeState();
@@ -383,6 +480,7 @@ public partial class AISettingsPage : SettingsPageBase
             _settings.TimeoutSeconds = (int)(_timeoutBox?.Value ?? 10);
             _settings.CacheMinutes = (int)(_cacheBox?.Value ?? 5);
             _settings.MaxRetries = (int)(_maxRetriesBox?.Value ?? 1);
+            _settings.AiLogRetentionDays = (int)(_aiLogRetentionDaysBox?.Value ?? 30);
 
             // 功能开关
             _settings.EnableApiCache = _enableCacheCb?.IsChecked ?? true;
@@ -390,12 +488,17 @@ public partial class AISettingsPage : SettingsPageBase
             _settings.UseSeriousToneInExamMode = _examSeriousToneCb?.IsChecked ?? true;
 
             // 托盘菜单快捷操作开关
+            _settings.TrayShowBeforeSchoolReminder = _trayBeforeSchoolReminderCb?.IsChecked ?? false;
             _settings.TrayShowBeforeClassReminder = _trayBeforeClassReminderCb?.IsChecked ?? false;
             _settings.TrayShowAfterSchoolSummary = _trayAfterSchoolSummaryCb?.IsChecked ?? false;
             _settings.TrayShowRegenerateHomework = _trayRegenerateHomeworkCb?.IsChecked ?? false;
             _settings.TrayShowExamMode = _trayExamModeCb?.IsChecked ?? true;
             _settings.TrayShowRegenerateSummary = _trayRegenerateSummaryCb?.IsChecked ?? true;
             _settings.TrayShowRegenerateHint = _trayRegenerateHintCb?.IsChecked ?? true;
+            _settings.TrayShowCustomReminders = _trayCustomRemindersCb?.IsChecked ?? false;
+
+            // 外部插件授权管理
+            _settings.DefaultAuthMode = (_defaultAuthTrustedSwitch?.IsChecked ?? false) ? 1 : 0;
 
             SaveSettingsFile();
             Plugin.SyncAISettings(_settings);
@@ -408,13 +511,8 @@ public partial class AISettingsPage : SettingsPageBase
 
     private void SaveSettingsFile()
     {
-        System.IO.Directory.CreateDirectory(_configFolder);
+        Plugin.SaveAISettingsFile(_settings);
         var configPath = System.IO.Path.Combine(_configFolder, "aisettings.json");
-        var json = System.Text.Json.JsonSerializer.Serialize(_settings, new System.Text.Json.JsonSerializerOptions
-        {
-            WriteIndented = true
-        });
-        System.IO.File.WriteAllText(configPath, json);
         Logger.Info($"设置已保存到 {configPath}");
     }
 
@@ -561,17 +659,46 @@ public partial class AISettingsPage : SettingsPageBase
         if (_testResultBorder == null || _testResultText == null || _testReminderButton == null) return;
         AutoSaveSettings();
         _testReminderButton.IsEnabled = false;
-        ShowTestProgress("⏳ 正在调用 AI 生成课前提醒...");
+        ShowTestProgress("⏳ 正在调用 AI 生成课间贴心提醒...");
 
         try
         {
             var aiService = Plugin.GetAIService();
             if (aiService == null) { ShowTestResult(false, "❌ AI 服务未初始化，请先保存配置"); return; }
-            var result = await aiService.GenerateBeforeClassReminder("数学", "英语", throwOnError: true);
-            ShowTestResult(true, $"✅ AI 课前提醒测试成功！\n\n模拟：数学 → 英语\n\nAI 回复：{result}");
+            aiService.ClearCache();
+            var context = Plugin.SmartClassNotifierInstance == null
+                ? null
+                : await Plugin.SmartClassNotifierInstance.BuildThoughtfulContextAsync(ThoughtfulScene.BreakStart);
+            var result = await aiService.GenerateBeforeClassReminder(
+                "数学", "英语", throwOnError: true, context: context);
+            ShowTestResult(true, $"✅ 课间贴心提醒测试成功！\n\n模拟：数学 → 英语\n\nAI 回复：{result}");
         }
         catch (Exception ex) { ShowTestResult(false, $"❌ 测试失败: {ex.Message}"); }
         finally { _testReminderButton.IsEnabled = true; }
+    }
+
+    private async void OnTestBeforeSchoolClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_testResultBorder == null || _testResultText == null || _testBeforeSchoolButton == null) return;
+        AutoSaveSettings();
+        _testBeforeSchoolButton.IsEnabled = false;
+        ShowTestProgress("⏳ 正在调用 AI 生成智能每日简报...");
+
+        try
+        {
+            var aiService = Plugin.GetAIService();
+            if (aiService == null) { ShowTestResult(false, "❌ AI 服务未初始化，请先保存配置"); return; }
+            aiService.ClearCache();
+            var context = Plugin.SmartClassNotifierInstance == null
+                ? null
+                : await Plugin.SmartClassNotifierInstance.BuildThoughtfulContextAsync(ThoughtfulScene.DailyBriefing);
+            var result = await aiService.GenerateDailyBriefing(
+                new List<string> { "第1节 08:00-08:45：语文", "第2节 08:55-09:40：数学" },
+                throwOnError: true, context: context);
+            ShowTestResult(true, $"✅ 智能每日简报测试成功！\n\nAI 回复：{result}");
+        }
+        catch (Exception ex) { ShowTestResult(false, $"❌ 测试失败: {ex.Message}"); }
+        finally { _testBeforeSchoolButton.IsEnabled = true; }
     }
 
     private async void OnTestSummaryClicked(object? sender, RoutedEventArgs e)
@@ -579,15 +706,20 @@ public partial class AISettingsPage : SettingsPageBase
         if (_testResultBorder == null || _testResultText == null || _testSummaryButton == null) return;
         AutoSaveSettings();
         _testSummaryButton.IsEnabled = false;
-        ShowTestProgress("⏳ 正在调用 AI 生成每日总结...");
+        ShowTestProgress("⏳ 正在调用 AI 生成放学贴心总结...");
 
         try
         {
             var aiService = Plugin.GetAIService();
             if (aiService == null) { ShowTestResult(false, "❌ AI 服务未初始化，请先保存配置"); return; }
+            aiService.ClearCache();
             var subjects = new List<string> { "语文", "数学", "英语", "物理", "体育", "化学" };
-            var result = await aiService.GenerateDailySummary(subjects, throwOnError: true);
-            ShowTestResult(true, $"✅ AI 每日总结测试成功！\n\n模拟：语数英理化体\n\nAI 回复：{result}");
+            var context = Plugin.SmartClassNotifierInstance == null
+                ? null
+                : await Plugin.SmartClassNotifierInstance.BuildThoughtfulContextAsync(ThoughtfulScene.AfterSchool);
+            var result = await aiService.GenerateDailySummary(
+                subjects, throwOnError: true, context: context);
+            ShowTestResult(true, $"✅ 放学贴心总结测试成功！\n\n模拟：语数英理化体\n\nAI 回复：{result}");
         }
         catch (Exception ex) { ShowTestResult(false, $"❌ 测试失败: {ex.Message}"); }
         finally { _testSummaryButton.IsEnabled = true; }
@@ -678,7 +810,13 @@ public partial class AISettingsPage : SettingsPageBase
         }
     }
 
-    // ---- 离线数据按钮 ----
+    // ---- 本地数据按钮 ----
+
+    private void OnOpenAiLogsFolderClicked(object? sender, RoutedEventArgs e)
+    {
+        var logDirectory = System.IO.Path.Combine(_configFolder, "Logs", "AIRequests");
+        OpenFolder(logDirectory);
+    }
 
     private void OnOpenFallbackFolderClicked(object? sender, RoutedEventArgs e)
     {
@@ -773,6 +911,12 @@ public partial class AISettingsPage : SettingsPageBase
     /// <summary>外部设置发生变更时刷新 UI（例如欢迎向导完成）</summary>
     private void OnExternalSettingsChanged(AISettings settings)
     {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(() => OnExternalSettingsChanged(settings));
+            return;
+        }
+
         try
         {
             _settings = settings;
@@ -784,10 +928,25 @@ public partial class AISettingsPage : SettingsPageBase
         }
     }
 
+    private void OnPluginAuthorizationsChanged()
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(OnPluginAuthorizationsChanged);
+            return;
+        }
+
+        var sharedSettings = Plugin.GetAISettings();
+        if (sharedSettings != null)
+            _settings = sharedSettings;
+        RefreshPluginAuthList();
+    }
+
     protected override void OnUnloaded(RoutedEventArgs e)
     {
         base.OnUnloaded(e);
         Plugin.AISettingsChanged -= OnExternalSettingsChanged;
+        Plugin.PluginAuthorizationsChanged -= OnPluginAuthorizationsChanged;
 
         // 页面关闭时兜底保存，确保即使事件未触发也不会丢设置
         AutoSaveSettings();

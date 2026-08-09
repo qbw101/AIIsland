@@ -20,19 +20,7 @@
         <Style Selector="Button:disabled">
             <Setter Property="Opacity" Value="0.45"/>
         </Style>
-        <Style Selector="Button.primary">
-            <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}"/>
-        </Style>
-        <Style Selector="Button.primary:pointerover">
-            <Setter Property="Background" Value="{DynamicResource AccentFillColorSecondaryBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorSecondaryBrush}"/>
-        </Style>
-        <Style Selector="Button.primary:pressed">
-            <Setter Property="Background" Value="{DynamicResource AccentFillColorTertiaryBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorTertiaryBrush}"/>
-        </Style>
+        <StyleInclude Source="avares://ClassIsland.AISmartClass/Styles/StableButtonStyles.axaml"/>
         <Style Selector="TextBox">
             <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>

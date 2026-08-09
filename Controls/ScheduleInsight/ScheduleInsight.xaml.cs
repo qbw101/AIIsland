@@ -28,6 +28,9 @@ public partial class ScheduleInsight : ComponentBase<ScheduleInsightSettings>
 
     private CancellationTokenSource? _loadCts;
     private long _loadGeneration;
+    private DateOnly _loadedDate;
+    private DateOnly _observedDate = DateOnly.FromDateTime(DateTime.Now);
+    private bool _lessonsSubscribed;
 
     public ScheduleInsight()
     {
@@ -40,6 +43,7 @@ public partial class ScheduleInsight : ComponentBase<ScheduleInsightSettings>
     {
         DataContext = this;
         base.OnLoaded(e);
+        TrySubscribeLessonsService();
         AIRegenerationService.RegenerateSummaryRequested += OnRegenerateRequested;
         StartLoad();
     }
@@ -47,6 +51,10 @@ public partial class ScheduleInsight : ComponentBase<ScheduleInsightSettings>
     protected override void OnUnloaded(RoutedEventArgs e)
     {
         AIRegenerationService.RegenerateSummaryRequested -= OnRegenerateRequested;
+        var lessons = Plugin.LessonsService;
+        if (_lessonsSubscribed && lessons != null)
+            lessons.PostMainTimerTicked -= OnTimerTicked;
+        _lessonsSubscribed = false;
         Interlocked.Increment(ref _loadGeneration);
         _loadCts?.Cancel();
         _loadCts?.Dispose();
@@ -65,11 +73,30 @@ public partial class ScheduleInsight : ComponentBase<ScheduleInsightSettings>
 
     private void StartLoad()
     {
+        TrySubscribeLessonsService();
         _loadCts?.Cancel();
         _loadCts?.Dispose();
         _loadCts = new CancellationTokenSource();
         var generation = Interlocked.Increment(ref _loadGeneration);
         _ = LoadAsync(generation, _loadCts.Token);
+    }
+
+    private void TrySubscribeLessonsService()
+    {
+        if (_lessonsSubscribed || Plugin.LessonsService == null) return;
+        Plugin.LessonsService.PostMainTimerTicked += OnTimerTicked;
+        _lessonsSubscribed = true;
+    }
+
+    private void OnTimerTicked(object? sender, EventArgs e)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        if (_observedDate != today)
+        {
+            _observedDate = today;
+            Summary = "加载今日课表...";
+            StartLoad();
+        }
     }
 
     private async Task LoadAsync(long generation, CancellationToken ct)
@@ -81,11 +108,13 @@ public partial class ScheduleInsight : ComponentBase<ScheduleInsightSettings>
 
             var schedule = await ScheduleQueryHelper.GetTodaySubjectsWhenReadyAsync(
                 () => Plugin.ProfileService, ct: ct);
+            TrySubscribeLessonsService();
             if (generation != Interlocked.Read(ref _loadGeneration)) return;
 
             if (schedule.Readiness == ProfileReadiness.ReadyWithoutCourses)
             {
                 Summary = "今天没有课程安排~";
+                _loadedDate = DateOnly.FromDateTime(DateTime.Now);
                 return;
             }
 
@@ -96,7 +125,7 @@ public partial class ScheduleInsight : ComponentBase<ScheduleInsightSettings>
             }
 
             Summary = "生成中...";
-            await ai.SummarizeTodayStream(schedule.Subjects, snapshot =>
+            var result = await ai.SummarizeTodayStream(schedule.Subjects, snapshot =>
             {
                 if (generation != Interlocked.Read(ref _loadGeneration)) return;
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
@@ -105,6 +134,9 @@ public partial class ScheduleInsight : ComponentBase<ScheduleInsightSettings>
                         Summary = snapshot;
                 });
             }, ct);
+            if (generation == Interlocked.Read(ref _loadGeneration) &&
+                !string.IsNullOrWhiteSpace(result))
+                _loadedDate = DateOnly.FromDateTime(DateTime.Now);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         catch (Exception ex)

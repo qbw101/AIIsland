@@ -11,35 +11,52 @@ using Avalonia.VisualTree;
 using Avalonia.Platform.Storage;
 using ClassIsland.AISmartClass.Models;
 using ClassIsland.AISmartClass.Services;
+using ClassIsland.AISmartClass.Services.NotificationProviders;
 
 namespace ClassIsland.AISmartClass.Views;
 
 public partial class WelcomeWizard : Window
 {
-    private const string FullTitle = "AIIsland";
-
     private int _currentStep;
     private string _chosenPath = "";
     private ApiProviderPreset? _selectedPreset;
     private bool _customMode;
     private bool _platformListInitialized;
     private bool _completionNotified;
-    private int _typingIndex;
-    private DispatcherTimer? _typingTimer;
+    private DispatcherTimer? _welcomeAnimationTimer;
+    private DispatcherTimer? _contentAnimationTimer;
     private DispatcherTimer? _transitionTimer;
+    private DispatcherTimer? _completionAnimationTimer;
     private AISettings _settings = new();
 
     // 导航防抖：上次导航时间，200ms 内的重复点击被忽略
     private DateTime _lastNavigateTime = DateTime.MinValue;
     private const int NavigateDebounceMs = 200;
 
-    private static readonly List<string> StepNames = new() { "封面", "功能介绍", "选择方式", "配置 API", "偏好设置", "完成" };
+    private static readonly List<string> StepNames = new() { "开始", "功能预览", "接入 AI", "填写配置", "选择语气", "完成" };
 
     // 按钮动画：颜色瞬时切换（无 BrushTransition 避免闪烁），代码仅处理缩放
     private readonly List<Button> _animatedButtons = new();
     private readonly Dictionary<Button, ScaleTransform> _buttonTransforms = new();
     private readonly Dictionary<Button, DispatcherTimer> _buttonTimers = new();
     private const double PressScale = 0.98;
+
+    private sealed class ContentAnimationState
+    {
+        public required Control Control { get; init; }
+        public required TranslateTransform Offset { get; init; }
+        public Transform? OriginalTransform { get; init; }
+    }
+
+    private readonly List<ContentAnimationState> _contentAnimationStates = new();
+
+    // 封面打字机效果：逐字输出 "AIIsland"，打完后光标闪烁
+    private const string HeroTitleText = "AIIsland";
+    private const double TypingStartDelay = 620;      // 等 logo 入场稳定后再开始敲字
+    private const double TypingCharInterval = 105;    // 每个字符间隔
+    private const int HeroTitleLength = 8;            // "AIIsland".Length，const 表达式不能用 .Length
+    private const double TypingEndDelay = TypingStartDelay + TypingCharInterval * HeroTitleLength;
+    private const double CaretBlinkPeriod = 1100;     // 光标一次明暗完整周期
 
     public event Action<AISettings>? WizardCompleted;
 
@@ -48,7 +65,6 @@ public partial class WelcomeWizard : Window
         InitializeComponent();
         BuildStepIndicator();
         NavigateTo(1);
-        StartTypingAnimation();
     }
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
@@ -69,6 +85,8 @@ public partial class WelcomeWizard : Window
 
             btn.PointerPressed += (_, _) => AnimateScale(btn, PressScale);
             btn.PointerReleased += (_, _) => AnimateScale(btn, 1.0);
+            btn.PointerExited += (_, _) => AnimateScale(btn, 1.0);
+            btn.PointerCaptureLost += (_, _) => AnimateScale(btn, 1.0);
         }
         foreach (var child in root.GetVisualChildren())
             RegisterButtonAnimations(child);
@@ -127,26 +145,230 @@ public partial class WelcomeWizard : Window
         RecommendedKeyBox.Text = existingSettings.ApiKey;
     }
 
-    private void StartTypingAnimation()
+    private void StartWelcomeAnimation()
     {
-        _typingTimer?.Stop();
-        _typingIndex = 0;
-        TypingTitle.Text = "";
+        StopWelcomeAnimation();
 
-        _typingTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(115) };
-        _typingTimer.Tick += (_, _) =>
+        var riseItems = new (Control Control, double Delay, double Distance)[]
         {
-            if (_typingIndex >= FullTitle.Length)
+            (HeroTitleRow, TypingStartDelay - 120, 14),
+            (HeroSubtitle, TypingEndDelay + 60, 16)
+        };
+
+        HeroTitle.Text = string.Empty;
+        HeroCaret.Opacity = 0;
+
+        foreach (var item in riseItems)
+        {
+            item.Control.Opacity = 0;
+            item.Control.RenderTransform = new TranslateTransform(0, item.Distance);
+        }
+
+        HeroVisual.Opacity = 0;
+        HeroVisual.RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative);
+        var visualScale = new ScaleTransform(0.82, 0.82);
+        HeroVisual.RenderTransform = visualScale;
+
+        var characterOffset = new TranslateTransform(0, 14);
+        HeroCharacter.RenderTransform = characterOffset;
+
+        var startedAt = Environment.TickCount64;
+        _welcomeAnimationTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+        _welcomeAnimationTimer.Tick += (_, _) =>
+        {
+            var elapsed = Environment.TickCount64 - startedAt;
+
+            foreach (var item in riseItems)
             {
-                TypingTitle.Text = FullTitle;
-                _typingTimer?.Stop();
-                return;
+                var progress = EaseOutCubic(Progress(elapsed, item.Delay, 420));
+                item.Control.Opacity = progress;
+                if (item.Control.RenderTransform is TranslateTransform transform)
+                    transform.Y = item.Distance * (1 - progress);
             }
 
-            _typingIndex++;
-            TypingTitle.Text = FullTitle[.._typingIndex] + (_typingIndex < FullTitle.Length ? "_" : "");
+            var visualProgress = Progress(elapsed, 40, 620);
+            var visualEase = EaseOutBack(visualProgress);
+            HeroVisual.Opacity = EaseOutCubic(visualProgress);
+            visualScale.ScaleX = visualScale.ScaleY = 0.82 + 0.18 * visualEase;
+
+            // 图标仅做一次入场上移，入场结束后固定不动
+            characterOffset.Y = 14 * (1 - visualEase);
+
+            UpdateTypewriter(elapsed);
         };
-        _typingTimer.Start();
+        _welcomeAnimationTimer.Start();
+    }
+
+    /// <summary>
+    /// 按经过时间推进封面标题的打字机效果。
+    /// 打字阶段：光标常亮并跟着字符走；打完后：光标进入平滑闪烁。
+    /// </summary>
+    private void UpdateTypewriter(long elapsed)
+    {
+        if (elapsed < TypingStartDelay)
+        {
+            HeroTitle.Text = string.Empty;
+            // 敲字前先让光标露出来，暗示"马上要打字了"
+            HeroCaret.Opacity = EaseOutCubic(Progress(elapsed, TypingStartDelay - 260, 240));
+            return;
+        }
+
+        var typed = (int)Math.Floor((elapsed - TypingStartDelay) / TypingCharInterval) + 1;
+        typed = Math.Clamp(typed, 0, HeroTitleText.Length);
+
+        if (HeroTitle.Text?.Length != typed)
+            HeroTitle.Text = HeroTitleText[..typed];
+
+        if (typed < HeroTitleText.Length)
+        {
+            HeroCaret.Opacity = 1;
+            return;
+        }
+
+        // 打完了，光标转入闪烁。用 sin 做平滑呼吸而不是硬切换，视觉上更贵一点
+        var since = elapsed - TypingEndDelay;
+        var wave = (Math.Sin(since / CaretBlinkPeriod * Math.PI * 2) + 1) / 2;
+        HeroCaret.Opacity = 0.12 + wave * 0.88;
+    }
+
+    private void StopWelcomeAnimation()
+    {
+        _welcomeAnimationTimer?.Stop();
+        _welcomeAnimationTimer = null;
+
+        // 中断时把标题补全，避免停在残缺状态
+        HeroTitle.Text = HeroTitleText;
+        HeroCaret.Opacity = 1;
+    }
+
+    private static double Progress(long elapsed, double delay, double duration)
+        => Math.Clamp((elapsed - delay) / duration, 0, 1);
+
+    private static double EaseOutCubic(double value)
+        => 1 - Math.Pow(1 - value, 3);
+
+    private static double EaseOutBack(double value)
+    {
+        const double overshoot = 1.70158;
+        var shifted = value - 1;
+        return 1 + (overshoot + 1) * Math.Pow(shifted, 3) + overshoot * Math.Pow(shifted, 2);
+    }
+
+    private void StartContentEntrance(Border page)
+    {
+        StopContentEntrance();
+        if (page.Child is not StackPanel panel) return;
+
+        var targets = new List<Control>();
+        foreach (var child in panel.Children)
+        {
+            if (ReferenceEquals(child, FeatureTimeline) && child is Grid featureGrid)
+                targets.AddRange(featureGrid.Children);
+            else
+                targets.Add(child);
+        }
+
+        foreach (var child in targets)
+        {
+            var offset = new TranslateTransform(0, 14);
+            var original = child.RenderTransform as Transform;
+            child.Opacity = 0;
+            child.RenderTransform = original == null
+                ? offset
+                : new TransformGroup { Children = { original, offset } };
+
+            _contentAnimationStates.Add(new ContentAnimationState
+            {
+                Control = child,
+                Offset = offset,
+                OriginalTransform = original
+            });
+        }
+
+        if (_contentAnimationStates.Count == 0) return;
+
+        var startedAt = Environment.TickCount64;
+        _contentAnimationTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+        _contentAnimationTimer.Tick += (_, _) =>
+        {
+            var elapsed = Environment.TickCount64 - startedAt;
+            var complete = true;
+
+            for (var i = 0; i < _contentAnimationStates.Count; i++)
+            {
+                var state = _contentAnimationStates[i];
+                var progress = EaseOutCubic(Progress(elapsed, 90 + i * 55, 330));
+                state.Control.Opacity = progress;
+                state.Offset.Y = 14 * (1 - progress);
+                complete &= progress >= 1;
+            }
+
+            if (complete) StopContentEntrance();
+        };
+        _contentAnimationTimer.Start();
+    }
+
+    /// <summary>
+    /// 完成页图标的收尾动画：光环由小到大铺开，图标带回弹落位，之后维持极轻的呼吸感。
+    /// </summary>
+    private void StartCompletionAnimation()
+    {
+        StopCompletionAnimation();
+
+        DonePanel.RenderTransformOrigin = DoneHalo.RenderTransformOrigin =
+            DoneIcon.RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative);
+
+        var haloScale = new ScaleTransform(0.6, 0.6);
+        var iconScale = new ScaleTransform(0.7, 0.7);
+        DoneHalo.RenderTransform = haloScale;
+        DoneIcon.RenderTransform = iconScale;
+        DoneHalo.Opacity = 0;
+        DoneIcon.Opacity = 0;
+
+        var startedAt = Environment.TickCount64;
+        _completionAnimationTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+        _completionAnimationTimer.Tick += (_, _) =>
+        {
+            var elapsed = Environment.TickCount64 - startedAt;
+
+            var haloProgress = Progress(elapsed, 40, 480);
+            DoneHalo.Opacity = EaseOutCubic(haloProgress);
+            haloScale.ScaleX = haloScale.ScaleY = 0.6 + 0.4 * EaseOutBack(haloProgress);
+
+            var iconProgress = Progress(elapsed, 140, 520);
+            DoneIcon.Opacity = EaseOutCubic(iconProgress);
+
+            if (elapsed < 900)
+            {
+                iconScale.ScaleX = iconScale.ScaleY = 0.7 + 0.3 * EaseOutBack(iconProgress);
+            }
+            else
+            {
+                var phase = (elapsed - 900) / 1000.0;
+                var breathe = Math.Sin(phase * Math.PI * 2 / 3.4);
+                iconScale.ScaleX = iconScale.ScaleY = 1 + breathe * 0.014;
+                haloScale.ScaleX = haloScale.ScaleY = 1 - breathe * 0.01;
+            }
+        };
+        _completionAnimationTimer.Start();
+    }
+
+    private void StopCompletionAnimation()
+    {
+        _completionAnimationTimer?.Stop();
+        _completionAnimationTimer = null;
+    }
+
+    private void StopContentEntrance()
+    {
+        _contentAnimationTimer?.Stop();
+        _contentAnimationTimer = null;
+        foreach (var state in _contentAnimationStates)
+        {
+            state.Control.Opacity = 1;
+            state.Control.RenderTransform = state.OriginalTransform;
+        }
+        _contentAnimationStates.Clear();
     }
 
     private void BuildStepIndicator()
@@ -161,7 +383,8 @@ public partial class WelcomeWizard : Window
                 var connector = new Border
                 {
                     Width = 24, Height = 1,
-                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                    Tag = $"connector-{i}"
                 };
                 connector.Classes.Add("step-connector");
                 StepIndicator.Children.Add(connector);
@@ -192,6 +415,14 @@ public partial class WelcomeWizard : Window
     {
         foreach (var child in StepIndicator.Children)
         {
+            if (child is Border connector && connector.Tag is string connectorTag &&
+                connectorTag.StartsWith("connector-") &&
+                int.TryParse(connectorTag[10..], out var connectorStep))
+            {
+                connector.Classes.Set("completed", connectorStep < step);
+                continue;
+            }
+
             if (child is not Border dot || dot.Tag is not int n) continue;
             var numberText = dot.Child as TextBlock;
 
@@ -212,7 +443,9 @@ public partial class WelcomeWizard : Window
             }
         }
 
-        StepLabel.Text = $"第 {step} 步，共 {StepNames.Count} 步";
+        StepIndicator.IsVisible = step > 1;
+        StepLabel.IsVisible = step > 1;
+        StepLabel.Text = $"{StepNames[step - 1]}  ·  第 {step} 步，共 {StepNames.Count} 步";
     }
 
     private Border? GetPage(int step)
@@ -244,6 +477,9 @@ public partial class WelcomeWizard : Window
 
     private void NavigateTo(int step, bool forward = true)
     {
+        StopContentEntrance();
+        if (step != 6) StopCompletionAnimation();
+
         // ★ 中断旧动画：Stop timer + 把所有页面归零
         // 这样旧动画的中间状态不会残留，新动画从干净状态开始
         if (_transitionTimer != null)
@@ -253,6 +489,7 @@ public partial class WelcomeWizard : Window
             foreach (var p in AllPages)
             {
                 p.IsVisible = false;
+                p.IsHitTestVisible = true;
                 p.Opacity = 0;
                 p.RenderTransform = null;
             }
@@ -294,10 +531,21 @@ public partial class WelcomeWizard : Window
             newPage.RenderTransform = null;
         }
 
-        if (step == 1) StartTypingAnimation();
+        if (step == 1)
+            StartWelcomeAnimation();
+        else
+        {
+            StopWelcomeAnimation();
+            StartContentEntrance(newPage);
+        }
+        if (step == 3) UpdatePathSelection();
         if (step == 4 && _chosenPath == "recommended") PopulatePlatformList();
         if (step == 5) UpdateToneSelection();
-        if (step == 6) BuildCompletePage();
+        if (step == 6)
+        {
+            BuildCompletePage();
+            StartCompletionAnimation();
+        }
     }
 
     /// <summary>
@@ -309,46 +557,48 @@ public partial class WelcomeWizard : Window
     /// </summary>
     private void AnimatePageTransition(Border oldPage, Border newPage, bool forward)
     {
-        var startOffset = forward ? 30.0 : -30.0;
+        var startOffset = forward ? 48.0 : -48.0;
 
-        // newPage 可见但透明，从一侧滑入
         newPage.IsVisible = true;
+        newPage.IsHitTestVisible = true;
         newPage.Opacity = 0;
-        newPage.RenderTransform = new TranslateTransform(startOffset, 0);
+        newPage.RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative);
+        var newTranslate = new TranslateTransform(startOffset, 0);
+        var newScale = new ScaleTransform(0.985, 0.985);
+        newPage.RenderTransform = new TransformGroup { Children = { newScale, newTranslate } };
 
-        // oldPage 保持可见（确保 IsVisible=true），准备淡出
         oldPage.IsVisible = true;
+        oldPage.IsHitTestVisible = false;
+        oldPage.RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative);
+        var oldTranslate = new TranslateTransform();
+        var oldScale = new ScaleTransform(1, 1);
+        oldPage.RenderTransform = new TransformGroup { Children = { oldScale, oldTranslate } };
 
-        var steps = 10;
-        var current = 0;
+        const double duration = 280;
+        var startedAt = Environment.TickCount64;
         _transitionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
 
         _transitionTimer.Tick += (_, _) =>
         {
-            current++;
-            var t = Math.Min(current / (double)steps, 1);
-            var ease = 1 - Math.Pow(1 - t, 3);
+            var progress = Progress(Environment.TickCount64 - startedAt, 0, duration);
+            var ease = EaseOutCubic(progress);
 
-            // newPage 淡入 + 从一侧滑入
-            newPage.Opacity = ease;
-            if (newPage.RenderTransform is TranslateTransform nt)
-                nt.X = startOffset * (1 - ease);
+            newPage.Opacity = Math.Min(1, ease * 1.2);
+            newTranslate.X = startOffset * (1 - ease);
+            newScale.ScaleX = newScale.ScaleY = 0.985 + 0.015 * ease;
 
-            // oldPage 淡出 + 轻微向另一侧滑出
-            oldPage.Opacity = 1 - ease;
-            if (oldPage.RenderTransform is TranslateTransform ot)
-                ot.X = -startOffset * ease * 0.4;
-            else
-                oldPage.RenderTransform = new TranslateTransform(-startOffset * ease * 0.4, 0);
+            oldPage.Opacity = Math.Max(0, 1 - progress * 1.35);
+            oldTranslate.X = -startOffset * ease * 0.28;
+            oldScale.ScaleX = oldScale.ScaleY = 1 - 0.012 * ease;
 
-            if (current >= steps)
+            if (progress >= 1)
             {
                 _transitionTimer.Stop();
                 _transitionTimer = null;
-                // 最终状态：newPage 完全显示，oldPage 完全隐藏
                 newPage.Opacity = 1;
-                if (newPage.RenderTransform is TranslateTransform nf) nf.X = 0;
+                newPage.RenderTransform = null;
                 oldPage.IsVisible = false;
+                oldPage.IsHitTestVisible = true;
                 oldPage.Opacity = 0;
                 oldPage.RenderTransform = null;
             }
@@ -366,7 +616,13 @@ public partial class WelcomeWizard : Window
         PrevBtn.IsVisible = !isFirst;
         SkipBtn.IsVisible = isApiStep || _currentStep == 5;
         NextBtn.IsVisible = !(_currentStep == 3);
-        NextBtn.Content = isLast ? "开始使用" : isApiStep ? "保存并继续" : _currentStep == 5 ? "保存并继续" : "下一步";
+        NextBtn.Content = isLast
+            ? "开始使用"
+            : isFirst
+                ? "开始设置"
+                : isApiStep || _currentStep == 5
+                    ? "保存并继续"
+                    : "下一步";
     }
 
     // ---- 事件 ----
@@ -379,6 +635,7 @@ public partial class WelcomeWizard : Window
         if (IsDebounced) return;
         _lastNavigateTime = DateTime.Now;
         _chosenPath = "manual";
+        UpdatePathSelection();
         NavigateTo(4);
     }
 
@@ -387,6 +644,7 @@ public partial class WelcomeWizard : Window
         if (IsDebounced) return;
         _lastNavigateTime = DateTime.Now;
         _chosenPath = "recommended";
+        UpdatePathSelection();
         NavigateTo(4);
     }
 
@@ -395,8 +653,18 @@ public partial class WelcomeWizard : Window
         if (IsDebounced) return;
         _lastNavigateTime = DateTime.Now;
         _chosenPath = "offline";
+        UpdatePathSelection();
         SaveWizardBasics();
         NavigateTo(5);
+    }
+
+    /// <summary>同步第 3 页四个配置方式卡片的选中态，便于用户退回时看到上次的选择。</summary>
+    private void UpdatePathSelection()
+    {
+        SetSelectedState(PathRecommendedBtn, _chosenPath == "recommended");
+        SetSelectedState(PathManualBtn, _chosenPath == "manual");
+        SetSelectedState(PathImportBtn, _chosenPath == "import");
+        SetSelectedState(PathOfflineBtn, _chosenPath == "offline");
     }
 
     private async void OnPathImportClicked(object? sender, RoutedEventArgs e)
@@ -436,6 +704,7 @@ public partial class WelcomeWizard : Window
 
             _settings = imported;
             _chosenPath = "import";
+            UpdatePathSelection();
             SaveWizardBasics();
 
             // 同步到手动/推荐输入框，便于用户继续编辑
@@ -660,6 +929,17 @@ public partial class WelcomeWizard : Window
             ManualReminderTestBtn, ManualTestBtn, ManualSummaryTestBtn);
     }
 
+    private async void OnManualBeforeSchoolTestClicked(object? sender, RoutedEventArgs e)
+    {
+        await RunAiTest(
+            ManualEndpointBox.Text?.Trim() ?? "",
+            ManualKeyBox.Text?.Trim() ?? "",
+            ManualModelBox.Text?.Trim() ?? "",
+            "before-school",
+            ManualTestResult,
+            ManualBeforeSchoolTestBtn, ManualTestBtn, ManualReminderTestBtn, ManualSummaryTestBtn);
+    }
+
     private async void OnManualSummaryTestClicked(object? sender, RoutedEventArgs e)
     {
         await RunAiTest(
@@ -690,6 +970,17 @@ public partial class WelcomeWizard : Window
             "reminder",
             RecommendedTestResult,
             RecommendedReminderTestBtn, RecommendedTestBtn, RecommendedSummaryTestBtn);
+    }
+
+    private async void OnRecommendedBeforeSchoolTestClicked(object? sender, RoutedEventArgs e)
+    {
+        await RunAiTest(
+            RecommendedEndpointBox.Text?.Trim() ?? "",
+            RecommendedKeyBox.Text?.Trim() ?? "",
+            RecommendedModelBox.Text?.Trim() ?? "",
+            "before-school",
+            RecommendedTestResult,
+            RecommendedBeforeSchoolTestBtn, RecommendedTestBtn, RecommendedReminderTestBtn, RecommendedSummaryTestBtn);
     }
 
     private async void OnRecommendedSummaryTestClicked(object? sender, RoutedEventArgs e)
@@ -733,7 +1024,12 @@ public partial class WelcomeWizard : Window
         foreach (var b in siblingButtons)
             if (b != null) b.IsEnabled = false;
 
-        resultText.Text = testType == "reminder" ? "正在测试 AI 课前提醒..." : "正在测试 AI 每日总结...";
+        resultText.Text = testType switch
+        {
+            "before-school" => "正在测试智能每日简报...",
+            "reminder" => "正在测试课间贴心提醒...",
+            _ => "正在测试放学贴心总结..."
+        };
         SetTestResultState(resultText);
 
         try
@@ -757,17 +1053,30 @@ public partial class WelcomeWizard : Window
                 svc.ApiKey = apiKey;
                 svc.Model = model;
 
-                if (testType == "reminder")
+                if (testType is "before-school" or "reminder")
                 {
-                    var reminder = await svc.GenerateBeforeClassReminder("数学", "英语", throwOnError: true);
-                    resultText.Text = $"✅ AI 提醒测试成功！\n{reminder}";
+                    var context = Plugin.SmartClassNotifierInstance == null
+                        ? null
+                        : await Plugin.SmartClassNotifierInstance.BuildThoughtfulContextAsync(
+                            testType == "before-school" ? ThoughtfulScene.DailyBriefing : ThoughtfulScene.BreakStart);
+                    var reminder = testType == "before-school"
+                        ? await svc.GenerateDailyBriefing(new List<string> { "第1节：语文", "第2节：数学" }, throwOnError: true, context: context)
+                        : await svc.GenerateBeforeClassReminder("数学", "英语", throwOnError: true, context: context);
+                    resultText.Text = testType == "before-school"
+                        ? $"✅ 智能每日简报测试成功！\n{reminder}"
+                        : $"✅ 课间贴心提醒测试成功！\n{reminder}";
                     SetTestResultState(resultText, "success");
                 }
                 else
                 {
+                    var context = Plugin.SmartClassNotifierInstance == null
+                        ? null
+                        : await Plugin.SmartClassNotifierInstance.BuildThoughtfulContextAsync(ThoughtfulScene.AfterSchool);
                     var summary = await svc.GenerateDailySummary(
-                        new List<string> { "语文", "数学", "英语", "物理", "体育", "化学" }, throwOnError: true);
-                    resultText.Text = $"✅ AI 总结测试成功！\n{summary}";
+                        new List<string> { "语文", "数学", "英语", "物理", "体育", "化学" },
+                        throwOnError: true,
+                        context: context);
+                    resultText.Text = $"✅ 放学贴心总结测试成功！\n{summary}";
                     SetTestResultState(resultText, "success");
                 }
             }
@@ -847,23 +1156,23 @@ public partial class WelcomeWizard : Window
     private void BuildCompletePage()
     {
         ChecklistPanel.Children.Clear();
-        AddCheckItem("API 状态", string.IsNullOrWhiteSpace(_settings.ApiKey) ? "离线体验模式" : "已配置");
-        AddCheckItem("配置方式", _settings.SetupMode switch
+        AddCheckItem("AI 连接", string.IsNullOrWhiteSpace(_settings.ApiKey) ? "未连接（离线模式）" : "已连接");
+        AddCheckItem("接入方式", _settings.SetupMode switch
         {
-            "manual" => "手动填写",
+            "manual" => "自己填写",
             "recommended" => _customMode ? "自定义接口" : _selectedPreset?.Name ?? "推荐平台",
             "import" => "导入已有配置",
-            _ => "先离线体验"
+            _ => "暂未接入"
         });
         if (!string.IsNullOrWhiteSpace(_settings.Endpoint))
-            AddCheckItem("API 地址", _settings.Endpoint);
+            AddCheckItem("接口地址", _settings.Endpoint);
         if (!string.IsNullOrWhiteSpace(_settings.Model))
-            AddCheckItem("模型名称", _settings.Model);
-        AddCheckItem("语气风格", _settings.ToneStyle switch { 0 => "活泼", 1 => "标准", 2 => "严肃", _ => "标准" });
+            AddCheckItem("使用模型", _settings.Model);
+        AddCheckItem("说话语气", _settings.ToneStyle switch { 0 => "活泼", 1 => "标准", 2 => "严肃", _ => "标准" });
 
         CompleteSubtitle.Text = string.IsNullOrWhiteSpace(_settings.ApiKey)
-            ? "已进入离线体验模式，AI 功能随时可在设置中补配。"
-            : "一切就绪，AIIsland 已经开始工作了。";
+            ? "当前为离线模式，将使用本地预设文案。接入 Key 后可启用 AI 功能。"
+            : "从下一节课开始，它会在相应的时间自动提醒。无需额外操作。";
 
         if (!_completionNotified)
         {
@@ -901,7 +1210,9 @@ public partial class WelcomeWizard : Window
 
     protected override void OnClosed(EventArgs e)
     {
-        _typingTimer?.Stop();
+        StopWelcomeAnimation();
+        StopContentEntrance();
+        StopCompletionAnimation();
         _transitionTimer?.Stop();
         _transitionTimer = null;
         foreach (var t in _buttonTimers.Values)

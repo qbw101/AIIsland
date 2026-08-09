@@ -1,0 +1,29 @@
+<ci:ActionSettingsControlBase
+    x:Class="ClassIsland.AISmartClass.Controls.Automation.RefreshAiIslandComponentsActionSettingsControl"
+    x:TypeArguments="models:RefreshAiIslandComponentsSettings"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ci="clr-namespace:ClassIsland.Core.Abstractions.Controls;assembly=ClassIsland.Core"
+    xmlns:local="clr-namespace:ClassIsland.AISmartClass.Controls.Automation"
+    xmlns:models="clr-namespace:ClassIsland.AISmartClass.Models.Automation"
+    xmlns:converters="clr-namespace:ClassIsland.AISmartClass.Converters">
+    <ci:ActionSettingsControlBase.Resources>
+        <converters:EnumDescriptionConverter x:Key="EnumDescriptionConverter"/>
+    </ci:ActionSettingsControlBase.Resources>
+    <StackPanel Margin="8" Spacing="12"
+                DataContext="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=local:RefreshAiIslandComponentsActionSettingsControl}}">
+        <TextBlock Text="组件刷新设置" FontWeight="Bold"/>
+        <Grid ColumnDefinitions="130,*">
+            <TextBlock Text="刷新目标" VerticalAlignment="Center"/>
+            <ComboBox Grid.Column="1" SelectedItem="{Binding Settings.Target, Mode=TwoWay}">
+                <models:AiIslandRefreshTarget>ScheduleSummary</models:AiIslandRefreshTarget>
+                <models:AiIslandRefreshTarget>LearningHint</models:AiIslandRefreshTarget>
+                <models:AiIslandRefreshTarget>HomeworkEstimate</models:AiIslandRefreshTarget>
+                <models:AiIslandRefreshTarget>All</models:AiIslandRefreshTarget>
+                <ComboBox.ItemTemplate>
+                    <DataTemplate><TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}"/></DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </Grid>
+    </StackPanel>
+</ci:ActionSettingsControlBase>

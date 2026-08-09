@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net8.0</TargetFramework>
+        <TargetFramework>net8.0-windows10.0.17763.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <AssemblyName>ClassIsland.AISmartClass</AssemblyName>
@@ -22,6 +22,15 @@
         </PackageReference>
     </ItemGroup>
 
+    <!-- 独立作业清单插件位于仓库子目录，不参与 AIIsland 程序集编译。 -->
+    <ItemGroup>
+        <Compile Remove="ClassIsland.HomeworkList\**\*.cs" />
+        <AvaloniaXaml Remove="ClassIsland.HomeworkList\**\*.axaml" />
+        <AvaloniaResource Remove="ClassIsland.HomeworkList\**\*.axaml" />
+        <EmbeddedResource Remove="ClassIsland.HomeworkList\**\*" />
+        <None Remove="ClassIsland.HomeworkList\**\*" />
+    </ItemGroup>
+
     <!-- Data 目录作为独立文件复制到输出目录 -->
     <ItemGroup>
         <Content Include="Data\**\*">
@@ -30,7 +39,7 @@
         </Content>
     </ItemGroup>
 
-    <!-- manifest.yml / README.md / API-GUIDE.md 作为独立文件复制到输出目录 -->
+    <!-- manifest.yml / README.md 作为独立文件复制到输出目录 -->
     <ItemGroup>
         <Content Include="manifest.yml">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -38,7 +47,7 @@
         <Content Include="README.md">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
-        <Content Include="API-GUIDE.md">
+        <Content Include="PLUGIN-API.md">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
     </ItemGroup>
@@ -50,6 +59,8 @@
         </Content>
         <AvaloniaResource Include="icon.png" />
         <AvaloniaResource Include="icon\icon.png" />
+        <AvaloniaResource Include="icon\ok.png" />
+        <AvaloniaResource Include="icon\ok-wizard.png" />
         <AvaloniaResource Include="icon\welcome.png" />
         <AvaloniaResource Include="icon\AIIslandIcons.ttf" />
     </ItemGroup>

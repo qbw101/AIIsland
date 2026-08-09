@@ -1,7 +1,10 @@
+using System;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using ClassIsland.AISmartClass.Models;
+using ClassIsland.Core;
 using ClassIsland.Core.Abstractions.Services;
+using ClassIsland.Shared;
 
 namespace ClassIsland.AISmartClass.Services;
 
@@ -117,15 +120,35 @@ public static class TrayMenuRegistrar
         }
 
         // 3. 触发类
+        if (settings.TrayShowBeforeSchoolReminder)
+        {
+            AddItem(aiMenu.Menu, "生成智能每日简报", AIRegenerationService.RequestTriggerBeforeSchoolReminder);
+            enabledCount++;
+        }
+
         if (settings.TrayShowBeforeClassReminder)
         {
-            AddItem(aiMenu.Menu, "触发课前提醒", AIRegenerationService.RequestTriggerBeforeClassReminder);
+            AddItem(aiMenu.Menu, "生成课间贴心提醒", AIRegenerationService.RequestTriggerBeforeClassReminder);
             enabledCount++;
         }
 
         if (settings.TrayShowAfterSchoolSummary)
         {
-            AddItem(aiMenu.Menu, "触发放学总结", AIRegenerationService.RequestTriggerAfterSchoolSummary);
+            AddItem(aiMenu.Menu, "生成放学贴心总结", AIRegenerationService.RequestTriggerAfterSchoolSummary);
+            enabledCount++;
+        }
+
+        // 4. 自定义提醒 — 打开设置
+        if (settings.TrayShowCustomReminders)
+        {
+            var reminders = Plugin.SmartClassNotifierInstance?.Settings?.CustomReminders;
+            var activeCount = reminders?.Count(r => r.IsEnabled) ?? 0;
+            var header = activeCount > 0
+                ? $"管理自定义提醒（{activeCount} 条已启用）"
+                : "管理自定义提醒";
+            var item = new NativeMenuItem { Header = header };
+            item.Click += (_, _) => OpenNotificationSettings();
+            aiMenu.Menu.Items.Add(item);
             enabledCount++;
         }
 
@@ -146,6 +169,54 @@ public static class TrayMenuRegistrar
         var item = new NativeMenuItem { Header = header };
         item.Click += (_, _) => action();
         menu.Items.Add(item);
+    }
+
+    /// <summary>
+    /// 打开 ClassIsland 设置窗口的「提醒」页。
+    /// ClassIsland 通过 uri 导航打开设置页，格式为 classisland://app/settings/&lt;pageId&gt;，
+    /// 提醒设置页的 pageId 为 "notification"（见 NotificationSettingsPage 的 SettingsPageInfo 特性）。
+    /// </summary>
+    private static void OpenNotificationSettings()
+    {
+        try
+        {
+            var nav = IAppHost.TryGetService<IUriNavigationService>();
+            if (nav is null)
+            {
+                Logger.Warn("[TrayMenu] 未能获取 IUriNavigationService，回退到打开主窗口");
+                ShowMainWindowFallback();
+                return;
+            }
+
+            nav.NavigateWrapped(new Uri("classisland://app/settings/notification"), out var exception);
+            if (exception is not null)
+            {
+                Logger.Warn($"[TrayMenu] 导航到提醒设置页失败: {exception.Message}");
+                return;
+            }
+
+            Logger.Info("[TrayMenu] 已打开 ClassIsland 提醒设置页");
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"[TrayMenu] 打开提醒设置页异常: {ex}");
+            ShowMainWindowFallback();
+        }
+    }
+
+    private static void ShowMainWindowFallback()
+    {
+        try
+        {
+            var mainWindow = AppBase.Current?.MainWindow;
+            if (mainWindow is null) return;
+            mainWindow.Show();
+            mainWindow.Activate();
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn($"[TrayMenu] 打开主窗口失败: {ex.Message}");
+        }
     }
 
     private static void RemoveExistingItems(IList<NativeMenuItemBase> items)

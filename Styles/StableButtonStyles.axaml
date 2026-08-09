@@ -1,0 +1,64 @@
+<Styles
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Keep filled buttons on the plugin accent color instead of inheriting
+         the host button template's white/gray pointer states. -->
+    <Style Selector="Button.primary">
+        <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}"/>
+    </Style>
+    <Style Selector="Button.primary /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}"/>
+    </Style>
+
+    <Style Selector="Button.primary:pointerover">
+        <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        <Setter Property="Opacity" Value="0.92"/>
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}"/>
+    </Style>
+
+    <Style Selector="Button.primary:pressed">
+        <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        <Setter Property="Opacity" Value="0.82"/>
+    </Style>
+    <Style Selector="Button.primary:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}"/>
+    </Style>
+
+    <Style Selector="Button.primary:disabled">
+        <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        <Setter Property="Opacity" Value="0.45"/>
+    </Style>
+    <Style Selector="Button.primary:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}"/>
+    </Style>
+
+    <!-- Selected segmented controls keep their tinted surface on hover. -->
+    <Style Selector="Button.selected /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+    </Style>
+    <Style Selector="Button.selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+    </Style>
+    <Style Selector="Button.selected:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+    </Style>
+</Styles>

@@ -30,9 +30,11 @@ public partial class CurrentHint : ComponentBase<CurrentHintSettings>
     private bool _loaded;
     private string _loadedSubject = "";
     private DateOnly _loadedDate;
+    private DateOnly _observedDate = DateOnly.FromDateTime(DateTime.Now);
     private bool _lessonsSubscribed;
     private CancellationTokenSource? _refreshCts;
     private long _refreshGeneration;
+    private bool _preferNextClass;
 
     public CurrentHint()
     {
@@ -56,7 +58,12 @@ public partial class CurrentHint : ComponentBase<CurrentHintSettings>
         Interlocked.Increment(ref _refreshGeneration);
         var ls = Plugin.LessonsService;
         if (_lessonsSubscribed && ls != null)
+        {
             ls.OnClass -= OnClassHandler;
+            ls.OnBreakingTime -= OnBreakingTimeHandler;
+            ls.OnAfterSchool -= OnAfterSchoolHandler;
+            ls.PostMainTimerTicked -= OnTimerTicked;
+        }
         _lessonsSubscribed = false;
         _refreshCts?.Cancel();
         _refreshCts?.Dispose();
@@ -79,13 +86,43 @@ public partial class CurrentHint : ComponentBase<CurrentHintSettings>
         var ls = Plugin.LessonsService;
         if (ls == null) return;
         ls.OnClass += OnClassHandler;
+        ls.OnBreakingTime += OnBreakingTimeHandler;
+        ls.OnAfterSchool += OnAfterSchoolHandler;
+        ls.PostMainTimerTicked += OnTimerTicked;
         _lessonsSubscribed = true;
     }
 
     private void OnClassHandler(object? sender, EventArgs e)
     {
+        _preferNextClass = false;
         _loaded = false;
         StartRefresh(force: true);
+    }
+
+    private void OnBreakingTimeHandler(object? sender, EventArgs e)
+    {
+        _preferNextClass = true;
+        _loaded = false;
+        StartRefresh(force: true);
+    }
+
+    private void OnAfterSchoolHandler(object? sender, EventArgs e)
+    {
+        _preferNextClass = false;
+        _loaded = false;
+        StartRefresh(force: true);
+    }
+
+    private void OnTimerTicked(object? sender, EventArgs e)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        if (_observedDate != today)
+        {
+            _observedDate = today;
+            _preferNextClass = false;
+            _loaded = false;
+            StartRefresh(force: true);
+        }
     }
 
     private void StartRefresh(bool force)
@@ -130,7 +167,8 @@ public partial class CurrentHint : ComponentBase<CurrentHintSettings>
             }
             else
             {
-                context = ScheduleQueryHelper.GetLearningHintContext(ps, schedule.Subjects);
+                context = ScheduleQueryHelper.GetLearningHintContext(
+                    ps, schedule.Subjects, _preferNextClass);
             }
 
             if (_loaded && _loadedDate == DateOnly.FromDateTime(DateTime.Now) &&

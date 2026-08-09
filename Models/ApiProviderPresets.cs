@@ -17,7 +17,7 @@ public record ApiProviderPreset(
     public static readonly List<ApiProviderPreset> All = new()
     {
         new(1, "阿里百炼",           "deepseek-v4-flash",              "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",         "https://bailian.console.aliyun.com/",             "14+可注册"),
-        new(2, "DeepSeek",           "deepseek-v4-flash",              "https://api.deepseek.com/v1/chat/completions",                                  "https://platform.deepseek.com/",                    "高性价比"),
+        new(2, "DeepSeek",           "deepseek-v4-flash",              "https://api.deepseek.com/chat/completions",                                     "https://platform.deepseek.com/",                    "高性价比"),
         new(3, "智谱AI",             "glm-4.7-flash",                  "https://open.bigmodel.cn/api/paas/v4/chat/completions",                       "https://open.bigmodel.cn/",                         "送2000万Token"),
         new(4, "月之暗面 (Kimi)",    "moonshot-v1-8k",                 "https://api.moonshot.cn/v1/chat/completions",                                   "https://platform.kimi.com/",                        "256K超长上下文"),
         new(5, "小米MiMo",           "mimo-v2.5-pro",                  "https://api.xiaomimimo.com/v1/chat/completions",                                  "https://platform.xiaomimimo.com",                 "14+可注册"),

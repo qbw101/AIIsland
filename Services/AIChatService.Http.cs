@@ -1,4 +1,5 @@
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
@@ -34,17 +35,29 @@ public partial class AIChatService
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(TimeSpan.FromSeconds(snapshot.TimeoutSeconds));
 
-        var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeoutCts.Token).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeoutCts.Token).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            await ThrowApiResponseExceptionAsync(response, timeoutCts.Token).ConfigureAwait(false);
+        }
 
-        var responseJson = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-        using var doc = JsonDocument.Parse(responseJson);
-
-        return doc.RootElement
-            .GetProperty("choices")[0]
-            .GetProperty("message")
-            .GetProperty("content")
-            .GetString()?.Trim() ?? "";
+        var responseJson = await response.Content.ReadAsStringAsync(timeoutCts.Token).ConfigureAwait(false);
+        try
+        {
+            using var doc = JsonDocument.Parse(responseJson);
+            return doc.RootElement
+                .GetProperty("choices")[0]
+                .GetProperty("message")
+                .GetProperty("content")
+                .GetString()?.Trim() ?? "";
+        }
+        catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException or IndexOutOfRangeException)
+        {
+            throw new AIResponseFormatException(
+                "API 返回内容不符合 OpenAI Chat Completions JSON 格式",
+                TruncateResponseBody(responseJson),
+                ex);
+        }
     }
 
     /// <summary>
@@ -81,7 +94,10 @@ public partial class AIChatService
             request,
             HttpCompletionOption.ResponseHeadersRead,
             requestToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            await ThrowApiResponseExceptionAsync(response, requestToken).ConfigureAwait(false);
+        }
 
         await using var stream = await response.Content.ReadAsStreamAsync(requestToken).ConfigureAwait(false);
         using var reader = new StreamReader(stream, Encoding.UTF8);
@@ -136,5 +152,46 @@ public partial class AIChatService
 
         if (!completed)
             throw new IOException("AI 流式响应在完成标记前中断");
+    }
+
+    private static async Task ThrowApiResponseExceptionAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        string? responseBody = null;
+        try
+        {
+            responseBody = TruncateResponseBody(
+                await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false));
+        }
+        catch (Exception ex)
+        {
+            responseBody = $"[读取 API 错误响应体失败: {ex.GetType().Name}: {ex.Message}]";
+        }
+
+        var requestId = TryGetHeader(response.Headers, "x-request-id") ??
+                        TryGetHeader(response.Headers, "request-id") ??
+                        TryGetHeader(response.Headers, "x-trace-id") ??
+                        TryGetHeader(response.Headers, "trace-id");
+        throw new AIHttpResponseException(
+            response.StatusCode,
+            response.ReasonPhrase,
+            requestId,
+            responseBody);
+    }
+
+    private static string TruncateResponseBody(string responseBody)
+    {
+        const int maxResponseBodyLength = 16 * 1024;
+        return responseBody.Length > maxResponseBodyLength
+            ? responseBody[..maxResponseBodyLength] + "\n...[响应体已截断]"
+            : responseBody;
+    }
+
+    private static string? TryGetHeader(HttpResponseHeaders headers, string name)
+    {
+        return headers.TryGetValues(name, out var values)
+            ? string.Join(", ", values)
+            : null;
     }
 }

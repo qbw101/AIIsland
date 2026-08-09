@@ -5,8 +5,12 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:ci="http://classisland.tech/schemas/xaml/core"
     xmlns:local="clr-namespace:ClassIsland.AISmartClass.Controls.NotificationProviders"
-    xmlns:models="clr-namespace:ClassIsland.AISmartClass.Models">
+    xmlns:models="clr-namespace:ClassIsland.AISmartClass.Models"
+    xmlns:converters="clr-namespace:ClassIsland.AISmartClass.Converters">
 
+    <ci:NotificationProviderControlBase.Resources>
+        <converters:EnumDescriptionConverter x:Key="EnumDescriptionConverter"/>
+    </ci:NotificationProviderControlBase.Resources>
     <ci:NotificationProviderControlBase.Styles>
         <Style Selector="TextBlock.section-title">
             <Setter Property="FontSize" Value="14"/>
@@ -47,11 +51,7 @@
             <Setter Property="CornerRadius" Value="4"/>
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
         </Style>
-        <Style Selector="Button.primary">
-            <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}"/>
-        </Style>
+        <StyleInclude Source="avares://ClassIsland.AISmartClass/Styles/StableButtonStyles.axaml"/>
         <Style Selector="Button.danger">
             <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
         </Style>
@@ -95,36 +95,71 @@
         <StackPanel Spacing="8" Margin="16"
                     DataContext="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=local:SmartClassNotifierSettingsControl}}">
 
-            <TextBlock Text="自动提醒" Classes="section-title"/>
+            <TextBlock Text="贴心提醒设置" Classes="section-title"/>
 
             <Border Classes="setting-row">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                     <StackPanel Spacing="2" VerticalAlignment="Center">
-                        <TextBlock Text="课前提醒" Classes="row-title"/>
-                        <TextBlock Text="课间开始时生成下一节课的个性化提醒。" Classes="row-description"/>
+                        <TextBlock Text="贴心提醒" Classes="row-title"/>
+                    <TextBlock Text="智能每日简报汇总天气、课程、自定义提醒、节假日和新闻；课间及放学保留原有提醒。" Classes="row-description"/>
                     </StackPanel>
-                    <ToggleSwitch Grid.Column="1" IsChecked="{Binding Settings.EnableBeforeClassReminder, Mode=TwoWay}"/>
+                    <ToggleSwitch Grid.Column="1" IsChecked="{Binding Settings.EnableThoughtfulReminder, Mode=TwoWay}"/>
                 </Grid>
             </Border>
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                    <StackPanel Spacing="2" VerticalAlignment="Center">
-                        <TextBlock Text="放学总结" Classes="row-title"/>
-                        <TextBlock Text="放学时生成当天的学习总结与复习建议。" Classes="row-description"/>
-                    </StackPanel>
-                    <ToggleSwitch Grid.Column="1" IsChecked="{Binding Settings.EnableAfterSchoolSummary, Mode=TwoWay}"/>
-                </Grid>
-            </Border>
+                <StackPanel Spacing="10">
+                    <TextBlock Text="提醒时机" Classes="row-title"/>
+                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="18" RowSpacing="8">
+                        <CheckBox Content="智能每日简报" IsChecked="{Binding Settings.EnableBeforeSchoolReminder, Mode=TwoWay}"/>
+                        <CheckBox Grid.Column="1" Content="课间开始" IsChecked="{Binding Settings.EnableBeforeClassReminder, Mode=TwoWay}"/>
+                        <CheckBox Grid.Row="1" Content="最后一节课结束" IsChecked="{Binding Settings.EnableAfterSchoolSummary, Mode=TwoWay}"/>
+                        <CheckBox Grid.Row="1" Grid.Column="1" Content="换课提醒" IsChecked="{Binding Settings.EnableClassChangeAlert, Mode=TwoWay}"/>
+                    </Grid>
 
-            <Border Classes="setting-row">
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                    <StackPanel Spacing="2" VerticalAlignment="Center">
-                        <TextBlock Text="换课提醒" Classes="row-title"/>
-                        <TextBlock Text="检测到临时换课时显示提醒。" Classes="row-description"/>
+                    <Border Background="{DynamicResource ControlStrokeColorDefaultBrush}" Height="1" Margin="0,4"/>
+
+                    <TextBlock Text="提醒内容" Classes="row-title"/>
+                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="18" RowSpacing="8">
+                        <CheckBox Content="天气信息" IsChecked="{Binding Settings.EnableWeatherReminder, Mode=TwoWay}"/>
+                        <CheckBox Grid.Column="1" Content="温度 / 体感温度" IsChecked="{Binding Settings.EnableTemperatureReminder, Mode=TwoWay}"/>
+                        <CheckBox Grid.Row="1" Content="天气预警" IsChecked="{Binding Settings.EnableWeatherAlertReminder, Mode=TwoWay}"/>
+                        <CheckBox Grid.Row="1" Grid.Column="1" Content="播放音乐信息" IsChecked="{Binding Settings.EnableMusicReminder, Mode=TwoWay}"/>
+                        <CheckBox Grid.Row="2" Content="自定义提醒" IsChecked="{Binding Settings.EnableCustomReminder, Mode=TwoWay}"/>
+                        <CheckBox Grid.Row="2" Grid.Column="1" Content="节假日信息" IsChecked="{Binding Settings.EnableDailyBriefingHoliday, Mode=TwoWay}"/>
+                        <CheckBox Grid.Row="3" Content="今日新闻" IsChecked="{Binding Settings.EnableDailyBriefingNews, Mode=TwoWay}"/>
+                    </Grid>
+                    <TextBlock Text="时间会始终进入提示词；关闭“今日新闻”即可停止获取新闻。" Classes="row-description"/>
+                    <ComboBox x:Name="RssSourceComboBox" SelectedIndex="0" SelectionChanged="OnRssSourceChanged">
+                        <ComboBoxItem Content="IT之家" Tag="http://www.ithome.com/rss/"/>
+                        <ComboBoxItem Content="36氪" Tag="https://36kr.com/feed"/>
+                        <ComboBoxItem Content="自定义 RSS" Tag="__custom__"/>
+                    </ComboBox>
+                    <TextBox x:Name="CustomRssTextBox" Text="{Binding Settings.RssFeedUrls, Mode=TwoWay}" AcceptsReturn="True" MinHeight="64"
+                             IsVisible="False" Watermark="自定义 RSS 地址，每行一个"/>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="测试新闻源" Click="OnRssTestClicked"/>
+                        <TextBlock x:Name="RssTestResult" Classes="row-description" VerticalAlignment="Center" TextWrapping="Wrap"/>
                     </StackPanel>
-                    <ToggleSwitch Grid.Column="1" IsChecked="{Binding Settings.EnableClassChangeAlert, Mode=TwoWay}"/>
-                </Grid>
+
+                    <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                            BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,4,0,0">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="地理位置来源" FontWeight="SemiBold" FontSize="13"/>
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="ClassIsland 本地设置" FontSize="13"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                                <TextBlock Text="自动读取 ClassIsland 的天气定位设置，并分辨当前是「城市选择」还是「坐标定位」。"
+                                           Classes="row-description"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                                <Button Content="测试定位" Click="OnWindowsContextTestClicked"/>
+                                <TextBlock x:Name="WindowsContextTestResult" Classes="row-description" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
             </Border>
 
             <TextBlock Text="提醒样式" Classes="section-title"/>
@@ -215,9 +250,8 @@
                                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                                            Text="{Binding DisplaySubtitle}" TextWrapping="Wrap"/>
                                             </StackPanel>
-                                            <TextBlock Grid.Column="1" Text="已启用" FontSize="12"
-                                                       Foreground="{DynamicResource SystemFillColorSuccessBrush}"
-                                                       VerticalAlignment="Center" IsVisible="{Binding IsEnabled}"/>
+                                            <CheckBox Grid.Column="1" Content="启用" IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                                      VerticalAlignment="Center" HorizontalAlignment="Right"/>
                                         </Grid>
                                     </Border>
                                 </DataTemplate>

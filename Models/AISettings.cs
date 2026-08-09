@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
+using ClassIsland.AISmartClass.PublicApi;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace ClassIsland.AISmartClass.Models;
@@ -15,7 +17,7 @@ public partial class AISettings : ObservableObject
 
     [ObservableProperty]
     [property: JsonPropertyName("endpoint")]
-    private string _endpoint = "https://api.deepseek.com/v1/chat/completions";
+    private string _endpoint = "https://api.deepseek.com/chat/completions";
     // 兼容 OpenAI Chat Completions 格式的 API 地址
 
     [ObservableProperty]
@@ -59,6 +61,11 @@ public partial class AISettings : ObservableObject
     [property: JsonPropertyName("maxRetries")]
     private int _maxRetries = 1;
     // 失败重试次数
+
+    [ObservableProperty]
+    [property: JsonPropertyName("aiLogRetentionDays")]
+    private int _aiLogRetentionDays = 30;
+    // AI 调用日志保留天数，超期日志自动清理
 
     // ===== 向导与偏好 =====
 
@@ -108,6 +115,11 @@ public partial class AISettings : ObservableObject
     // 托盘菜单显示"触发课前提醒"
 
     [ObservableProperty]
+    [property: JsonPropertyName("trayShowBeforeSchoolReminder")]
+    private bool _trayShowBeforeSchoolReminder = false;
+    // 托盘菜单显示"生成智能每日简报"
+
+    [ObservableProperty]
     [property: JsonPropertyName("trayShowAfterSchoolSummary")]
     private bool _trayShowAfterSchoolSummary = false;
     // 托盘菜单显示"触发放学总结"
@@ -131,6 +143,28 @@ public partial class AISettings : ObservableObject
     [property: JsonPropertyName("trayShowRegenerateHint")]
     private bool _trayShowRegenerateHint = true;
     // 托盘菜单显示"重新生成学习提示"
+
+    [ObservableProperty]
+    [property: JsonPropertyName("trayShowCustomReminders")]
+    private bool _trayShowCustomReminders;
+    // 托盘菜单显示"触发自定义提醒"子菜单
+
+    // ===== 外部插件 API 授权 =====
+
+    /// <summary>
+    /// 默认授权策略：true=所有未单独配置的插件每次确认，false=允许直接调用。
+    /// 实际策略以每个 PluginAuthEntry 的 AuthMode 为准，此值为新插件初始模式。
+    /// </summary>
+    [ObservableProperty]
+    [property: JsonPropertyName("defaultAuthMode")]
+    private int _defaultAuthMode = 0;
+    // 0=PerCallConfirm（默认），1=Trusted
+
+    /// <summary>
+    /// 已记录的外部插件授权列表。按 PluginId 索引。
+    /// </summary>
+    [property: JsonPropertyName("pluginAuthEntries")]
+    public List<AIIslandPluginAuthEntry> PluginAuthEntries { get; set; } = new();
 
     /// <summary>根据语气风格获取 temperature 值</summary>
     public double GetTemperature()

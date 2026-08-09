@@ -10,7 +10,9 @@ using ClassIsland.AISmartClass.Models;
 using ClassIsland.AISmartClass.Services;
 using ClassIsland.AISmartClass.Services.NotificationProviders;
 using ClassIsland.AISmartClass.Controls.NotificationProviders;
+using ClassIsland.AISmartClass.Controls.Automation;
 using ClassIsland.AISmartClass.Views.SettingsPages;
+using ClassIsland.AISmartClass.Services.Automation.Actions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -29,6 +31,14 @@ public class Plugin : PluginBase
     /// <summary>已加载的 AI 设置快照，供启动后状态检查。</summary>
     private static AISettings? _sharedSettings;
 
+    /// <summary>AI 调用日志服务引用，供保留期设置实时同步。</summary>
+    private static AIInvocationLogger? _sharedInvocationLogger;
+
+    /// <summary>授权守卫引用，供设置同步时更新。</summary>
+    private static AuthGuard? _sharedAuthGuard;
+
+    private static readonly object SettingsFileLock = new();
+
     /// <summary>自然语言解析服务引用。</summary>
     private static ReminderParserService? _sharedReminderParser;
 
@@ -39,8 +49,14 @@ public class Plugin : PluginBase
     public static IProfileService? ProfileService { get; internal set; }
     public static ILessonsService? LessonsService { get; internal set; }
 
+    /// <summary>SmartClassNotifier 单例，供自动化模块复用其通知通道。</summary>
+    public static SmartClassNotifier? SmartClassNotifierInstance { get; set; }
+
     /// <summary>AI 设置发生变更时触发，供设置页面等 UI 自动刷新。</summary>
     public static event Action<AISettings>? AISettingsChanged;
+
+    /// <summary>外部插件授权记录发生变化时触发。</summary>
+    public static event Action? PluginAuthorizationsChanged;
 
     /// <summary>检查配置 JSON 是否来自尚未记录托盘默认版本的旧版。</summary>
     public static bool IsLegacyTrayMenuSettings(string json)
@@ -59,17 +75,32 @@ public class Plugin : PluginBase
     /// <summary>将旧版托盘菜单默认值迁移为当前默认组合。</summary>
     public static bool MigrateAISettings(AISettings settings, bool isLegacyConfig)
     {
-        if (!isLegacyConfig && settings.TrayMenuDefaultsVersion >= 1) return false;
+        var changed = false;
 
-        settings.TrayShowBeforeClassReminder = false;
-        settings.TrayShowAfterSchoolSummary = false;
-        settings.TrayShowRegenerateHomework = false;
-        settings.TrayShowExamMode = true;
-        settings.TrayShowRegenerateSummary = true;
-        settings.TrayShowRegenerateHint = true;
-        settings.TrayMenuDefaultsVersion = 1;
-        Logger.Info("已迁移托盘菜单默认选项");
-        return true;
+        if (string.Equals(
+                settings.Endpoint?.TrimEnd('/'),
+                "https://api.deepseek.com/v1/chat/completions",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            settings.Endpoint = "https://api.deepseek.com/chat/completions";
+            changed = true;
+            Logger.Info("已迁移 DeepSeek API 地址");
+        }
+
+        if (isLegacyConfig || settings.TrayMenuDefaultsVersion < 1)
+        {
+            settings.TrayShowBeforeClassReminder = false;
+            settings.TrayShowAfterSchoolSummary = false;
+            settings.TrayShowRegenerateHomework = false;
+            settings.TrayShowExamMode = true;
+            settings.TrayShowRegenerateSummary = true;
+            settings.TrayShowRegenerateHint = true;
+            settings.TrayMenuDefaultsVersion = 1;
+            changed = true;
+            Logger.Info("已迁移托盘菜单默认选项");
+        }
+
+        return changed;
     }
 
     /// <summary>设置页面保存后调用，实时同步 API 配置到 AI 服务并通知所有订阅者刷新 UI。</summary>
@@ -77,6 +108,12 @@ public class Plugin : PluginBase
     {
         _sharedSettings = settings;
         _sharedAiService?.SyncFrom(settings);
+        _sharedAuthGuard?.UpdateSettings(settings);
+        if (_sharedInvocationLogger != null)
+        {
+            _sharedInvocationLogger.RetentionDays = settings.AiLogRetentionDays;
+            _ = _sharedInvocationLogger.CleanupExpiredLogsAsync();
+        }
 
         try
         {
@@ -95,6 +132,51 @@ public class Plugin : PluginBase
 
     /// <summary>获取全局 AI 服务实例，供测试按钮使用。</summary>
     public static AIChatService? GetAIService() => _sharedAiService;
+
+    /// <summary>获取授权守卫实例，供设置页面管理插件授权。</summary>
+    public static AuthGuard? GetAuthGuard() => _sharedAuthGuard;
+
+    /// <summary>获取运行中使用的设置对象。</summary>
+    public static AISettings? GetAISettings() => _sharedSettings;
+
+    internal static void SaveAISettingsFile(AISettings settings)
+    {
+        var configFolder = ConfigFolderPath
+            ?? throw new InvalidOperationException("插件配置目录尚未初始化");
+        Directory.CreateDirectory(configFolder);
+        var configPath = Path.Combine(configFolder, "aisettings.json");
+        var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions
+        {
+            WriteIndented = true
+        });
+
+        lock (SettingsFileLock)
+        {
+            File.WriteAllText(configPath, json);
+        }
+    }
+
+    private static void OnPluginAuthorizationsChanged(object? sender, EventArgs e)
+    {
+        try
+        {
+            if (_sharedSettings != null)
+                SaveAISettingsFile(_sharedSettings);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"保存外部插件授权记录失败: {ex.Message}");
+        }
+
+        try
+        {
+            PluginAuthorizationsChanged?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"刷新外部插件授权界面失败: {ex.Message}");
+        }
+    }
 
     /// <summary>获取自然语言解析服务实例。</summary>
     public static ReminderParserService? GetReminderParser() => _sharedReminderParser;
@@ -198,12 +280,16 @@ public class Plugin : PluginBase
             PromptTemplates.Load(PluginConfigFolder);
             Logger.Info("PromptTemplates 初始化完成");
 
-            // 2. 初始化 AI 聊天服务（统一后端：缓存 + 重试 + 降级）
+            // 2. 初始化 AI 聊天服务（统一后端：缓存 + 重试 + 降级 + 本地调用日志）
             var http = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
-            var aiService = new AIChatService(http, fallback);
+            var invocationLogDirectory = Path.Combine(PluginConfigFolder, "Logs", "AIRequests");
+            var invocationLogger = new AIInvocationLogger(invocationLogDirectory);
+            var aiService = new AIChatService(http, fallback, invocationLogger);
+            _sharedInvocationLogger = invocationLogger;
             _sharedAiService = aiService;
+            services.AddSingleton(invocationLogger);
             services.AddSingleton(aiService);
-            Logger.Info("AIChatService 初始化完成");
+            Logger.Info($"AIChatService 初始化完成，调用日志目录: {invocationLogDirectory}");
 
             // 3. 启动时从配置文件加载 AI 设置并同步到服务
             try
@@ -220,14 +306,17 @@ public class Plugin : PluginBase
                             new JsonSerializerOptions { WriteIndented = true }));
                     }
                     aiService.SyncFrom(settings);
+                    invocationLogger.RetentionDays = settings.AiLogRetentionDays;
                     _sharedSettings = settings;
-                    Logger.Info("已加载 AI 设置");
+                    Logger.Info($"已加载 AI 设置，调用日志保留 {invocationLogger.RetentionDays} 天");
                 }
             }
             catch (Exception ex)
             {
                 Logger.Error($"加载 AI 设置失败: {ex.Message}");
             }
+
+            _ = invocationLogger.CleanupExpiredLogsAsync();
 
             // 4.5 注册托管服务：应用启动后自动获取 IProfileService / ILessonsService
             services.AddHostedService<PluginInitializer>();
@@ -239,9 +328,27 @@ public class Plugin : PluginBase
             _sharedReminderParser = parser;
             Logger.Info("ReminderParserService 已注册");
 
+            // 5.5. 初始化授权守卫并注册公开 API
+            var settingsForAuth = _sharedSettings ?? new AISettings();
+            _sharedSettings = settingsForAuth;
+            var authGuard = new AuthGuard(settingsForAuth);
+            authGuard.EntriesChanged += OnPluginAuthorizationsChanged;
+            _sharedAuthGuard = authGuard;
+            var publicApi = new AIIslandApi(aiService, authGuard, parser);
+            services.AddSingleton(authGuard);
+            services.AddSingleton<AIIslandApi>(publicApi);
+            services.AddSingleton<ClassIsland.AISmartClass.PublicApi.IAIIslandApi>(publicApi);
+            Logger.Info("AIIslandApi / AuthGuard 已注册，外部插件可通过 IAIIslandApi 调用 AI 能力");
+
             // 5. 注册提醒提供方（课前提醒 / 放学总结 / 换课提醒 / 定时提醒）
             services.AddNotificationProvider<SmartClassNotifier, SmartClassNotifierSettingsControl>();
             Logger.Info("SmartClassNotifier 已注册");
+
+            services.AddAction<GenerateAiNotificationAction, GenerateAiNotificationActionSettingsControl>();
+            services.AddAction<RefreshAiIslandComponentsAction, RefreshAiIslandComponentsActionSettingsControl>();
+            services.AddAction<TriggerAiIslandReminderAction, TriggerAiIslandReminderActionSettingsControl>();
+            services.AddAction<SetAiIslandExamModeAction, SetAiIslandExamModeActionSettingsControl>();
+            Logger.Info("4 个 ClassIsland 自动化动作已注册");
 
             // 6. 注册主界面组件（每个功能独立为一个组件，用户可自由排列，带设置控件）
             services.AddComponent<Controls.ScheduleInsight.ScheduleInsight, Controls.ScheduleInsight.ScheduleInsightSettingsControl>();
@@ -255,7 +362,7 @@ public class Plugin : PluginBase
             IconPatcher.PatchAll();
 
             // 7. 注册 AI 设置页面（API 端点 / Key / 模型配置）
-            services.AddSingleton(PluginConfigFolder);
+            services.AddSingleton(new AiIslandConfigPath(PluginConfigFolder));
             services.AddSettingsPage<AISettingsPage>();
             SettingsPageIconPatcher.Initialize();
             Logger.Info("AISettingsPage 已注册");

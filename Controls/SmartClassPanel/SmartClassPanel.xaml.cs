@@ -129,6 +129,8 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
     private long _homeworkGeneration;
     private long _hintGeneration;
     private DateOnly _summaryLoadedDate;
+    private DateOnly _observedDate = DateOnly.FromDateTime(DateTime.Now);
+    private bool _preferNextClass;
 
     // ===== 构造函数 =====
 
@@ -215,6 +217,7 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
     private void OnOnClass(object? sender, EventArgs e)
     {
         _state = LessonState.OnClass;
+        _preferNextClass = false;
         ShowExtras = true;
         _currentHintLoaded = false;
         SetAIStatus(true, "生成中...");
@@ -255,15 +258,21 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
     private void OnOnBreakingTime(object? sender, EventArgs e)
     {
         _state = LessonState.Breaking;
+        _preferNextClass = true;
         ShowExtras = true;
+        _currentHintLoaded = false;
+        StartHintRefresh();
     }
 
     private void OnOnAfterSchool(object? sender, EventArgs e)
     {
         _state = LessonState.AfterSchool;
+        _preferNextClass = false;
         ShowExtras = false;
         ProgressPercent = 100;
         CountdownText = "放学啦 🎉";
+        _currentHintLoaded = false;
+        StartHintRefresh();
     }
 
     private void OnTimeStateChanged(object? sender, EventArgs e) { }
@@ -388,7 +397,8 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
 
         var context = schedule.Readiness == ProfileReadiness.ReadyWithoutCourses
             ? new LearningHintContext("今天没有课程", "自主学习", "no-courses")
-            : ScheduleQueryHelper.GetLearningHintContext(_profileService, schedule.Subjects);
+            : ScheduleQueryHelper.GetLearningHintContext(
+                _profileService, schedule.Subjects, _preferNextClass);
 
         if (_currentHintLoaded && _loadedHintDate == today &&
             string.Equals(_loadedHintSubject, context.CacheKey, StringComparison.Ordinal))
@@ -425,6 +435,13 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
 
     private void OnTimerTick(object? sender, EventArgs e)
     {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        if (_observedDate != today)
+        {
+            _observedDate = today;
+            RefreshForNewDay();
+        }
+
         if (!Settings.ShowCountdown) return;
         switch (_state)
         {
@@ -446,6 +463,25 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
                 TryInitStateFromCurrentTime();
                 break;
         }
+    }
+
+    private void RefreshForNewDay()
+    {
+        _preferNextClass = false;
+        _todayOverviewLoaded = false;
+        _currentHintLoaded = false;
+        _summaryLoadedDate = default;
+        _loadedHintDate = default;
+
+        _loadingCts?.Cancel();
+        _loadingCts?.Dispose();
+        _loadingCts = new CancellationTokenSource();
+        var ct = _loadingCts.Token;
+        TodaySummary = "加载今日课表...";
+        CurrentHint = "加载今日课程...";
+        _ = LoadTodaySummary(ct);
+        StartHintRefresh();
+        _ = LoadHomeworkEstimate(ct);
     }
 
     /// <summary>上课中：显示剩余时间 + 进度条</summary>
