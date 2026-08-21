@@ -1,0 +1,508 @@
+<ci:SettingsPageBase
+    x:Class="ClassIsland.AISmartClass.Views.SettingsPages.AISettingsPage"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ci="http://classisland.tech/schemas/xaml/core"
+    xmlns:publicApi="clr-namespace:ClassIsland.AISmartClass.PublicApi"
+    xmlns:converters="clr-namespace:ClassIsland.AISmartClass.Converters">
+
+    <ci:SettingsPageBase.Resources>
+        <converters:EnumDescriptionConverter x:Key="EnumDescriptionConverter"/>
+    </ci:SettingsPageBase.Resources>
+
+    <ci:SettingsPageBase.Styles>
+        <Style Selector="TextBlock.section-title">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+            <Setter Property="Margin" Value="0,14,0,2"/>
+        </Style>
+        <Style Selector="Border.setting-card">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16,13"/>
+            <Setter Property="Margin" Value="0,4"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="Border.setting-row">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16,12"/>
+            <Setter Property="Margin" Value="0,3"/>
+            <Setter Property="MinHeight" Value="66"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="Border.setting-row:pointerover">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.row-icon">
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="Width" Value="28"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.row-title">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.row-description">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style Selector="Button">
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <StyleInclude Source="avares://ClassIsland.AISmartClass/Styles/StableButtonStyles.axaml"/>
+        <Style Selector="Button.danger">
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
+        </Style>
+        <Style Selector="Button.icon-button">
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="15"/>
+        </Style>
+        <Style Selector="TextBox">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style Selector="TextBox:pointerover">
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="TextBox:focus">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        </Style>
+        <Style Selector="ComboBox">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="8,5"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style Selector="ComboBox:pointerover">
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="ComboBox:focus">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        </Style>
+        <Style Selector="NumericUpDown">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style Selector="NumericUpDown:pointerover">
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="NumericUpDown:focus">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        </Style>
+        <Style Selector="ToggleSwitch">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="OffContent" Value="关"/>
+            <Setter Property="OnContent" Value="开"/>
+        </Style>
+        <Style Selector="Border.test-result">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+        </Style>
+        <Style Selector="Border.test-result.success">
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorSuccessBrush}"/>
+        </Style>
+        <Style Selector="Border.test-result.error">
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.result-text">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.result-text.success">
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.result-text.error">
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
+        </Style>
+    </ci:SettingsPageBase.Styles>
+
+    <ScrollViewer>
+        <StackPanel Spacing="6" Margin="20,10,20,20" MaxWidth="960" HorizontalAlignment="Stretch">
+            <TextBlock Text="插件信息" Classes="section-title"/>
+
+            <Border Classes="setting-card" Padding="18,14">
+                <Grid ColumnDefinitions="58,*,Auto" ColumnSpacing="16">
+                    <Image Source="avares://ClassIsland.AISmartClass/icon.png"
+                           Width="44" Height="44" Stretch="Uniform"
+                           VerticalAlignment="Center"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="AIIsland"
+                                       FontSize="20"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                            <TextBlock x:Name="VersionLabel"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       VerticalAlignment="Bottom"/>
+                        </StackPanel>
+                        <TextBlock Text="AI 驱动的智能课表助手"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                        <TextBlock Text="用于 ClassIsland 的智能提醒、总结与考试倒计时辅助插件。"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <Button x:Name="GitHubBtn" Classes="icon-button" Content="&#xE8A7;" ToolTip.Tip="GitHub 主页"/>
+                        <Button x:Name="IssuesBtn" Classes="icon-button" Content="&#xE7BA;" ToolTip.Tip="Bug 反馈 / 功能建议"/>
+                        <Button x:Name="WelcomeWizardButton" Classes="icon-button" Content="&#xE9CE;" ToolTip.Tip="重新运行欢迎向导"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <TextBlock Text="考试模式" Classes="section-title"/>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE121;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="考试模式" Classes="row-title"/>
+                        <TextBlock Text="打开浏览器显示考试倒计时仪表盘，适合考试期间投屏。" Classes="row-description"/>
+                    </StackPanel>
+                    <Button Grid.Column="2" x:Name="ExamModeButton" Content="启动考试模式" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <TextBlock Text="API 连接" Classes="section-title"/>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,2*" ColumnSpacing="14">
+                    <TextBlock Text="&#xE71B;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="API 地址" Classes="row-title"/>
+                        <TextBlock Text="兼容 OpenAI Chat Completions 的接口地址。" Classes="row-description"/>
+                    </StackPanel>
+                    <TextBox Grid.Column="2" x:Name="EndpointBox"
+                             Watermark="https://api.deepseek.com/chat/completions"
+                             VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,2*" ColumnSpacing="14">
+                    <TextBlock Text="&#xE192;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="API Key" Classes="row-title"/>
+                        <TextBlock Text="用于调用模型接口的访问密钥。" Classes="row-description"/>
+                    </StackPanel>
+                    <TextBox Grid.Column="2" x:Name="ApiKeyBox"
+                             PasswordChar="•" Watermark="sk-..."
+                             VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,320" ColumnSpacing="14">
+                    <TextBlock Text="&#xE950;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="模型名称" Classes="row-title"/>
+                        <TextBlock Text="用于生成提醒和总结的模型。" Classes="row-description"/>
+                    </StackPanel>
+                    <TextBox Grid.Column="2" x:Name="ModelBox"
+                             Watermark="deepseek-chat"
+                             VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,320" ColumnSpacing="14">
+                    <TextBlock Text="&#xE8BD;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="语气风格" Classes="row-title"/>
+                        <TextBlock Text="控制 AI 回复的整体表达风格。" Classes="row-description"/>
+                    </StackPanel>
+                    <ComboBox Grid.Column="2" x:Name="ToneStyleComboBox" SelectedIndex="1" VerticalAlignment="Center">
+                        <ComboBoxItem Tag="0">活泼 — 轻二次元风格</ComboBoxItem>
+                        <ComboBoxItem Tag="1">标准 — 自然随和（推荐）</ComboBoxItem>
+                        <ComboBoxItem Tag="2">严肃 — 正式专业</ComboBoxItem>
+                    </ComboBox>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE9D9;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="连接与生成测试" Classes="row-title"/>
+                        <TextBlock Text="保存配置前可先验证接口连接、课间贴心提醒和放学贴心总结。" Classes="row-description"/>
+                    </StackPanel>
+                    <WrapPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="TestButton" Content="测试 API" Margin="0,0,8,0"/>
+                        <Button x:Name="TestBeforeSchoolButton" Content="测试智能每日简报" Margin="0,0,8,0"/>
+                        <Button x:Name="TestReminderButton" Content="测试课间提醒" Margin="0,0,8,0"/>
+                        <Button x:Name="TestSummaryButton" Content="测试放学总结" Margin="0,0,8,0"/>
+                        <Button x:Name="SaveButton" Content="保存" Classes="primary"/>
+                    </WrapPanel>
+                </Grid>
+            </Border>
+
+            <Border x:Name="TestResultBorder" Classes="setting-row test-result" CornerRadius="4" Padding="12,8" IsVisible="False">
+                <TextBlock x:Name="TestResultText" Classes="result-text" TextWrapping="Wrap"
+                           FontSize="12"/>
+            </Border>
+
+            <TextBlock Text="生成参数" Classes="section-title"/>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,160" ColumnSpacing="14">
+                    <TextBlock Text="&#xE8A5;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="最大回复长度" Classes="row-title"/>
+                        <TextBlock Text="限制单次 AI 回复可生成的最大 token 数。" Classes="row-description"/>
+                    </StackPanel>
+                    <NumericUpDown Grid.Column="2" x:Name="MaxTokensBox"
+                                   Minimum="50" Maximum="500" Increment="50" Value="200"
+                                   VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,160" ColumnSpacing="14">
+                    <TextBlock Text="&#xE916;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="超时时间（秒）" Classes="row-title"/>
+                        <TextBlock Text="接口请求超过该时间后视为失败。" Classes="row-description"/>
+                    </StackPanel>
+                    <NumericUpDown Grid.Column="2" x:Name="TimeoutBox"
+                                   Minimum="3" Maximum="30" Value="10"
+                                   VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,160" ColumnSpacing="14">
+                    <TextBlock Text="&#xE8FD;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="缓存时长（分钟）" Classes="row-title"/>
+                        <TextBlock Text="相同课程上下文可复用 AI 回复的时间范围。" Classes="row-description"/>
+                    </StackPanel>
+                    <NumericUpDown Grid.Column="2" x:Name="CacheBox"
+                                   Minimum="1" Maximum="60" Value="5"
+                                   VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,160" ColumnSpacing="14">
+                    <TextBlock Text="&#xE72C;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="失败重试次数" Classes="row-title"/>
+                        <TextBlock Text="接口调用失败后自动重试的次数。" Classes="row-description"/>
+                    </StackPanel>
+                    <NumericUpDown Grid.Column="2" x:Name="MaxRetriesBox"
+                                   Minimum="0" Maximum="5" Value="1"
+                                   VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,160" ColumnSpacing="14">
+                    <TextBlock Text="&#xE74D;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="AI 日志保留天数" Classes="row-title"/>
+                        <TextBlock Text="自动清理超过保留期的 AI 调用日志，默认保留 30 天。" Classes="row-description"/>
+                    </StackPanel>
+                    <NumericUpDown Grid.Column="2" x:Name="AiLogRetentionDaysBox"
+                                   Minimum="1" Maximum="365" Value="30"
+                                   VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <TextBlock Text="功能开关" Classes="section-title"/>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE945;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="启用 AI 缓存" Classes="row-title"/>
+                        <TextBlock Text="减少重复请求，降低接口延迟和调用次数。" Classes="row-description"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="2" x:Name="EnableCacheCb" IsChecked="True"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE753;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="离线降级提示" Classes="row-title"/>
+                        <TextBlock Text="AI 不可用时使用本地句子库给出提示。" Classes="row-description"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="2" x:Name="EnableFallbackCb" IsChecked="True"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE7BE;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="考试模式严肃语气" Classes="row-title"/>
+                        <TextBlock Text="考试模式启动时自动使用正式专业语气。" Classes="row-description"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="2" x:Name="ExamSeriousToneCb" IsChecked="True"/>
+                </Grid>
+            </Border>
+
+            <TextBlock Text="托盘菜单快捷操作" Classes="section-title"/>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*" ColumnSpacing="14">
+                    <TextBlock Text="&#xE7F4;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="10" VerticalAlignment="Center">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="显示的快捷操作" Classes="row-title"/>
+                            <TextBlock Text="选择右键 ClassIsland 托盘图标时显示在 AIIsland 菜单中的操作，修改后立即生效。" Classes="row-description" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <WrapPanel Orientation="Horizontal">
+                            <CheckBox x:Name="TrayExamModeCb" Content="启动考试模式" Margin="0,0,24,8"/>
+                            <CheckBox x:Name="TrayRegenerateSummaryCb" Content="重新生成课表总结" Margin="0,0,24,8"/>
+                            <CheckBox x:Name="TrayRegenerateHintCb" Content="重新生成学习提示" Margin="0,0,24,8"/>
+                            <CheckBox x:Name="TrayRegenerateHomeworkCb" Content="重新生成作业量估算" Margin="0,0,24,8"/>
+                            <CheckBox x:Name="TrayBeforeSchoolReminderCb" Content="生成智能每日简报" Margin="0,0,24,8"/>
+                            <CheckBox x:Name="TrayBeforeClassReminderCb" Content="生成课间贴心提醒" Margin="0,0,24,8"/>
+                            <CheckBox x:Name="TrayAfterSchoolSummaryCb" Content="生成放学贴心总结" Margin="0,0,24,8"/>
+                            <CheckBox x:Name="TrayCustomRemindersCb" Content="管理自定义提醒" Margin="0,0,24,8"/>
+                        </WrapPanel>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <TextBlock Text="外部插件授权" Classes="section-title"/>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE8E8;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="默认授权策略" Classes="row-title"/>
+                        <TextBlock Text="新插件首次调用 AI 时的处理方式。可逐个插件调整。" Classes="row-description"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="2" x:Name="DefaultAuthTrustedSwitch"
+                                  IsChecked="False"
+                                  OffContent="每次确认"
+                                  OnContent="直接授权"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*" ColumnSpacing="14">
+                    <TextBlock Text="&#xE730;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="已授权插件列表" Classes="row-title"/>
+                            <TextBlock Text="管理已调用过 AIIsland API 的外部插件。可切换为「直接授权」或「每次确认」，也可撤销授权。" Classes="row-description" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <ItemsControl x:Name="PluginAuthList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="publicApi:AIIslandPluginAuthEntry">
+                                    <Border Classes="setting-card" Margin="0,2" Padding="12,10">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                            <StackPanel Grid.Column="0" Spacing="2">
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <TextBlock Text="{Binding PluginName}" FontWeight="SemiBold" FontSize="13"/>
+                                                    <Border CornerRadius="3" Padding="6,1" VerticalAlignment="Center" Background="{DynamicResource ControlFillColorTertiaryBrush}">
+                                                        <TextBlock x:Name="AuthModeText" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="{Binding AuthMode, Converter={StaticResource EnumDescriptionConverter}}"/>
+                                                    </Border>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding PluginId}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                                <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,4,0,0">
+                                                    <TextBlock FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                                                        <Run Text="调用 "/>
+                                                        <Run Text="{Binding CallCount}"/>
+                                                        <Run Text=" 次"/>
+                                                    </TextBlock>
+                                                    <TextBlock FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="{Binding LastCalledAt, StringFormat='\u6700\u540e: {0:MM-dd HH:mm}'}"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                                <Button Content="切换授权" Tag="{Binding PluginId}" Click="OnTogglePluginAuthClicked"/>
+                                                <Button Content="撤销" Classes="danger" Tag="{Binding PluginId}" Click="OnRevokePluginAuthClicked"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock x:Name="NoPluginsText" Text="暂无外部插件调用记录。" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,4"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <TextBlock Text="配置管理" Classes="section-title"/>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE713;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="API 配置" Classes="row-title"/>
+                        <TextBlock Text="导出或导入 API 配置。导出文件包含 API Key，请妥善保管。" Classes="row-description"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button x:Name="ImportConfigBtn" Content="导入配置"/>
+                        <Button x:Name="ExportConfigBtn" Content="导出配置"/>
+                        <Button x:Name="RestoreDefaultsBtn" Content="恢复默认" Classes="danger"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <TextBlock Text="本地数据" Classes="section-title"/>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE9D5;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="AI 调用日志" Classes="row-title"/>
+                        <TextBlock Text="查看完整提示词、AI 返回内容、本地降级内容及调用错误。" Classes="row-description"/>
+                    </StackPanel>
+                    <Button Grid.Column="2" x:Name="OpenAiLogsBtn" Content="打开日志文件夹" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE8B7;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="离线句子库与提示词" Classes="row-title"/>
+                        <TextBlock Text="可自行编辑 Data/ 下的 JSON 文件来定制 AI 提示词和降级句子。" Classes="row-description"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button x:Name="OpenFallbackBtn" Content="打开句子库"/>
+                        <Button x:Name="OpenPromptsBtn" Content="打开提示词"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</ci:SettingsPageBase>

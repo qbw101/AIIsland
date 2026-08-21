@@ -1,0 +1,95 @@
+<ci:ActionSettingsControlBase
+    x:Class="ClassIsland.AISmartClass.Controls.Automation.GenerateAiNotificationActionSettingsControl"
+    x:TypeArguments="models:GenerateAiNotificationSettings"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ci="clr-namespace:ClassIsland.Core.Abstractions.Controls;assembly=ClassIsland.Core"
+    xmlns:local="clr-namespace:ClassIsland.AISmartClass.Controls.Automation"
+    xmlns:models="clr-namespace:ClassIsland.AISmartClass.Models.Automation"
+    xmlns:converters="clr-namespace:ClassIsland.AISmartClass.Converters">
+    <ci:ActionSettingsControlBase.Resources>
+        <converters:EnumDescriptionConverter x:Key="EnumDescriptionConverter"/>
+    </ci:ActionSettingsControlBase.Resources>
+    <StackPanel Margin="8" Spacing="12"
+                DataContext="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=local:GenerateAiNotificationActionSettingsControl}}">
+        <TextBlock Text="AI 生成设置" FontWeight="Bold"/>
+        <Grid ColumnDefinitions="130,*">
+            <TextBlock Text="生成场景" VerticalAlignment="Center"/>
+            <ComboBox Grid.Column="1" SelectedItem="{Binding Settings.Scenario, Mode=TwoWay}">
+                <models:AiNotificationScenario>CurrentHint</models:AiNotificationScenario>
+                <models:AiNotificationScenario>BeforeSchoolReminder</models:AiNotificationScenario>
+                <models:AiNotificationScenario>BeforeClassReminder</models:AiNotificationScenario>
+                <models:AiNotificationScenario>TodaySummary</models:AiNotificationScenario>
+                <models:AiNotificationScenario>AfterSchoolSummary</models:AiNotificationScenario>
+                <models:AiNotificationScenario>HomeworkEstimate</models:AiNotificationScenario>
+                <models:AiNotificationScenario>CustomPrompt</models:AiNotificationScenario>
+                <ComboBox.ItemTemplate>
+                    <DataTemplate><TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}"/></DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </Grid>
+        <StackPanel Spacing="8" IsVisible="{Binding Settings.IsCustomPromptScenario}">
+            <TextBlock Text="自定义指令"/>
+            <TextBox x:Name="CustomPromptTextBox"
+                     Text="{Binding Settings.CustomPrompt, Mode=TwoWay}"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     MinHeight="72"
+                     Watermark="输入自定义指令，或点击下方变量插入"/>
+            <TextBlock Text="可用变量" FontSize="12" Opacity="0.72"/>
+            <WrapPanel>
+                <StackPanel Orientation="Horizontal" Spacing="3" Margin="0,0,8,6">
+                    <Button Content="{}{currentSubject}" Tag="{}{currentSubject}" Click="OnInsertVariableClick"/>
+                    <Border Width="26" Height="26" Background="Transparent"
+                            ToolTip.Tip="当前正在进行的课程名称；没有当前课程时显示“无”。">
+                        <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   IsHitTestVisible="False"/>
+                    </Border>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="3" Margin="0,0,8,6">
+                    <Button Content="{}{nextSubject}" Tag="{}{nextSubject}" Click="OnInsertVariableClick"/>
+                    <Border Width="26" Height="26" Background="Transparent"
+                            ToolTip.Tip="下一节课程名称；没有明确课程时显示“下一节课”。">
+                        <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   IsHitTestVisible="False"/>
+                    </Border>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="3" Margin="0,0,8,6">
+                    <Button Content="{}{todaySubjects}" Tag="{}{todaySubjects}" Click="OnInsertVariableClick"/>
+                    <Border Width="26" Height="26" Background="Transparent"
+                            ToolTip.Tip="当天全部课程名称，使用顿号分隔；无课程时显示“无”。">
+                        <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   IsHitTestVisible="False"/>
+                    </Border>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="3" Margin="0,0,8,6">
+                    <Button Content="{}{timeState}" Tag="{}{timeState}" Click="OnInsertVariableClick"/>
+                    <Border Width="26" Height="26" Background="Transparent"
+                            ToolTip.Tip="当前课表场景，例如上课前、上课中、课间或放学后。">
+                        <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   IsHitTestVisible="False"/>
+                    </Border>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="3" Margin="0,0,8,6">
+                    <Button Content="{}{currentTime}" Tag="{}{currentTime}" Click="OnInsertVariableClick"/>
+                    <Border Width="26" Height="26" Background="Transparent"
+                            ToolTip.Tip="执行自动化时的当前日期和时间，格式为 yyyy-MM-dd HH:mm:ss。">
+                        <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   IsHitTestVisible="False"/>
+                    </Border>
+                </StackPanel>
+            </WrapPanel>
+            <ToggleSwitch Content="附加课表上下文" IsChecked="{Binding Settings.IncludeScheduleContext, Mode=TwoWay}"/>
+        </StackPanel>
+        <ToggleSwitch Content="绕过 AI 缓存" IsChecked="{Binding Settings.BypassCache, Mode=TwoWay}"/>
+        <Grid ColumnDefinitions="130,*">
+            <TextBlock Text="通知标题" VerticalAlignment="Center"/>
+            <TextBox Grid.Column="1" Text="{Binding Settings.NotificationTitle, Mode=TwoWay}"/>
+        </Grid>
+    </StackPanel>
+</ci:ActionSettingsControlBase>

@@ -1,0 +1,29 @@
+<ci:ActionSettingsControlBase
+    x:Class="ClassIsland.AISmartClass.Controls.Automation.TriggerAiIslandReminderActionSettingsControl"
+    x:TypeArguments="models:TriggerAiIslandReminderSettings"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ci="clr-namespace:ClassIsland.Core.Abstractions.Controls;assembly=ClassIsland.Core"
+    xmlns:local="clr-namespace:ClassIsland.AISmartClass.Controls.Automation"
+    xmlns:models="clr-namespace:ClassIsland.AISmartClass.Models.Automation"
+    xmlns:converters="clr-namespace:ClassIsland.AISmartClass.Converters">
+    <ci:ActionSettingsControlBase.Resources>
+        <converters:EnumDescriptionConverter x:Key="EnumDescriptionConverter"/>
+    </ci:ActionSettingsControlBase.Resources>
+    <StackPanel Margin="8" Spacing="12"
+                DataContext="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=local:TriggerAiIslandReminderActionSettingsControl}}">
+        <TextBlock Text="提醒设置" FontWeight="Bold"/>
+        <Grid ColumnDefinitions="130,*">
+            <TextBlock Text="提醒类型" VerticalAlignment="Center"/>
+            <ComboBox Grid.Column="1" SelectedItem="{Binding Settings.Reminder, Mode=TwoWay}">
+                <models:AiIslandReminder>BeforeSchool</models:AiIslandReminder>
+                <models:AiIslandReminder>BeforeClass</models:AiIslandReminder>
+                <models:AiIslandReminder>AfterSchool</models:AiIslandReminder>
+                <ComboBox.ItemTemplate>
+                    <DataTemplate><TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}"/></DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </Grid>
+        <ToggleSwitch Content="绕过 AI 缓存" IsChecked="{Binding Settings.BypassCache, Mode=TwoWay}"/>
+    </StackPanel>
+</ci:ActionSettingsControlBase>

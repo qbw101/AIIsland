@@ -1,0 +1,20 @@
+<ci:ComponentBase
+    x:Class="ClassIsland.AISmartClass.Controls.HomeworkEstimate.HomeworkEstimateSettingsControl"
+    x:TypeArguments="models:HomeworkEstimateSettings"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ci="clr-namespace:ClassIsland.Core.Abstractions.Controls;assembly=ClassIsland.Core"
+    xmlns:local="clr-namespace:ClassIsland.AISmartClass.Controls.HomeworkEstimate"
+    xmlns:models="clr-namespace:ClassIsland.AISmartClass.Models">
+    <ScrollViewer DataContext="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=local:HomeworkEstimateSettingsControl}}">
+        <StackPanel Spacing="12" Margin="8">
+            <TextBlock Text="字体大小" FontWeight="Bold"/>
+            <Grid ColumnDefinitions="*,160">
+                <TextBlock Text="正文字号" VerticalAlignment="Center"/>
+                <Slider Grid.Column="1" Minimum="10" Maximum="24"
+                        TickFrequency="1" IsSnapToTickEnabled="True"
+                        Value="{Binding Settings.FontSize, Mode=TwoWay}"/>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</ci:ComponentBase>
