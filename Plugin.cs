@@ -1,4 +1,5 @@
 using System.IO;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Text.Json;
 using Avalonia;
@@ -50,7 +51,35 @@ public class Plugin : PluginBase
     public static ILessonsService? LessonsService { get; internal set; }
 
     /// <summary>SmartClassNotifier 单例，供自动化模块复用其通知通道。</summary>
-    public static SmartClassNotifier? SmartClassNotifierInstance { get; set; }
+    private static SmartClassNotifier? _smartClassNotifierInstance;
+    private static PendingPluginAuthorization? _pendingPluginAuthorization;
+    private static SmartClassNotifierSettings? _pendingWelcomeReminderSettings;
+
+    public static SmartClassNotifier? SmartClassNotifierInstance
+    {
+        get => _smartClassNotifierInstance;
+        set
+        {
+            _smartClassNotifierInstance = value;
+            if (value != null)
+            {
+                value.Settings.AuthorizedPluginIds =
+                    PluginIntegrationService.NormalizeAuthorizedPluginIds(value.Settings.AuthorizedPluginIds);
+            }
+            if (value != null && _pendingWelcomeReminderSettings is { } reminderSettings)
+            {
+                CopyWelcomeReminderSettings(reminderSettings, value.Settings);
+                _pendingWelcomeReminderSettings = null;
+            }
+            if (value != null && _pendingPluginAuthorization is { } pending)
+            {
+                ApplyExternalPluginAuthorization(pending.Enabled, pending.PluginIds, pending.Confirmed);
+                _pendingPluginAuthorization = null;
+            }
+        }
+    }
+
+    private sealed record PendingPluginAuthorization(bool Enabled, HashSet<string> PluginIds, bool Confirmed);
 
     /// <summary>AI 设置发生变更时触发，供设置页面等 UI 自动刷新。</summary>
     public static event Action<AISettings>? AISettingsChanged;
@@ -139,6 +168,78 @@ public class Plugin : PluginBase
     /// <summary>获取运行中使用的设置对象。</summary>
     public static AISettings? GetAISettings() => _sharedSettings;
 
+    public static void ApplyExternalPluginAuthorization(
+        bool enabled,
+        IEnumerable<string> pluginIds,
+        bool confirmed = true)
+    {
+        var ids = PluginIntegrationService.NormalizeAuthorizedPluginIds(pluginIds);
+        if (_smartClassNotifierInstance == null)
+        {
+            _pendingPluginAuthorization = new PendingPluginAuthorization(enabled, ids, confirmed);
+            Logger.Info("外部插件授权已暂存，等待提醒服务初始化");
+            return;
+        }
+
+        var settings = _smartClassNotifierInstance.Settings;
+        settings.AuthorizedPluginIds = ids;
+        settings.EnableExternalPluginIntegration = enabled && ids.Count > 0;
+        settings.PluginAuthorizationConfirmed = confirmed;
+        TrySaveClassIslandSettings();
+    }
+
+    public static void ApplyWelcomeReminderSettings(SmartClassNotifierSettings source)
+    {
+        if (_smartClassNotifierInstance == null)
+        {
+            _pendingWelcomeReminderSettings = source;
+            return;
+        }
+        CopyWelcomeReminderSettings(source, _smartClassNotifierInstance.Settings);
+        TrySaveClassIslandSettings();
+    }
+
+    private static void CopyWelcomeReminderSettings(
+        SmartClassNotifierSettings source,
+        SmartClassNotifierSettings target)
+    {
+        target.EnableThoughtfulReminder = source.EnableThoughtfulReminder;
+        target.EnableBeforeSchoolReminder = source.EnableBeforeSchoolReminder;
+        target.EnableBeforeClassReminder = source.EnableBeforeClassReminder;
+        target.EnableAfterSchoolSummary = source.EnableAfterSchoolSummary;
+        target.EnableClassChangeAlert = source.EnableClassChangeAlert;
+        target.EnableWeatherReminder = source.EnableWeatherReminder;
+        target.EnableTemperatureReminder = source.EnableTemperatureReminder;
+        target.EnableWeatherAlertReminder = source.EnableWeatherAlertReminder;
+        target.EnableMusicReminder = source.EnableMusicReminder;
+        target.EnableCustomReminder = source.EnableCustomReminder;
+        target.EnableDailyBriefingHoliday = source.EnableDailyBriefingHoliday;
+        target.EnableDailyBriefingNews = source.EnableDailyBriefingNews;
+    }
+
+    private static void TrySaveClassIslandSettings()
+    {
+        try
+        {
+            var settingsServiceType = AppDomain.CurrentDomain.GetAssemblies()
+                .SelectMany(assembly =>
+                {
+                    try { return assembly.GetTypes(); }
+                    catch { return Array.Empty<Type>(); }
+                })
+                .FirstOrDefault(type => type.FullName == "ClassIsland.Services.SettingsService");
+            var settingsService = settingsServiceType == null
+                ? null
+                : ClassIsland.Shared.IAppHost.Host?.Services.GetService(settingsServiceType);
+            settingsServiceType?.GetMethod("SaveSettings")
+                ?.Invoke(settingsService, new object?[] { "保存 AIIsland 外部插件授权" });
+        }
+        catch (Exception ex)
+        {
+            Logger.Info($"立即保存外部插件授权失败，将由 ClassIsland 稍后保存: {ex.Message}");
+        }
+    }
+
     internal static void SaveAISettingsFile(AISettings settings)
     {
         var configFolder = ConfigFolderPath
@@ -187,19 +288,25 @@ public class Plugin : PluginBase
         private readonly IProfileService _profileService;
         private readonly ILessonsService _lessonsService;
         private readonly ClassIsland.Core.Abstractions.Services.ITaskBarIconService? _taskBarIconService;
+        private readonly Microsoft.Extensions.Logging.ILoggerFactory? _loggerFactory;
 
         public PluginInitializer(
             IProfileService profileService,
             ILessonsService lessonsService,
-            ClassIsland.Core.Abstractions.Services.ITaskBarIconService? taskBarIconService)
+            ClassIsland.Core.Abstractions.Services.ITaskBarIconService? taskBarIconService,
+            Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory)
         {
             _profileService = profileService;
             _lessonsService = lessonsService;
             _taskBarIconService = taskBarIconService;
+            _loggerFactory = loggerFactory;
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
+            // 初始化日志服务，使日志自动写入 ClassIsland 日志系统
+            Logger.Initialize(_loggerFactory);
+            
             ProfileService = _profileService;
             LessonsService = _lessonsService;
             Logger.Info("ProfileService / LessonsService 已写入静态属性");
@@ -210,6 +317,8 @@ public class Plugin : PluginBase
                 RegisterTrayMenuWhenReady(_taskBarIconService);
             else
                 Logger.Info("ITaskBarIconService 未注入，跳过托盘菜单注册");
+
+            ExternalPluginAuthorizationCoordinator.Initialize();
 
             return Task.CompletedTask;
         }

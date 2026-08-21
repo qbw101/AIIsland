@@ -28,6 +28,7 @@ public partial class SmartClassNotifierSettingsControl : NotificationProviderCon
     private TextBlock? _rssTestResult;
     private ComboBox? _rssSourceComboBox;
     private TextBox? _customRssTextBox;
+    private TextBlock? _pluginStatusText;
     private INotifyCollectionChanged? _subscribedCollection;
 
     public SmartClassNotifierSettingsControl()
@@ -50,9 +51,11 @@ public partial class SmartClassNotifierSettingsControl : NotificationProviderCon
         _rssTestResult = this.FindControl<TextBlock>("RssTestResult");
         _rssSourceComboBox = this.FindControl<ComboBox>("RssSourceComboBox");
         _customRssTextBox = this.FindControl<TextBox>("CustomRssTextBox");
+        _pluginStatusText = this.FindControl<TextBlock>("PluginStatusText");
         SelectRssSource();
 
         ApplyWindowsContextAvailability();
+        UpdatePluginStatus();
 
         SubscribeCollectionChanged();
         RefreshReminderList();
@@ -73,10 +76,13 @@ public partial class SmartClassNotifierSettingsControl : NotificationProviderCon
         {
             "http://www.ithome.com/rss/" => 0,
             "https://36kr.com/feed" => 1,
-            _ => 2
+            "http://rss.qbwnas.top/mihoyo/bbs/official/2/3" => 2,
+            "http://rss.qbwnas.top/mihoyo/bbs/official/6/3" => 3,
+            "http://rss.qbwnas.top/mihoyo/bbs/official/8/3" => 4,
+            _ => 5
         };
         _rssSourceComboBox.SelectedIndex = index;
-        if (_customRssTextBox != null) _customRssTextBox.IsVisible = index == 2;
+        if (_customRssTextBox != null) _customRssTextBox.IsVisible = index == 5;
     }
 
     private void OnRssSourceChanged(object? sender, SelectionChangedEventArgs e)
@@ -128,7 +134,7 @@ public partial class SmartClassNotifierSettingsControl : NotificationProviderCon
     {
         if (_windowsContextTestResult == null || Settings == null) return;
 
-        _windowsContextTestResult.Text = "正在检测定位、媒体会话和小米天气...";
+        _windowsContextTestResult.Text = "正在读取 ClassIsland 天气位置、媒体会话和小米天气...";
         try
         {
             var service = new WindowsSystemContextService();
@@ -138,8 +144,8 @@ public partial class SmartClassNotifierSettingsControl : NotificationProviderCon
                 () => Settings.ClassIslandInstallDirectory);
             var location = await locationService.GetLocationAsync();
             var locationText = location == null
-                ? "定位：不可用"
-                : $"定位：{location.Address} ({location.Latitude:F4}, {location.Longitude:F4}) [{location.Provider}]";
+                ? "ClassIsland 天气位置：不可用"
+                : $"ClassIsland 天气位置：{location.Address} ({location.Latitude:F4}, {location.Longitude:F4}) [{location.Provider}]";
 
             var weather = await service.GetCurrentWeatherAsync(location);
             var weatherText = weather == null
@@ -402,5 +408,98 @@ public partial class SmartClassNotifierSettingsControl : NotificationProviderCon
         else
             _parseStatusText.Classes.Remove("error");
         _parseStatusText.IsVisible = true;
+    }
+
+    private void UpdatePluginStatus()
+    {
+        if (_pluginStatusText == null || Settings == null) return;
+
+        if (!Settings.EnableExternalPluginIntegration)
+        {
+            _pluginStatusText.Text = "";
+            return;
+        }
+
+        var installed = PluginIntegrationService.GetInstalledPlugins();
+        if (installed.Count == 0)
+        {
+            _pluginStatusText.Text = "未检测到可集成的插件";
+            return;
+        }
+
+        var authorized = Settings.AuthorizedPluginIds ?? new System.Collections.Generic.HashSet<string>();
+        var authorizedCount = installed.Count(p => authorized.Contains(p.Id));
+        _pluginStatusText.Text = $"已检测到 {installed.Count} 个插件，已授权 {authorizedCount} 个";
+    }
+
+    private async void OnExternalPluginIntegrationClicked(object? sender, RoutedEventArgs e)
+    {
+        if (Settings == null || sender is not CheckBox checkBox) return;
+        if (checkBox.IsChecked != true)
+        {
+            Settings.EnableExternalPluginIntegration = false;
+            UpdatePluginStatus();
+            return;
+        }
+
+        if (Settings.PluginAuthorizationConfirmed && Settings.AuthorizedPluginIds.Count > 0)
+        {
+            UpdatePluginStatus();
+            return;
+        }
+
+        if (PluginIntegrationService.GetInstalledPlugins().Count == 0)
+        {
+            Settings.EnableExternalPluginIntegration = false;
+            checkBox.IsChecked = false;
+            if (_pluginStatusText != null) _pluginStatusText.Text = "未检测到可集成的插件";
+            return;
+        }
+
+        if (this.VisualRoot is not Window owner)
+        {
+            Settings.EnableExternalPluginIntegration = false;
+            checkBox.IsChecked = false;
+            return;
+        }
+
+        var dialog = new PluginAuthorizationDialog(Settings.AuthorizedPluginIds, defaultSelectAll: true);
+        var accepted = await dialog.ShowDialog<bool?>(owner) == true;
+        Plugin.ApplyExternalPluginAuthorization(
+            accepted,
+            accepted ? dialog.AuthorizedPluginIds : Array.Empty<string>(),
+            confirmed: true);
+        checkBox.IsChecked = Settings.EnableExternalPluginIntegration;
+        UpdatePluginStatus();
+    }
+
+    private async void OnManagePluginAuthorizationClicked(object? sender, RoutedEventArgs e)
+    {
+        if (Settings == null) return;
+
+        var dialog = new PluginAuthorizationDialog(
+            Settings.AuthorizedPluginIds,
+            defaultSelectAll: false);
+
+        bool? result;
+        if (this.VisualRoot is Window owner)
+        {
+            result = await dialog.ShowDialog<bool?>(owner);
+        }
+        else
+        {
+            dialog.Show();
+            return; // 无父窗口时直接返回，无法获取对话框结果
+        }
+
+        if (result != true) return;
+
+        // 保存授权结果
+        Settings.AuthorizedPluginIds = dialog.AuthorizedPluginIds;
+
+        Settings.PluginAuthorizationConfirmed = true;
+        Settings.EnableExternalPluginIntegration = dialog.AuthorizedPluginIds.Count > 0;
+
+        UpdatePluginStatus();
     }
 }

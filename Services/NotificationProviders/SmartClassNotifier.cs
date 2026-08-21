@@ -191,7 +191,7 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
                 "今日学习总结",
                 "📋",
                 "✅",
-                Settings?.EnableTTS ?? false,
+                true,
                 x =>
                 {
                     x.Duration = TimeSpan.FromSeconds(Settings?.MaskDurationSeconds ?? 3);
@@ -199,10 +199,11 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
                 }),
             OverlayContent = CreateReminderBodyContent(
                 aiText,
+                Settings?.RollingSpeed ?? 7,
                 x =>
                 {
                     x.Duration = TimeSpan.FromSeconds((Settings?.OverlayDurationSeconds ?? 5) + 2);
-                    x.IsSpeechEnabled = Settings?.EnableTTS ?? false;
+                    x.IsSpeechEnabled = true;
                     x.SpeechContent = aiText;
                 })
         }));
@@ -320,7 +321,7 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
                 title,
                 icon,
                 "🏫",
-                Settings.EnableTTS,
+                true,
                 x =>
                 {
                     x.Duration = TimeSpan.FromSeconds(Settings.MaskDurationSeconds);
@@ -328,10 +329,11 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
                 }),
             OverlayContent = CreateReminderBodyContent(
                 body,
+                Settings.RollingSpeed,
                 x =>
                 {
                     x.Duration = TimeSpan.FromSeconds(Settings.OverlayDurationSeconds);
-                    x.IsSpeechEnabled = Settings.EnableTTS;
+                    x.IsSpeechEnabled = true;
                     x.SpeechContent = body;
                 })
         });
@@ -340,6 +342,7 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
     /// <summary>长提醒/多段落提醒使用 ClassIsland 滚动文本模板，避免正文超出通知区域。</summary>
     private static NotificationContent CreateReminderBodyContent(
         string body,
+        int rollingSpeed,
         Action<NotificationContent> configure)
     {
         var displayBody = NormalizeNotificationBody(body);
@@ -347,9 +350,11 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
         if (displayBody.Length <= 45)
             return NotificationContent.CreateSimpleTextContent(displayBody, configure);
 
-        // 合并后的正文超过 45 字时启用单行滚动模板。
+        // 合并后的正文超过 45 字时启用单行滚动模板。滚动速度可调（字/秒），
+        // 值越小滚动越慢、正文停留越久，可缓解长句子语音播报不完。
+        var speed = Math.Clamp(rollingSpeed, 1, 30);
         var rollingDuration = TimeSpan.FromSeconds(Math.Clamp(
-            8 + displayBody.Length / 7, 12, 60));
+            8 + displayBody.Length / (double)speed, 12, 120));
         return NotificationContent.CreateRollingTextContent(
             displayBody,
             rollingDuration,
@@ -445,7 +450,7 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
                 nextSubject,
                 "🔔",
                 "🏫",
-                Settings.EnableTTS,
+                true,
                 x =>
                 {
                     x.Duration = TimeSpan.FromSeconds(Settings.MaskDurationSeconds);
@@ -453,10 +458,11 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
                 }),
             OverlayContent = CreateReminderBodyContent(
                 aiText,
+                Settings.RollingSpeed,
                 x =>
                 {
                     x.Duration = TimeSpan.FromSeconds(Settings.OverlayDurationSeconds);
-                    x.IsSpeechEnabled = Settings.EnableTTS;
+                    x.IsSpeechEnabled = true;
                     x.SpeechContent = aiText;
                 })
         });
@@ -471,7 +477,8 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
             return;
         }
 
-        var isSpeechEnabled = enableTts && (Settings?.EnableTTS ?? false);
+        // 语音播报跟随 ClassIsland 全局设置，插件层不再单独开关；enableTts 仅表示调用方是否请求语音。
+        var isSpeechEnabled = enableTts;
         var maskDuration = Settings?.MaskDurationSeconds ?? 3;
         var overlayDuration = Settings?.OverlayDurationSeconds ?? 5;
 
@@ -489,6 +496,7 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
                 }),
             OverlayContent = CreateReminderBodyContent(
                 body,
+                Settings?.RollingSpeed ?? 7,
                 x =>
                 {
                     x.Duration = TimeSpan.FromSeconds(overlayDuration);
@@ -533,7 +541,7 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
                     "今日学习总结",
                     "📋",
                     "✅",
-                    Settings.EnableTTS,
+                    true,
                     x =>
                     {
                         x.Duration = TimeSpan.FromSeconds(Settings.MaskDurationSeconds);
@@ -541,10 +549,11 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
                     }),
                 OverlayContent = CreateReminderBodyContent(
                     aiText,
+                    Settings.RollingSpeed,
                     x =>
                     {
                         x.Duration = TimeSpan.FromSeconds(Settings.OverlayDurationSeconds + 2);
-                        x.IsSpeechEnabled = Settings.EnableTTS;
+                        x.IsSpeechEnabled = true;
                         x.SpeechContent = aiText;
                     })
             });
@@ -767,7 +776,7 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
                 title,
                 "⏰",
                 "🔔",
-                Settings.EnableTTS,
+                true,
                 x =>
                 {
                     x.Duration = TimeSpan.FromSeconds(Settings.MaskDurationSeconds);
@@ -775,10 +784,11 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
                 }),
             OverlayContent = CreateReminderBodyContent(
                 content,
+                Settings.RollingSpeed,
                 x =>
                 {
                     x.Duration = TimeSpan.FromSeconds(Settings.OverlayDurationSeconds);
-                    x.IsSpeechEnabled = Settings.EnableTTS;
+                    x.IsSpeechEnabled = true;
                     x.SpeechContent = content;
                 })
         });
@@ -787,6 +797,27 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
     // ========================================
     //  辅助方法
     // ========================================
+
+    private static async Task<string> GetDutyReminderWithRetryAsync(
+        CancellationToken ct,
+        IReadOnlySet<string> allowedPluginIds)
+    {
+        const int maxAttempts = 5;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            ct.ThrowIfCancellationRequested();
+            var reminder = DailyBriefingDataService.GetDutyReminder(allowedPluginIds);
+            if (!string.IsNullOrWhiteSpace(reminder)) return reminder;
+
+            if (attempt < maxAttempts)
+            {
+                Logger.Info($"[SmartClassNotifier] 值日提醒暂为空，第 {attempt} 次重试");
+                await Task.Delay(TimeSpan.FromMilliseconds(300), ct);
+            }
+        }
+
+        return "";
+    }
 
     public async Task<string> BuildThoughtfulContextAsync(ThoughtfulScene scene, CancellationToken ct = default)
     {
@@ -807,6 +838,25 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
                 var holiday = DailyBriefingDataService.GetHolidayDescription(now.Date);
                 if (!string.IsNullOrWhiteSpace(holiday)) lines.Add($"节假日信息：{holiday}");
             }
+            
+            // 生日祝福
+            var birthdayGreeting = PluginIntegrationService.IsAuthorized(
+                Settings, PluginIntegrationService.BirthdayIslandId)
+                ? DailyBriefingDataService.GetBirthdayGreeting()
+                : "";
+            if (!string.IsNullOrWhiteSpace(birthdayGreeting))
+            {
+                lines.Add($"生日信息：{birthdayGreeting}");
+            }
+
+            var dailyDutyIds = PluginIntegrationService.GetAuthorizedDutyPluginIds(Settings);
+            if (dailyDutyIds.Count > 0)
+            {
+                var dutyReminder = await GetDutyReminderWithRetryAsync(ct, dailyDutyIds);
+                if (!string.IsNullOrWhiteSpace(dutyReminder))
+                    lines.Add($"值日提醒：{dutyReminder}");
+            }
+            
             var reminders = GetTodayCustomReminderTexts(now);
             if (reminders.Count > 0) lines.Add($"今日自定义提醒：{string.Join("；", reminders)}");
             try
@@ -881,6 +931,28 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
                         }
                     }
                     if (forecast.Count > 0) lines.Add($"明日天气：{string.Join("，", forecast)}");
+                }
+            }
+
+            // 放学总结场景：添加值日生提醒。
+            // DutyIsland 可能在 ClassIsland 启动后晚加载，放学事件有机会先于其服务注册；
+            // 因此在放学总结上下文构建期间做短暂重试，避免首次读取过早导致值日提醒丢失。
+            if (scene == ThoughtfulScene.AfterSchool)
+            {
+                Logger.Info("[SmartClassNotifier] 放学总结场景，准备获取值日提醒");
+                var dutyIds = PluginIntegrationService.GetAuthorizedDutyPluginIds(Settings);
+                var dutyReminder = dutyIds.Count == 0
+                    ? ""
+                    : await GetDutyReminderWithRetryAsync(ct, dutyIds);
+                Logger.Info($"[SmartClassNotifier] 值日提醒结果: '{dutyReminder}'");
+                if (!string.IsNullOrWhiteSpace(dutyReminder))
+                {
+                    lines.Add($"值日提醒：{dutyReminder}");
+                    Logger.Info("[SmartClassNotifier] 已添加值日提醒到上下文");
+                }
+                else
+                {
+                    Logger.Info("[SmartClassNotifier] 值日提醒为空，未添加");
                 }
             }
 

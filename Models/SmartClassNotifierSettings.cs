@@ -41,7 +41,7 @@ public partial class SmartClassNotifierSettings : ObservableObject
     [ObservableProperty]
     [property: JsonPropertyName("enableWeatherReminder")]
     private bool _enableWeatherReminder = true;
-    // 允许贴心提醒使用 Windows 定位和小米天气 API 取得的天气上下文。
+    // 允许贴心提醒使用 ClassIsland 天气位置设置和小米天气 API 取得天气上下文。
 
     [ObservableProperty]
     [property: JsonPropertyName("enableTemperatureReminder")]
@@ -70,6 +70,21 @@ public partial class SmartClassNotifierSettings : ObservableObject
     [ObservableProperty]
     [property: JsonPropertyName("enableDailyBriefingNews")]
     private bool _enableDailyBriefingNews = true;
+
+    [ObservableProperty]
+    [property: JsonPropertyName("enableExternalPluginIntegration")]
+    private bool _enableExternalPluginIntegration = false;
+    // 允许 AIIsland 读取其他插件的数据（如生日、值日），为用户提供更智能的提醒。
+
+    [ObservableProperty]
+    [property: JsonPropertyName("authorizedPluginIds")]
+    private HashSet<string> _authorizedPluginIds = new();
+    // 用户已授权 AIIsland 读取数据的插件 ID 列表
+
+    [ObservableProperty]
+    [property: JsonPropertyName("pluginAuthorizationConfirmed")]
+    private bool _pluginAuthorizationConfirmed = false;
+    // 用户是否已经明确允许或拒绝过插件数据授权。即使授权列表为空，确认后也不再自动弹窗。
 
     [ObservableProperty]
     [property: JsonPropertyName("rssFeedUrls")]
@@ -107,7 +122,8 @@ public partial class SmartClassNotifierSettings : ObservableObject
     [ObservableProperty]
     [property: JsonPropertyName("enableTTS")]
     private bool _enableTTS = false;
-    // 是否启用语音播报（默认关闭以免影响课堂）
+    // 已废弃：语音播报改为跟随 ClassIsland 全局设置（「启用提醒语音」），此字段不再被读取。
+    // 保留字段仅为兼容历史 Settings.json，避免旧配置反序列化报错。
 
     [ObservableProperty]
     [property: JsonPropertyName("maskDurationSeconds")]
@@ -118,6 +134,11 @@ public partial class SmartClassNotifierSettings : ObservableObject
     [property: JsonPropertyName("overlayDurationSeconds")]
     private int _overlayDurationSeconds = 5;
     // 正文显示时长（秒），默认 5 秒
+
+    [ObservableProperty]
+    [property: JsonPropertyName("rollingSpeed")]
+    private int _rollingSpeed = 7;
+    // 滚动正文的滚动速度（字/秒），值越小滚动越慢、正文停留越久，可缓解长句子语音播报不完。
 
     // ===== 自定义定时提醒 =====
 

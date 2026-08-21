@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -23,6 +24,9 @@ public partial class WelcomeWizard : Window
     private bool _customMode;
     private bool _platformListInitialized;
     private bool _completionNotified;
+    private bool _reminderSettingsInitialized;
+    private bool _pluginListInitialized;
+    private SmartClassNotifierSettings _welcomeReminderSettings = new();
     private DispatcherTimer? _welcomeAnimationTimer;
     private DispatcherTimer? _contentAnimationTimer;
     private DispatcherTimer? _transitionTimer;
@@ -33,7 +37,7 @@ public partial class WelcomeWizard : Window
     private DateTime _lastNavigateTime = DateTime.MinValue;
     private const int NavigateDebounceMs = 200;
 
-    private static readonly List<string> StepNames = new() { "开始", "功能预览", "接入 AI", "填写配置", "选择语气", "完成" };
+    private static readonly List<string> StepNames = new() { "开始", "功能预览", "接入 AI", "填写配置", "选择语气", "贴心提醒", "完成" };
 
     // 按钮动画：颜色瞬时切换（无 BrushTransition 避免闪烁），代码仅处理缩放
     private readonly List<Button> _animatedButtons = new();
@@ -462,7 +466,8 @@ public partial class WelcomeWizard : Window
                 _ => Page4Recommended
             },
             5 => PagePreferences,
-            6 => Page5,
+            6 => PagePluginAuth,
+            7 => Page5,
             _ => null
         };
     }
@@ -472,7 +477,7 @@ public partial class WelcomeWizard : Window
     /// </summary>
     private IEnumerable<Border> AllPages => new[]
     {
-        Page1, Page2, Page3, Page4Manual, Page4Recommended, PagePreferences, Page5
+        Page1, Page2, Page3, Page4Manual, Page4Recommended, PagePreferences, PagePluginAuth, Page5
     };
 
     private void NavigateTo(int step, bool forward = true)
@@ -505,6 +510,9 @@ public partial class WelcomeWizard : Window
         PageScrollViewer.Offset = Vector.Zero;
 
         if (newPage == null) return;
+
+        // 先完成插件检测和动态控件创建，再开始页面过渡，避免动画期间发生布局重排。
+        if (step == 6) UpdatePluginAuthSelection();
 
         // 确保 oldPage 处于完全可见状态（动画中断或异常状态修复）
         if (oldPage != null && oldPage != newPage)
@@ -541,7 +549,7 @@ public partial class WelcomeWizard : Window
         if (step == 3) UpdatePathSelection();
         if (step == 4 && _chosenPath == "recommended") PopulatePlatformList();
         if (step == 5) UpdateToneSelection();
-        if (step == 6)
+        if (step == 7)
         {
             BuildCompletePage();
             StartCompletionAnimation();
@@ -614,13 +622,13 @@ public partial class WelcomeWizard : Window
         var isApiStep = _currentStep == 4;
 
         PrevBtn.IsVisible = !isFirst;
-        SkipBtn.IsVisible = isApiStep || _currentStep == 5;
+        SkipBtn.IsVisible = isApiStep || _currentStep == 5 || _currentStep == 6;
         NextBtn.IsVisible = !(_currentStep == 3);
         NextBtn.Content = isLast
             ? "开始使用"
             : isFirst
                 ? "开始设置"
-                : isApiStep || _currentStep == 5
+                : isApiStep || _currentStep == 5 || _currentStep == 6
                     ? "保存并继续"
                     : "下一步";
     }
@@ -802,6 +810,13 @@ public partial class WelcomeWizard : Window
 
         if (_currentStep == 6)
         {
+            SavePluginAuthSettings();
+            NavigateTo(7);
+            return;
+        }
+
+        if (_currentStep == 7)
+        {
             Close();
             return;
         }
@@ -829,6 +844,11 @@ public partial class WelcomeWizard : Window
         {
             SaveWizardBasics();
             NavigateTo(6);
+        }
+        else if (_currentStep == 6)
+        {
+            SavePluginAuthSettings();
+            NavigateTo(7);
         }
     }
 
@@ -1143,6 +1163,119 @@ public partial class WelcomeWizard : Window
         SetSelectedState(ToneSeriousBtn, _settings.ToneStyle == 2);
     }
 
+    // ---- 插件授权管理 ----
+
+    private void UpdatePluginAuthSelection()
+    {
+        InitializeReminderSettings();
+        if (_pluginListInitialized) return;
+        _pluginListInitialized = true;
+        DetectAvailablePlugins();
+    }
+
+    private void InitializeReminderSettings()
+    {
+        if (_reminderSettingsInitialized) return;
+        _reminderSettingsInitialized = true;
+        _welcomeReminderSettings = Plugin.SmartClassNotifierInstance?.Settings ?? new SmartClassNotifierSettings();
+
+        WizardEnableThoughtfulReminderCheckBox.IsChecked = _welcomeReminderSettings.EnableThoughtfulReminder;
+        WizardBeforeSchoolCheckBox.IsChecked = _welcomeReminderSettings.EnableBeforeSchoolReminder;
+        WizardBreakStartCheckBox.IsChecked = _welcomeReminderSettings.EnableBeforeClassReminder;
+        WizardAfterSchoolCheckBox.IsChecked = _welcomeReminderSettings.EnableAfterSchoolSummary;
+        WizardClassChangeCheckBox.IsChecked = _welcomeReminderSettings.EnableClassChangeAlert;
+        WizardWeatherCheckBox.IsChecked = _welcomeReminderSettings.EnableWeatherReminder;
+        WizardTemperatureCheckBox.IsChecked = _welcomeReminderSettings.EnableTemperatureReminder;
+        WizardWeatherAlertCheckBox.IsChecked = _welcomeReminderSettings.EnableWeatherAlertReminder;
+        WizardMusicCheckBox.IsChecked = _welcomeReminderSettings.EnableMusicReminder;
+        WizardCustomReminderCheckBox.IsChecked = _welcomeReminderSettings.EnableCustomReminder;
+        WizardHolidayCheckBox.IsChecked = _welcomeReminderSettings.EnableDailyBriefingHoliday;
+        WizardNewsCheckBox.IsChecked = _welcomeReminderSettings.EnableDailyBriefingNews;
+        EnablePluginIntegrationCheckBox.IsChecked = _welcomeReminderSettings.EnableExternalPluginIntegration ||
+                                                     !_welcomeReminderSettings.PluginAuthorizationConfirmed;
+    }
+
+    private void DetectAvailablePlugins()
+    {
+        AvailablePluginsPanel.Children.Clear();
+        var detectedPlugins = PluginIntegrationService.GetInstalledPlugins();
+
+        if (detectedPlugins.Count == 0)
+        {
+            NoPluginsHint.IsVisible = true;
+            EnablePluginIntegrationCheckBox.IsEnabled = false;
+            EnablePluginIntegrationCheckBox.IsChecked = false;
+            return;
+        }
+
+        NoPluginsHint.IsVisible = false;
+        EnablePluginIntegrationCheckBox.IsEnabled = true;
+
+        var savedIds = Plugin.SmartClassNotifierInstance?.Settings.AuthorizedPluginIds;
+        foreach (var plugin in detectedPlugins)
+        {
+            var checkBox = new CheckBox
+            {
+                Content = new StackPanel
+                {
+                    Spacing = 2,
+                    Children =
+                    {
+                        new TextBlock
+                        {
+                            Text = plugin.Name,
+                            FontSize = 13.5,
+                            FontWeight = FontWeight.SemiBold,
+                            Classes = { "plugin-auth-name" }
+                        },
+                        new TextBlock
+                        {
+                            Text = plugin.Description,
+                            FontSize = 12,
+                            Classes = { "plugin-auth-description" }
+                        }
+                    }
+                },
+                IsChecked = savedIds == null || savedIds.Count == 0 || savedIds.Contains(plugin.Id),
+                Tag = plugin.Id
+            };
+            AvailablePluginsPanel.Children.Add(checkBox);
+        }
+    }
+
+    private void SavePluginAuthSettings()
+    {
+        _welcomeReminderSettings.EnableThoughtfulReminder = WizardEnableThoughtfulReminderCheckBox.IsChecked == true;
+        _welcomeReminderSettings.EnableBeforeSchoolReminder = WizardBeforeSchoolCheckBox.IsChecked == true;
+        _welcomeReminderSettings.EnableBeforeClassReminder = WizardBreakStartCheckBox.IsChecked == true;
+        _welcomeReminderSettings.EnableAfterSchoolSummary = WizardAfterSchoolCheckBox.IsChecked == true;
+        _welcomeReminderSettings.EnableClassChangeAlert = WizardClassChangeCheckBox.IsChecked == true;
+        _welcomeReminderSettings.EnableWeatherReminder = WizardWeatherCheckBox.IsChecked == true;
+        _welcomeReminderSettings.EnableTemperatureReminder = WizardTemperatureCheckBox.IsChecked == true;
+        _welcomeReminderSettings.EnableWeatherAlertReminder = WizardWeatherAlertCheckBox.IsChecked == true;
+        _welcomeReminderSettings.EnableMusicReminder = WizardMusicCheckBox.IsChecked == true;
+        _welcomeReminderSettings.EnableCustomReminder = WizardCustomReminderCheckBox.IsChecked == true;
+        _welcomeReminderSettings.EnableDailyBriefingHoliday = WizardHolidayCheckBox.IsChecked == true;
+        _welcomeReminderSettings.EnableDailyBriefingNews = WizardNewsCheckBox.IsChecked == true;
+        Plugin.ApplyWelcomeReminderSettings(_welcomeReminderSettings);
+
+        var selectedIds = AvailablePluginsPanel.Children
+            .OfType<CheckBox>()
+            .Where(checkBox => checkBox.IsChecked == true && checkBox.Tag is string)
+            .Select(checkBox => (string)checkBox.Tag!)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var enabled = EnablePluginIntegrationCheckBox.IsChecked == true && selectedIds.Count > 0;
+        _welcomeReminderSettings.AuthorizedPluginIds = enabled
+            ? selectedIds
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        _welcomeReminderSettings.EnableExternalPluginIntegration = enabled;
+        _welcomeReminderSettings.PluginAuthorizationConfirmed = AvailablePluginsPanel.Children.Count > 0;
+        Plugin.ApplyExternalPluginAuthorization(
+            enabled,
+            enabled ? selectedIds : Array.Empty<string>(),
+            confirmed: _welcomeReminderSettings.PluginAuthorizationConfirmed);
+    }
+
     private static void SetSelectedState(Button button, bool isSelected)
     {
         if (isSelected)
@@ -1169,6 +1302,12 @@ public partial class WelcomeWizard : Window
         if (!string.IsNullOrWhiteSpace(_settings.Model))
             AddCheckItem("使用模型", _settings.Model);
         AddCheckItem("说话语气", _settings.ToneStyle switch { 0 => "活泼", 1 => "标准", 2 => "严肃", _ => "标准" });
+
+        var notifierSettings = Plugin.SmartClassNotifierInstance?.Settings ?? _welcomeReminderSettings;
+        var pluginAuthStatus = notifierSettings.EnableExternalPluginIntegration
+            ? $"已授权 {notifierSettings.AuthorizedPluginIds.Count} 个插件"
+            : notifierSettings.PluginAuthorizationConfirmed ? "未启用" : "未检测到可授权插件";
+        AddCheckItem("插件集成", pluginAuthStatus);
 
         CompleteSubtitle.Text = string.IsNullOrWhiteSpace(_settings.ApiKey)
             ? "当前为离线模式，将使用本地预设文案。接入 Key 后可启用 AI 功能。"

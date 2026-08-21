@@ -91,6 +91,27 @@
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}"/>
         </Style>
+        <Style Selector="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="CheckBox:pointerover">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="CheckBox:disabled">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}"/>
+        </Style>
+        <Style Selector="CheckBox /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="CheckBox:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.plugin-auth-name">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.plugin-auth-description">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
         <Style Selector="Button.link">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -254,7 +275,7 @@
 
                         <!-- Logo：纯图标，无装饰环 -->
                         <Panel x:Name="HeroVisual" HorizontalAlignment="Center">
-                            <Image x:Name="HeroCharacter" Source="avares://ClassIsland.AISmartClass/icon/icon.png"
+                            <Image x:Name="HeroCharacter" Source="avares://ClassIsland.AISmartClass/icon.png"
                                    Width="132" Height="132" Stretch="Uniform"
                                    RenderOptions.BitmapInterpolationMode="HighQuality"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
@@ -758,7 +779,76 @@
                     </StackPanel>
                 </Border>
 
-                <!-- 步骤 6：完成 -->
+                <!-- 步骤 6：贴心提醒与插件授权 -->
+                <Border x:Name="PagePluginAuth" Padding="48,34" Opacity="0" IsVisible="False"
+                        TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                    <StackPanel Spacing="12" MaxWidth="520" HorizontalAlignment="Center">
+                        <StackPanel Spacing="7" HorizontalAlignment="Center" Margin="0,0,0,6">
+                            <TextBlock Text="第四步" Classes="section-eyebrow" HorizontalAlignment="Center"/>
+                            <TextBlock Text="设置贴心提醒" Classes="page-title" HorizontalAlignment="Center"/>
+                            <TextBlock Text="选择需要的提醒时机和内容。其他插件信息需要单独确认授权。"
+                                       Classes="page-subtitle" TextAlignment="Center" MaxWidth="450"/>
+                        </StackPanel>
+
+                        <CheckBox x:Name="WizardEnableThoughtfulReminderCheckBox"
+                                  Content="启用贴心提醒" IsChecked="True" FontWeight="SemiBold"/>
+
+                        <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="16,12">
+                            <StackPanel Spacing="9">
+                                <TextBlock Text="提醒时机" FontSize="13" FontWeight="SemiBold"/>
+                                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="14" RowSpacing="7">
+                                    <CheckBox x:Name="WizardBeforeSchoolCheckBox" Content="智能每日简报" IsChecked="True"/>
+                                    <CheckBox x:Name="WizardBreakStartCheckBox" Grid.Column="1" Content="课间开始" IsChecked="True"/>
+                                    <CheckBox x:Name="WizardAfterSchoolCheckBox" Grid.Row="1" Content="最后一节课结束" IsChecked="True"/>
+                                    <CheckBox x:Name="WizardClassChangeCheckBox" Grid.Row="1" Grid.Column="1" Content="换课提醒" IsChecked="True"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="16,12">
+                            <StackPanel Spacing="9">
+                                <TextBlock Text="提醒内容" FontSize="13" FontWeight="SemiBold"/>
+                                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="7">
+                                    <CheckBox x:Name="WizardWeatherCheckBox" Content="天气信息" IsChecked="True"/>
+                                    <CheckBox x:Name="WizardTemperatureCheckBox" Grid.Column="1" Content="温度 / 体感温度" IsChecked="True"/>
+                                    <CheckBox x:Name="WizardWeatherAlertCheckBox" Grid.Row="1" Content="天气预警" IsChecked="True"/>
+                                    <CheckBox x:Name="WizardMusicCheckBox" Grid.Row="1" Grid.Column="1" Content="播放音乐信息" IsChecked="True"/>
+                                    <CheckBox x:Name="WizardCustomReminderCheckBox" Grid.Row="2" Content="自定义提醒" IsChecked="True"/>
+                                    <CheckBox x:Name="WizardHolidayCheckBox" Grid.Row="2" Grid.Column="1" Content="节假日信息" IsChecked="True"/>
+                                    <CheckBox x:Name="WizardNewsCheckBox" Grid.Row="3" Content="今日新闻" IsChecked="True"/>
+                                    <CheckBox x:Name="EnablePluginIntegrationCheckBox" Grid.Row="3" Grid.Column="1"
+                                              Content="其他插件信息" IsChecked="True"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="10" Padding="18,14"
+                                Margin="0,4,0,0">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="检测到的可用插件" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                                <StackPanel x:Name="AvailablePluginsPanel" Spacing="8"/>
+                                <TextBlock x:Name="NoPluginsHint" Text="未检测到支持的插件。你可以稍后在设置中管理授权。"
+                                           FontSize="12" LineHeight="18" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                           IsVisible="False"/>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="你可以随时在 ClassIsland 设置 → AIIsland 提醒 → 提醒内容中更改此设置。"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                   TextWrapping="Wrap" TextAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- 步骤 7：完成 -->
                 <Border x:Name="Page5" Padding="48,30" Opacity="0" IsVisible="False">
                     <StackPanel Spacing="14" MaxWidth="400" HorizontalAlignment="Center">
                         <Panel x:Name="DonePanel" Width="112" Height="112" HorizontalAlignment="Center">

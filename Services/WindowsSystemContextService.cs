@@ -1,13 +1,12 @@
-using Windows.Media.Control;
-using Windows.Devices.Geolocation;
 using System.Globalization;
+using NPSMLib;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using ClassIsland.AISmartClass.Models;
 
 namespace ClassIsland.AISmartClass.Services;
 
-/// <summary>Windows system context adapter for media, location, and Xiaomi weather.</summary>
+/// <summary>Windows system media and Xiaomi weather context adapter.</summary>
 public sealed class WindowsSystemContextService
 {
     private const string XiaomiWeatherBaseUrl = "https://weatherapi.market.xiaomi.com/wtr-v3";
@@ -27,10 +26,10 @@ public sealed class WindowsSystemContextService
         var version = Environment.OSVersion.Version;
         return version < MinimumWindowsVersion
             ? $"当前 Windows 版本 {version} 不满足最低要求 {MinimumWindowsVersion}。"
-            : $"Windows {version} 支持系统媒体、定位和小米天气上下文。";
+            : $"Windows {version} 支持系统媒体和小米天气上下文；天气位置来自 ClassIsland 设置。";
     }
 
-    private GlobalSystemMediaTransportControlsSessionManager? _mediaManager;
+    private NowPlayingSessionManager? _mediaManager;
 
     public sealed record MusicTrack(string Title, string Artist, string Album);
     public sealed record DailyWeatherForecast(
@@ -61,42 +60,55 @@ public sealed class WindowsSystemContextService
         PropertyNameCaseInsensitive = true
     };
 
-    public async Task<MusicTrack?> GetCurrentMusicAsync(CancellationToken ct = default)
+    public Task<MusicTrack?> GetCurrentMusicAsync(CancellationToken ct = default)
     {
-        if (!IsWindowsSystemContextSupported) return null;
+        if (!IsWindowsSystemContextSupported) return Task.FromResult<MusicTrack?>(null);
+
         try
         {
-            _mediaManager ??= await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
             ct.ThrowIfCancellationRequested();
-            var session = _mediaManager.GetCurrentSession();
-            if (session == null) return null;
-            var playback = session.GetPlaybackInfo();
-            if (playback?.PlaybackStatus != GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
-                return null;
-            var properties = await session.TryGetMediaPropertiesAsync();
+            _mediaManager ??= new NowPlayingSessionManager();
+            var session = _mediaManager.CurrentSession;
+            if (session == null) return Task.FromResult<MusicTrack?>(null);
+
+            var dataSource = session.ActivateMediaPlaybackDataSource();
+            var playback = dataSource.GetMediaPlaybackInfo();
+            if (playback.PlaybackState != MediaPlaybackState.Playing)
+                return Task.FromResult<MusicTrack?>(null);
+
+            var properties = dataSource.GetMediaObjectInfo();
             ct.ThrowIfCancellationRequested();
-            if (properties == null || string.IsNullOrWhiteSpace(properties.Title)) return null;
-            return new MusicTrack(properties.Title.Trim(), properties.Artist?.Trim() ?? "", properties.AlbumTitle?.Trim() ?? "");
+            if (string.IsNullOrWhiteSpace(properties.Title))
+                return Task.FromResult<MusicTrack?>(null);
+
+            var track = new MusicTrack(
+                properties.Title.Trim(),
+                properties.Artist?.Trim() ?? "",
+                properties.AlbumTitle?.Trim() ?? "");
+            return Task.FromResult<MusicTrack?>(track);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
             Logger.Info($"读取 Windows 媒体会话失败: {ex.Message}");
-            return null;
+            return Task.FromResult<MusicTrack?>(null);
         }
     }
 
-    public async Task<WeatherSnapshot?> GetCurrentWeatherAsync(GeoLocation? location = null, CancellationToken ct = default)
+    public async Task<WeatherSnapshot?> GetCurrentWeatherAsync(GeoLocation? location, CancellationToken ct = default)
     {
         if (!IsWindowsSystemContextSupported) return null;
+        if (location == null)
+        {
+            Logger.Info("未从 ClassIsland 设置取得天气位置，跳过小米天气查询");
+            return null;
+        }
+
         try
         {
-            location ??= await GetCurrentLocationAsync(ct);
-            if (location == null)
-            {
-                Logger.Info("未取得定位信息，无法获取小米天气");
-                return null;
-            }
-
             var latitude = location.Latitude;
             var longitude = location.Longitude;
 
@@ -115,43 +127,6 @@ public sealed class WindowsSystemContextService
         catch (Exception ex)
         {
             Logger.Info($"读取小米天气上下文失败: {ex.Message}");
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// 通过 Windows 定位服务获取当前地理位置。
-    /// </summary>
-    public async Task<GeoLocation?> GetCurrentLocationAsync(CancellationToken ct = default)
-    {
-        if (!IsWindowsSystemContextSupported) return null;
-        try
-        {
-            var access = await Geolocator.RequestAccessAsync();
-            if (access is not GeolocationAccessStatus.Allowed)
-            {
-                Logger.Info($"Windows 定位权限未授予: {access}");
-                return null;
-            }
-
-            var position = await new Geolocator { DesiredAccuracyInMeters = 1000 }
-                .GetGeopositionAsync(TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(5));
-            ct.ThrowIfCancellationRequested();
-            var point = position.Coordinate.Point.Position;
-            return new GeoLocation
-            {
-                Latitude = point.Latitude,
-                Longitude = point.Longitude,
-                Provider = "Windows 定位服务"
-            };
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            Logger.Info($"读取 Windows 定位失败: {ex.Message}");
             return null;
         }
     }

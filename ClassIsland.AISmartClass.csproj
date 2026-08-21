@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net8.0-windows10.0.17763.0</TargetFramework>
+        <TargetFramework>net8.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <AssemblyName>ClassIsland.AISmartClass</AssemblyName>
@@ -20,6 +20,8 @@
         <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2">
             <ExcludeAssets>runtime;native</ExcludeAssets>
         </PackageReference>
+        <!-- 轻量 NPSM COM 包，替代 Windows.Media.Control，避免打包 WinRT SDK。 -->
+        <PackageReference Include="NPSMLib" Version="0.9.14" />
     </ItemGroup>
 
     <!-- 独立作业清单插件位于仓库子目录，不参与 AIIsland 程序集编译。 -->
@@ -58,10 +60,7 @@
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
         <AvaloniaResource Include="icon.png" />
-        <AvaloniaResource Include="icon\icon.png" />
-        <AvaloniaResource Include="icon\ok.png" />
         <AvaloniaResource Include="icon\ok-wizard.png" />
-        <AvaloniaResource Include="icon\welcome.png" />
         <AvaloniaResource Include="icon\AIIslandIcons.ttf" />
     </ItemGroup>
 

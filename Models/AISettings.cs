@@ -166,6 +166,28 @@ public partial class AISettings : ObservableObject
     [property: JsonPropertyName("pluginAuthEntries")]
     public List<AIIslandPluginAuthEntry> PluginAuthEntries { get; set; } = new();
 
+    // ===== 插件集成（AIIsland 调用其他插件） =====
+
+    /// <summary>
+    /// 贴心提醒是否启用外部插件信息（生日提醒、值日插件等）
+    /// </summary>
+    [ObservableProperty]
+    [property: JsonPropertyName("enablePluginIntegration")]
+    private bool _enablePluginIntegration = false;
+
+    /// <summary>
+    /// 已授权的外部插件 GUID 集合（用于贴心提醒读取）
+    /// </summary>
+    [property: JsonPropertyName("authorizedIntegrationPlugins")]
+    public HashSet<string> AuthorizedIntegrationPlugins { get; set; } = new();
+
+    /// <summary>
+    /// 插件集成授权向导是否已完成（首次打开设置时触发）
+    /// </summary>
+    [ObservableProperty]
+    [property: JsonPropertyName("pluginIntegrationAuthorizationCompleted")]
+    private bool _pluginIntegrationAuthorizationCompleted = false;
+
     /// <summary>根据语气风格获取 temperature 值</summary>
     public double GetTemperature()
     {

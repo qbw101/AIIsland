@@ -120,7 +120,7 @@
                     <Border Background="{DynamicResource ControlStrokeColorDefaultBrush}" Height="1" Margin="0,4"/>
 
                     <TextBlock Text="提醒内容" Classes="row-title"/>
-                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="18" RowSpacing="8">
+                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="18" RowSpacing="8">
                         <CheckBox Content="天气信息" IsChecked="{Binding Settings.EnableWeatherReminder, Mode=TwoWay}"/>
                         <CheckBox Grid.Column="1" Content="温度 / 体感温度" IsChecked="{Binding Settings.EnableTemperatureReminder, Mode=TwoWay}"/>
                         <CheckBox Grid.Row="1" Content="天气预警" IsChecked="{Binding Settings.EnableWeatherAlertReminder, Mode=TwoWay}"/>
@@ -128,11 +128,26 @@
                         <CheckBox Grid.Row="2" Content="自定义提醒" IsChecked="{Binding Settings.EnableCustomReminder, Mode=TwoWay}"/>
                         <CheckBox Grid.Row="2" Grid.Column="1" Content="节假日信息" IsChecked="{Binding Settings.EnableDailyBriefingHoliday, Mode=TwoWay}"/>
                         <CheckBox Grid.Row="3" Content="今日新闻" IsChecked="{Binding Settings.EnableDailyBriefingNews, Mode=TwoWay}"/>
+                        <CheckBox x:Name="ExternalPluginIntegrationCheckBox" Grid.Row="4"
+                                  Content="其他插件信息"
+                                  IsChecked="{Binding Settings.EnableExternalPluginIntegration, Mode=TwoWay}"
+                                  Click="OnExternalPluginIntegrationClicked"/>
                     </Grid>
+                    <TextBlock Text="允许 AIIsland 读取其他插件的数据（如生日、值日），为你提供更智能的提醒。"
+                               Classes="row-description" Margin="0,4,0,0"
+                               IsVisible="{Binding Settings.EnableExternalPluginIntegration}"/>
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0"
+                                IsVisible="{Binding Settings.EnableExternalPluginIntegration}">
+                        <Button Content="管理授权" Click="OnManagePluginAuthorizationClicked"/>
+                        <TextBlock x:Name="PluginStatusText" Classes="row-description" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                    </StackPanel>
                     <TextBlock Text="时间会始终进入提示词；关闭“今日新闻”即可停止获取新闻。" Classes="row-description"/>
                     <ComboBox x:Name="RssSourceComboBox" SelectedIndex="0" SelectionChanged="OnRssSourceChanged">
                         <ComboBoxItem Content="IT之家" Tag="http://www.ithome.com/rss/"/>
                         <ComboBoxItem Content="36氪" Tag="https://36kr.com/feed"/>
+                        <ComboBoxItem Content="原神 - 资讯" Tag="http://rss.qbwnas.top/mihoyo/bbs/official/2/3"/>
+                        <ComboBoxItem Content="崩坏：星穹铁道 - 资讯" Tag="http://rss.qbwnas.top/mihoyo/bbs/official/6/3"/>
+                        <ComboBoxItem Content="绝区零 - 资讯" Tag="http://rss.qbwnas.top/mihoyo/bbs/official/8/3"/>
                         <ComboBoxItem Content="自定义 RSS" Tag="__custom__"/>
                     </ComboBox>
                     <TextBox x:Name="CustomRssTextBox" Text="{Binding Settings.RssFeedUrls, Mode=TwoWay}" AcceptsReturn="True" MinHeight="64"
@@ -168,9 +183,8 @@
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                     <StackPanel Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="语音播报" Classes="row-title"/>
-                        <TextBlock Text="朗读提醒内容，默认关闭以免影响课堂。" Classes="row-description"/>
+                        <TextBlock Text="跟随 ClassIsland 全局设置（提醒设置中的「启用提醒语音」），无需在此单独开关。" Classes="row-description"/>
                     </StackPanel>
-                    <ToggleSwitch Grid.Column="1" IsChecked="{Binding Settings.EnableTTS, Mode=TwoWay}"/>
                 </Grid>
             </Border>
 
@@ -193,6 +207,17 @@
                     </StackPanel>
                     <NumericUpDown Grid.Column="1" Value="{Binding Settings.OverlayDurationSeconds, Mode=TwoWay}"
                                    Minimum="1" Maximum="15" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="*,160" ColumnSpacing="16">
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="滚动速度" Classes="row-title"/>
+                        <TextBlock Text="长正文滚动速度（字/秒）。值越小滚动越慢、正文停留越久，可缓解长句子语音播报不完。" Classes="row-description"/>
+                    </StackPanel>
+                    <NumericUpDown Grid.Column="1" Value="{Binding Settings.RollingSpeed, Mode=TwoWay}"
+                                   Minimum="1" Maximum="20" VerticalAlignment="Center"/>
                 </Grid>
             </Border>
 

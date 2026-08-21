@@ -1,0 +1,130 @@
+<Window
+    x:Class="ClassIsland.AISmartClass.Views.PluginAuthorizationDialog"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="插件授权确认"
+    Width="560" Height="520"
+    MinWidth="500" MinHeight="450"
+    CanResize="False"
+    WindowStartupLocation="CenterOwner"
+    SystemDecorations="Full"
+    Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+    FontFamily="Microsoft YaHei,Segoe UI,sans-serif">
+
+    <Window.Styles>
+        <Style Selector="TextBlock.dialog-title">
+            <Setter Property="FontSize" Value="20"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.dialog-description">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="LineHeight" Value="20"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="Border.plugin-card">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16,12"/>
+        </Style>
+        <Style Selector="Border.plugin-card.authorized">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.plugin-name">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.plugin-desc">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="LineHeight" Value="18"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.category-badge">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="Button">
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="MinHeight" Value="34"/>
+            <Setter Property="Padding" Value="16,7"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <StyleInclude Source="avares://ClassIsland.AISmartClass/Styles/StableButtonStyles.axaml"/>
+        <Style Selector="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="CheckBox:pointerover">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="CheckBox /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="CheckBox:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="*,Auto">
+        <!-- 主内容区 -->
+        <ScrollViewer Grid.Row="0" Padding="32,28,32,20">
+            <StackPanel Spacing="18">
+                <!-- 标题与说明 -->
+                <StackPanel Spacing="10">
+                    <TextBlock Text="允许 AIIsland 调用其他插件？" Classes="dialog-title"/>
+                    <TextBlock Classes="dialog-description">
+                        <Run Text="AIIsland 检测到以下插件已安装在这台电脑上。"/>
+                        <LineBreak/>
+                        <Run Text="授权后，AIIsland 可以读取这些插件的数据，为你提供更智能的提醒。"/>
+                    </TextBlock>
+                </StackPanel>
+
+                <!-- 插件列表 -->
+                <StackPanel x:Name="PluginListPanel" Spacing="10"/>
+
+                <!-- 提示信息 -->
+                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="1" CornerRadius="6" Padding="14,10">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="💡 说明" FontSize="12.5" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                        <TextBlock FontSize="12" LineHeight="18" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                            <Run Text="• AIIsland 仅读取插件的公开数据（如生日、值日名单），不会修改这些插件的任何设置"/>
+                            <LineBreak/>
+                            <Run Text="• 你可以随时在 AIIsland 设置中关闭某个插件的授权"/>
+                            <LineBreak/>
+                            <Run Text="• 取消勾选后，AIIsland 将不再从该插件读取数据"/>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- 底部按钮 -->
+        <Border Grid.Row="1" Padding="24,14"
+                Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                BorderThickness="0,1,0,0">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                <TextBlock Text="你的选择会保存，可随时在提醒设置中修改。" FontSize="12.5"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           VerticalAlignment="Center" TextWrapping="Wrap"/>
+                <Button x:Name="CancelBtn" Grid.Column="2" Content="取消" 
+                        Margin="0,0,8,0" Click="OnCancelClicked"/>
+                <Button x:Name="ConfirmBtn" Grid.Column="3" Content="确定授权" 
+                        Classes="primary" Click="OnConfirmClicked"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
