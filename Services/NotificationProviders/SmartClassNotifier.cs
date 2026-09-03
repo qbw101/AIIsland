@@ -30,6 +30,7 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
     private readonly AIChatService _ai;
     private readonly WindowsSystemContextService _systemContext;
     private readonly LocationService _locationService;
+    private readonly IWeatherService? _weatherService;
     private readonly DailyBriefingDataService _dailyBriefingData = new();
 
     private readonly Timer _customTimer;
@@ -43,11 +44,12 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
     private readonly HashSet<string> _triggeredBeforeSchoolKeys = new();
     private DateTime _dedupResetDate = DateTime.MinValue;
 
-    public SmartClassNotifier(IProfileService profileService, ILessonsService lessonsService, AIChatService aiService)
+    public SmartClassNotifier(IProfileService profileService, ILessonsService lessonsService, AIChatService aiService, IWeatherService? weatherService = null)
     {
         _profileService = profileService;
         _lessons = lessonsService;
         _ai = aiService;
+        _weatherService = weatherService;
         _systemContext = new WindowsSystemContextService();
         _locationService = new LocationService(
             () => Settings?.ClassIslandInstallDirectory ?? "");
@@ -758,7 +760,7 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
         return null;
     }
 
-    private void ShowCustomReminder(CustomReminder reminder)
+    private async void ShowCustomReminder(CustomReminder reminder)
     {
         if (Settings == null) return;
 
@@ -768,7 +770,27 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
             ReminderType.DailyRepeat => "每日提醒",
             _ => "自定义提醒"
         };
-        var content = string.IsNullOrWhiteSpace(reminder.Content) ? "该处理这件事了" : reminder.Content.Trim();
+        var originalContent = string.IsNullOrWhiteSpace(reminder.Content) ? "该处理这件事了" : reminder.Content.Trim();
+
+        // 尝试通过 AI 结合上下文（天气、时间等）优化提醒内容
+        var content = originalContent;
+        try
+        {
+            var context = await BuildThoughtfulContextAsync(ThoughtfulScene.BreakStart);
+            var aiResult = await _ai.ChatAsync(
+                $"你是一个贴心的提醒助手。用户的原始提醒是：「{originalContent}」\n请结合当前情境（天气、时间等）对这个提醒进行适当补充或优化，保持原有提醒的核心意思，但可以添加相关的贴心提示。只输出优化后的提醒内容，不超过100字。",
+                context,
+                throwOnError: false);
+            
+            if (!string.IsNullOrWhiteSpace(aiResult) && !_ai.IsFallbackResult(aiResult))
+            {
+                content = aiResult;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Info($"自定义提醒 AI 优化失败，使用原始内容: {ex.Message}");
+        }
 
         ShowNotification(new NotificationRequest
         {
@@ -892,61 +914,210 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
             var needWeather = Settings.EnableWeatherReminder ||
                               Settings.EnableTemperatureReminder ||
                               Settings.EnableWeatherAlertReminder;
-            var location = needWeather ? await _locationService.GetLocationAsync(ct) : null;
-            if (location != null)
-                lines.Add($"当前位置：{location.Address}（{location.Latitude:F4}, {location.Longitude:F4}）");
 
-            var weatherTask = needWeather
-                ? _systemContext.GetCurrentWeatherAsync(location, ct)
-                : Task.FromResult<WindowsSystemContextService.WeatherSnapshot?>(null);
             var musicTask = Settings.EnableMusicReminder
                 ? _systemContext.GetCurrentMusicAsync(ct)
                 : Task.FromResult<WindowsSystemContextService.MusicTrack?>(null);
-            await Task.WhenAll(weatherTask, musicTask);
 
-            var weather = await weatherTask;
-            if (weather != null)
+            // 优先使用 ClassIsland 官方天气服务
+            if (needWeather && _weatherService != null && _weatherService.IsWeatherRefreshed)
             {
-                var current = new List<string>();
-                if (Settings.EnableWeatherReminder)
-                    current.Add(WindowsSystemContextService.DescribeWeatherCode(weather.WeatherCode));
-                if (Settings.EnableTemperatureReminder)
+                // 通过反射获取 LastWeatherInfo，因为 SDK 版本可能不包含此属性
+                var lastWeatherInfoProp = _weatherService.GetType().GetProperty("LastWeatherInfo");
+                if (lastWeatherInfoProp != null)
                 {
-                    var temperature = $"{weather.TemperatureC:0.#}°C";
-                    if (weather.ApparentTemperatureC is double apparentTemperature)
-                        temperature += $"，体感 {apparentTemperature:0.#}°C";
-                    current.Add(temperature);
-                }
-                if (current.Count > 0) lines.Add($"当前天气：{string.Join("，", current)}");
-
-                if (Settings.EnableWeatherAlertReminder && weather.Alerts.Count > 0)
-                {
-                    var alertTexts = weather.Alerts
-                        .Select(a => string.IsNullOrWhiteSpace(a.Level)
-                            ? a.Title
-                            : $"{a.Title}（{a.Level}）")
-                        .ToList();
-                    lines.Add($"天气预警：{string.Join("；", alertTexts)}");
-                }
-
-                if (scene == ThoughtfulScene.AfterSchool && weather.Tomorrow != null)
-                {
-                    var tomorrow = weather.Tomorrow;
-                    var forecast = new List<string>();
-                    if (Settings.EnableWeatherReminder)
-                        forecast.Add(WindowsSystemContextService.DescribeDailyWeather(tomorrow));
-                    if (Settings.EnableTemperatureReminder)
+                    var weatherInfo = lastWeatherInfoProp.GetValue(_weatherService);
+                    if (weatherInfo != null)
                     {
-                        forecast.Add($"{tomorrow.MinimumTemperatureC:0.#}～{tomorrow.MaximumTemperatureC:0.#}°C");
-                        if (tomorrow.MinimumApparentTemperatureC is double minimumApparent &&
-                            tomorrow.MaximumApparentTemperatureC is double maximumApparent)
+                        // 获取 Current 属性
+                        var currentProp = weatherInfo.GetType().GetProperty("Current");
+                        var currentWeather = currentProp?.GetValue(weatherInfo);
+                        if (currentWeather != null)
                         {
-                            forecast.Add($"体感 {minimumApparent:0.#}～{maximumApparent:0.#}°C");
+                            var current = new List<string>();
+                            if (Settings.EnableWeatherReminder)
+                            {
+                                // 获取 Weather 属性
+                                var weatherCodeProp = currentWeather.GetType().GetProperty("Weather");
+                                var weatherCode = weatherCodeProp?.GetValue(currentWeather) as string;
+                                if (!string.IsNullOrEmpty(weatherCode))
+                                {
+                                    var weatherText = _weatherService.GetWeatherTextByCode(weatherCode);
+                                    current.Add(weatherText);
+                                }
+                            }
+                            if (Settings.EnableTemperatureReminder)
+                            {
+                                // 获取 Temperature 属性
+                                var tempProp = currentWeather.GetType().GetProperty("Temperature");
+                                var tempObj = tempProp?.GetValue(currentWeather);
+                                var tempValueProp = tempObj?.GetType().GetProperty("Value");
+                                var tempValue = tempValueProp?.GetValue(tempObj);
+
+                                // 获取 FeelsLike 属性
+                                var feelsLikeProp = currentWeather.GetType().GetProperty("FeelsLike");
+                                var feelsLikeObj = feelsLikeProp?.GetValue(currentWeather);
+                                var feelsLikeValueProp = feelsLikeObj?.GetType().GetProperty("Value");
+                                var feelsLikeValue = feelsLikeValueProp?.GetValue(feelsLikeObj);
+
+                                if (tempValue != null)
+                                {
+                                    var temperature = $"{tempValue}°C";
+                                    if (feelsLikeValue != null)
+                                        temperature += $"，体感 {feelsLikeValue}°C";
+                                    current.Add(temperature);
+                                }
+                            }
+                            if (current.Count > 0) lines.Add($"当前天气：{string.Join("，", current)}");
+                        }
+
+                        // 天气预警
+                        if (Settings.EnableWeatherAlertReminder)
+                        {
+                            var alertsProp = weatherInfo.GetType().GetProperty("Alerts");
+                            var alerts = alertsProp?.GetValue(weatherInfo) as System.Collections.IList;
+                            if (alerts != null && alerts.Count > 0)
+                            {
+                                var alertTexts = new List<string>();
+                                int count = 0;
+                                foreach (var alert in alerts)
+                                {
+                                    if (count >= 3) break; // 最多显示3条预警
+                                    var levelProp = alert?.GetType().GetProperty("Level");
+                                    var titleProp = alert?.GetType().GetProperty("Title");
+                                    var level = levelProp?.GetValue(alert) as string;
+                                    var title = titleProp?.GetValue(alert) as string;
+                                    if (!string.IsNullOrWhiteSpace(title))
+                                    {
+                                        alertTexts.Add(string.IsNullOrWhiteSpace(level)
+                                            ? title
+                                            : $"{title}（{level}）");
+                                    }
+                                    count++;
+                                }
+                                if (alertTexts.Count > 0)
+                                    lines.Add($"天气预警：{string.Join("；", alertTexts)}");
+                            }
+                        }
+
+                        // 明日天气预报（放学总结场景）
+                        if (scene == ThoughtfulScene.AfterSchool)
+                        {
+                            var forecastDailyProp = weatherInfo.GetType().GetProperty("ForecastDaily");
+                            var forecastDaily = forecastDailyProp?.GetValue(weatherInfo);
+                            if (forecastDaily != null)
+                            {
+                                var weatherType = forecastDaily.GetType();
+                                var weatherProp = weatherType.GetProperty("Weather");
+                                if (weatherProp != null)
+                                {
+                                    var weatherObj = weatherProp.GetValue(forecastDaily);
+                                    if (weatherObj != null)
+                                    {
+                                        var weatherObjType = weatherObj.GetType();
+                                        var valueProp = weatherObjType.GetProperty("Value");
+                                        var weatherList = valueProp?.GetValue(weatherObj) as System.Collections.IList;
+                                        if (weatherList != null && weatherList.Count > 1)
+                                        {
+                                            var tomorrowForecast = weatherList[1];
+                                            var forecast = new List<string>();
+                                            if (Settings.EnableWeatherReminder)
+                                            {
+                                                var fromProp = tomorrowForecast?.GetType().GetProperty("From");
+                                                var weatherCode = fromProp?.GetValue(tomorrowForecast) as string;
+                                                if (!string.IsNullOrEmpty(weatherCode))
+                                                {
+                                                    var tomorrowWeather = _weatherService.GetWeatherTextByCode(weatherCode);
+                                                    forecast.Add(tomorrowWeather);
+                                                }
+                                            }
+                                            if (Settings.EnableTemperatureReminder)
+                                            {
+                                                var minTempProp = tomorrowForecast?.GetType().GetProperty("MinimumTemperature");
+                                                var minTempObj = minTempProp?.GetValue(tomorrowForecast);
+                                                var minTempValueProp = minTempObj?.GetType().GetProperty("Value");
+                                                var minTemp = minTempValueProp?.GetValue(minTempObj);
+
+                                                var maxTempProp = tomorrowForecast?.GetType().GetProperty("MaximumTemperature");
+                                                var maxTempObj = maxTempProp?.GetValue(tomorrowForecast);
+                                                var maxTempValueProp = maxTempObj?.GetType().GetProperty("Value");
+                                                var maxTemp = maxTempValueProp?.GetValue(maxTempObj);
+
+                                                if (minTemp != null && maxTemp != null)
+                                                    forecast.Add($"{minTemp}～{maxTemp}°C");
+                                            }
+                                            if (forecast.Count > 0) lines.Add($"明日天气：{string.Join("，", forecast)}");
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
-                    if (forecast.Count > 0) lines.Add($"明日天气：{string.Join("，", forecast)}");
                 }
             }
+            else if (needWeather)
+            {
+                // 备用方案：使用原有天气服务
+                var location = await _locationService.GetLocationAsync(ct);
+                if (location != null)
+                    lines.Add($"当前位置：{location.Address}（{location.Latitude:F4}, {location.Longitude:F4}）");
+
+                var weather = await _systemContext.GetCurrentWeatherAsync(location, ct);
+                if (weather != null)
+                {
+                    var current = new List<string>();
+                    if (Settings.EnableWeatherReminder)
+                        current.Add(WindowsSystemContextService.DescribeWeatherCode(weather.WeatherCode));
+                    if (Settings.EnableTemperatureReminder)
+                    {
+                        var temperature = $"{weather.TemperatureC:0.#}°C";
+                        if (weather.ApparentTemperatureC is double apparentTemperature)
+                            temperature += $"，体感 {apparentTemperature:0.#}°C";
+                        current.Add(temperature);
+                    }
+                    if (current.Count > 0) lines.Add($"当前天气：{string.Join("，", current)}");
+
+                    if (Settings.EnableWeatherAlertReminder && weather.Alerts.Count > 0)
+                    {
+                        var alertTexts = weather.Alerts
+                            .Select(a => string.IsNullOrWhiteSpace(a.Level)
+                                ? a.Title
+                                : $"{a.Title}（{a.Level}）")
+                            .ToList();
+                        lines.Add($"天气预警：{string.Join("；", alertTexts)}");
+                    }
+
+                    if (scene == ThoughtfulScene.AfterSchool && weather.Tomorrow != null)
+                    {
+                        var tomorrow = weather.Tomorrow;
+                        var forecast = new List<string>();
+                        if (Settings.EnableWeatherReminder)
+                            forecast.Add(WindowsSystemContextService.DescribeDailyWeather(tomorrow));
+                        if (Settings.EnableTemperatureReminder)
+                        {
+                            forecast.Add($"{tomorrow.MinimumTemperatureC:0.#}～{tomorrow.MaximumTemperatureC:0.#}°C");
+                            if (tomorrow.MinimumApparentTemperatureC is double minimumApparent &&
+                                tomorrow.MaximumApparentTemperatureC is double maximumApparent)
+                            {
+                                forecast.Add($"体感 {minimumApparent:0.#}～{maximumApparent:0.#}°C");
+                            }
+                        }
+                        if (forecast.Count > 0) lines.Add($"明日天气：{string.Join("，", forecast)}");
+                    }
+                }
+            }
+
+            var music = await musicTask;
+            if (music != null)
+            {
+                var artist = string.IsNullOrWhiteSpace(music.Artist) ? "未知歌手" : music.Artist;
+                lines.Add($"当前媒体：正在播放《{music.Title}》— {artist}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Info($"构建贴心提醒上下文失败: {ex.Message}");
+        }
 
             // 放学总结场景：添加值日生提醒和明天课程信息。
             // DutyIsland 可能在 ClassIsland 启动后晚加载，放学事件有机会先于其服务注册；
@@ -983,18 +1154,6 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
                     lines.Add($"明日时间表：{string.Join("；", tomorrowSchedule)}");
                 }
             }
-
-            var music = await musicTask;
-            if (music != null)
-            {
-                var artist = string.IsNullOrWhiteSpace(music.Artist) ? "未知歌手" : music.Artist;
-                lines.Add($"当前媒体：正在播放《{music.Title}》— {artist}");
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.Info($"构建贴心提醒上下文失败: {ex.Message}");
-        }
 
         var context = string.Join("\n", lines);
         Logger.Info($"贴心提醒提示词上下文: {context.Replace("\n", " | ")}");
