@@ -831,6 +831,20 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
             $"内容场景：{scene switch { ThoughtfulScene.DailyBriefing => "智能每日简报", ThoughtfulScene.BeforeSchool => "智能每日简报（兼容触发）", ThoughtfulScene.BreakStart => "课间开始", _ => "最后一节课结束" }}"
         };
 
+        // 添加今日课程信息
+        var todaySubjects = ScheduleQueryHelper.GetTodaySubjectNames(_profileService);
+        if (todaySubjects.Count > 0)
+        {
+            lines.Add($"今日课程：{string.Join("、", todaySubjects)}");
+        }
+
+        // 添加今日完整时间表
+        var todaySchedule = ScheduleQueryHelper.GetFullSchedule(_profileService);
+        if (todaySchedule.Count > 0)
+        {
+            lines.Add($"今日时间表：{string.Join("；", todaySchedule)}");
+        }
+
         if (scene == ThoughtfulScene.DailyBriefing)
         {
             if (Settings.EnableDailyBriefingHoliday)
@@ -934,7 +948,7 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
                 }
             }
 
-            // 放学总结场景：添加值日生提醒。
+            // 放学总结场景：添加值日生提醒和明天课程信息。
             // DutyIsland 可能在 ClassIsland 启动后晚加载，放学事件有机会先于其服务注册；
             // 因此在放学总结上下文构建期间做短暂重试，避免首次读取过早导致值日提醒丢失。
             if (scene == ThoughtfulScene.AfterSchool)
@@ -953,6 +967,20 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
                 else
                 {
                     Logger.Info("[SmartClassNotifier] 值日提醒为空，未添加");
+                }
+
+                // 添加明天课程信息
+                var tomorrowSubjects = ScheduleQueryHelper.GetSubjectNamesForDay(_profileService, 1);
+                if (tomorrowSubjects.Count > 0)
+                {
+                    lines.Add($"明日课程：{string.Join("、", tomorrowSubjects)}");
+                }
+
+                // 添加明日完整时间表
+                var tomorrowSchedule = ScheduleQueryHelper.GetFullScheduleForDay(_profileService, 1);
+                if (tomorrowSchedule.Count > 0)
+                {
+                    lines.Add($"明日时间表：{string.Join("；", tomorrowSchedule)}");
                 }
             }
 
