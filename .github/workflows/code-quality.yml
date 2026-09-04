@@ -1,0 +1,35 @@
+name: Code quality
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  verify:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore plugin
+        run: dotnet restore ClassIsland.AISmartClass.csproj
+
+      - name: Build plugin
+        run: dotnet build ClassIsland.AISmartClass.csproj --configuration Release --no-restore --nologo
+
+      - name: Check whitespace
+        shell: pwsh
+        run: |
+          git diff --check
+
+      # The test project currently lives beside this repository in the local workspace.
+      # Run the full test suite locally until it is moved into this repository or a
+      # separate test workflow checks out both repositories.
