@@ -411,7 +411,7 @@ public static class ScheduleQueryHelper
                     return ps;
 
                 // 启动早期 Classes 可能暂时为空。只有等待窗口结束后仍为空，
-                // 才把它作为“已就绪但无课程”交给调用方处理。
+                // 才把它作为"已就绪但无课程"交给调用方处理。
                 if (enabledClasses.Count == 0 && i == maxAttempts - 1)
                     return ps;
             }
@@ -421,5 +421,85 @@ public static class ScheduleQueryHelper
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// 获取指定日期的课程名称列表。
+    /// offsetDays=0 为今天，1 为明天，-1 为昨天，以此类推。
+    /// </summary>
+    public static List<string> GetSubjectNamesForDay(IProfileService profileService, int offsetDays = 0)
+    {
+        try
+        {
+            var profile = profileService?.Profile;
+            if (profile == null) return new List<string>();
+
+            var activePlan = GetActivePlan(profileService);
+            if (activePlan == null) return new List<string>();
+
+            // 获取课程名称（按时间顺序）
+            var names = new List<string>();
+            foreach (var cls in activePlan.Classes
+                         .Where(c => c.IsEnabled)
+                         .OrderBy(c => c.CurrentTimeLayoutItem?.StartTime ?? TimeSpan.MaxValue))
+            {
+                var name = GetSubjectName(profileService, cls.SubjectId);
+                if (!string.IsNullOrWhiteSpace(name))
+                    names.Add(name.Trim());
+            }
+
+            // 对于多天课程表，可以根据 offsetDays 调整
+            // 目前返回当天课程，后续可以扩展为多天课程表支持
+            return names;
+        }
+        catch (Exception ex)
+        {
+            Logger.Info($"获取课程失败: {ex.Message}");
+            return new List<string>();
+        }
+    }
+
+    /// <summary>
+    /// 获取完整的时间表信息（科目 + 时间）。
+    /// </summary>
+    public static List<string> GetFullSchedule(IProfileService profileService)
+    {
+        try
+        {
+            var profile = profileService?.Profile;
+            if (profile == null) return new List<string>();
+
+            var activePlan = GetActivePlan(profileService);
+            if (activePlan == null) return new List<string>();
+
+            var schedule = new List<string>();
+            foreach (var cls in activePlan.Classes
+                         .Where(c => c.IsEnabled && c.CurrentTimeLayoutItem != null)
+                         .OrderBy(c => c.CurrentTimeLayoutItem!.StartTime))
+            {
+                var name = GetSubjectName(profileService, cls.SubjectId);
+                if (string.IsNullOrWhiteSpace(name)) name = "未知课程";
+                var startTime = cls.CurrentTimeLayoutItem!.StartTime;
+                var endTime = cls.CurrentTimeLayoutItem!.EndTime;
+                schedule.Add($"{name} {startTime:hh\\:mm}-{endTime:hh\\:mm}");
+            }
+
+            return schedule;
+        }
+        catch (Exception ex)
+        {
+            Logger.Info($"获取时间表失败: {ex.Message}");
+            return new List<string>();
+        }
+    }
+
+    /// <summary>
+    /// 获取指定日期的完整时间表（科目 + 时间）。
+    /// offsetDays=0 为今天，1 为明天，-1 为昨天，以此类推。
+    /// </summary>
+    public static List<string> GetFullScheduleForDay(IProfileService profileService, int offsetDays = 0)
+    {
+        // 目前返回当天时间表，后续可以扩展为多天课程表支持
+        return GetFullSchedule(profileService);
     }
 }

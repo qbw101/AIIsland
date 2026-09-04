@@ -40,6 +40,14 @@ public partial class AISettings : ObservableObject
     [property: JsonPropertyName("toneStyle")]
     private int _toneStyle = 1;
 
+    /// <summary>
+    /// 自定义温度值（0.0-2.0），为null时使用语气风格映射的默认温度
+    /// 某些AI大模型可能要求特定的温度值，用户可手动调整
+    /// </summary>
+    [ObservableProperty]
+    [property: JsonPropertyName("customTemperature")]
+    private double? _customTemperature = null;
+
     // ===== 行为参数 =====
 
     [ObservableProperty]
@@ -188,15 +196,16 @@ public partial class AISettings : ObservableObject
     [property: JsonPropertyName("pluginIntegrationAuthorizationCompleted")]
     private bool _pluginIntegrationAuthorizationCompleted = false;
 
-    /// <summary>根据语气风格获取 temperature 值</summary>
+    /// <summary>获取 temperature 值：使用自定义温度，未设置时默认为1.0</summary>
     public double GetTemperature()
     {
-        return ToneStyle switch
+        // 如果用户设置了自定义温度，使用自定义值（限制在0.0-2.0范围内）
+        if (CustomTemperature.HasValue)
         {
-            0 => 1.0,   // 活泼：高创造性
-            1 => 0.7,   // 标准：平衡
-            2 => 0.3,   // 严肃：稳定准确
-            _ => 0.7
-        };
+            return Math.Clamp(CustomTemperature.Value, 0.0, 2.0);
+        }
+        
+        // 默认使用1.0，兼容所有模型
+        return 1.0;
     }
 }

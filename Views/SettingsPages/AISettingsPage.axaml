@@ -253,6 +253,20 @@
             </Border>
 
             <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,160" ColumnSpacing="14">
+                    <TextBlock Text="&#xE777;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="自定义温度" Classes="row-title"/>
+                        <TextBlock Text="0.0-2.0，留空使用语气风格默认值。某些AI大模型可能需要特定温度。" Classes="row-description"/>
+                    </StackPanel>
+                    <NumericUpDown Grid.Column="2" x:Name="CustomTemperatureBox"
+                                   Minimum="0" Maximum="2" Increment="0.1"
+                                   FormatString="F1"
+                                   VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
                 <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
                     <TextBlock Text="&#xE9D9;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
