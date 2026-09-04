@@ -33,6 +33,7 @@ public sealed class ClassIslandSettingsProvider : ILocationProvider
     public async Task<GeoLocation?> GetLocationAsync(CancellationToken ct = default)
     {
         var path = ResolveSettingsPath();
+        Logger.Info($"[天气] 读取 ClassIsland 定位设置；路径={path ?? "未找到"}");
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
         {
             Logger.Info($"ClassIsland 本地设置文件不存在: {path}");
@@ -69,13 +70,16 @@ public sealed class ClassIslandSettingsProvider : ILocationProvider
                     return null;
                 }
 
-                return new GeoLocation
+                var coordinateLocation = new GeoLocation
                 {
                     Latitude = lat,
                     Longitude = lon,
                     Address = string.IsNullOrWhiteSpace(cityName) ? $"坐标定位（{lat:F4}, {lon:F4}）" : cityName,
                     Provider = $"{DisplayName} · 坐标定位"
                 };
+                Logger.Info($"[天气] 已读取 ClassIsland 坐标定位：{coordinateLocation.Address}，" +
+                            $"坐标=({lat:F4}, {lon:F4})");
+                return coordinateLocation;
             }
 
             // 城市选择模式：通过 CityId 查询城市坐标
@@ -93,13 +97,16 @@ public sealed class ClassIslandSettingsProvider : ILocationProvider
                 return null;
             }
 
-            return new GeoLocation
+            var location = new GeoLocation
             {
                 Latitude = cityLocation.Value.Latitude,
                 Longitude = cityLocation.Value.Longitude,
                 Address = string.IsNullOrWhiteSpace(cityName) ? cityLocation.Value.Name : cityName,
                 Provider = $"{DisplayName} · 城市选择"
             };
+            Logger.Info($"[天气] 已解析 ClassIsland 城市定位：{location.Address}，" +
+                        $"坐标=({location.Latitude:F4}, {location.Longitude:F4})");
+            return location;
         }
         catch (OperationCanceledException)
         {
@@ -122,6 +129,7 @@ public sealed class ClassIslandSettingsProvider : ILocationProvider
         {
             var encodedKey = Uri.EscapeDataString(cityId);
             var uri = $"https://weatherapi.market.xiaomi.com/wtr-v3/location/city/info?locationKey={encodedKey}&locale=zh_cn";
+            Logger.Info($"[天气] 请求小米城市坐标；CityId={cityId}");
             var json = await Http.GetStringAsync(uri, ct);
             var cities = JsonSerializer.Deserialize<CityInfo[]>(json, JsonOptions);
             var city = cities?.FirstOrDefault(c =>
@@ -132,6 +140,7 @@ public sealed class ClassIslandSettingsProvider : ILocationProvider
                 !TryParseDouble(city.Latitude, out var lat) ||
                 !TryParseDouble(city.Longitude, out var lon))
             {
+                Logger.Warn($"[天气] 小米城市坐标响应无效；CityId={cityId}");
                 return null;
             }
 
@@ -139,6 +148,8 @@ public sealed class ClassIslandSettingsProvider : ILocationProvider
                 ? cityId
                 : $"{city.Name} ({city.Affiliation})".TrimEnd(' ', '(');
 
+            Logger.Info($"[天气] 小米城市坐标解析成功；CityId={cityId}，城市={name}，" +
+                        $"坐标=({lat:F4}, {lon:F4})");
             return (lat, lon, name);
         }
         catch (OperationCanceledException)
@@ -147,7 +158,7 @@ public sealed class ClassIslandSettingsProvider : ILocationProvider
         }
         catch (Exception ex)
         {
-            Logger.Info($"解析 ClassIsland 城市坐标失败: {ex.Message}");
+            Logger.Error(ex, "[天气] 解析 ClassIsland 城市坐标失败");
             return null;
         }
     }

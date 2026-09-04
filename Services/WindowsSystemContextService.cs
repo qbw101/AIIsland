@@ -100,33 +100,56 @@ public sealed class WindowsSystemContextService
 
     public async Task<WeatherSnapshot?> GetCurrentWeatherAsync(GeoLocation? location, CancellationToken ct = default)
     {
-        if (!IsWindowsSystemContextSupported) return null;
-        if (location == null)
+        if (!IsWindowsSystemContextSupported)
         {
-            Logger.Info("未从 ClassIsland 设置取得天气位置，跳过小米天气查询");
+            Logger.Info("当前系统不支持小米天气上下文查询");
             return null;
         }
 
+        if (location == null)
+        {
+            Logger.Warn("未从 ClassIsland 设置取得天气位置，跳过小米天气查询");
+            return null;
+        }
+
+        var latitude = location.Latitude;
+        var longitude = location.Longitude;
+        Logger.Info($"[天气] 小米天气请求开始；位置={location.Address}，" +
+                    $"坐标=({latitude:F4}, {longitude:F4})");
+
         try
         {
-            var latitude = location.Latitude;
-            var longitude = location.Longitude;
-
+            Logger.Info("[天气] 请求小米天气城市编码");
             var locationJson = await Http.GetStringAsync(BuildXiaomiLocationUri(latitude, longitude), ct);
             var locationKey = ParseXiaomiLocationKey(locationJson);
             if (string.IsNullOrWhiteSpace(locationKey))
             {
-                Logger.Info("小米天气未能匹配当前位置的城市编码");
+                Logger.Warn("[天气] 小米天气未能匹配当前位置的城市编码");
                 return null;
             }
 
+            Logger.Info($"[天气] 小米天气城市编码获取成功：{locationKey}，请求当前天气");
             var weatherJson = await Http.GetStringAsync(
                 BuildXiaomiWeatherUri(latitude, longitude, locationKey), ct);
-            return ParseXiaomiWeather(weatherJson, location);
+            var weather = ParseXiaomiWeather(weatherJson, location);
+            if (weather == null)
+            {
+                Logger.Warn("[天气] 小米天气响应缺少有效的当前温度或天气代码");
+                return null;
+            }
+
+            Logger.Info($"[天气] 小米天气请求成功；天气代码={weather.WeatherCode}，" +
+                        $"温度={weather.TemperatureC:0.#}°C，预警={weather.Alerts.Count}");
+            return weather;
+        }
+        catch (OperationCanceledException)
+        {
+            Logger.Info("[天气] 小米天气请求已取消");
+            throw;
         }
         catch (Exception ex)
         {
-            Logger.Info($"读取小米天气上下文失败: {ex.Message}");
+            Logger.Error(ex, "[天气] 读取小米天气上下文失败");
             return null;
         }
     }
