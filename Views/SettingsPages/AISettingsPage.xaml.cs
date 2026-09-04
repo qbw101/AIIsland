@@ -11,6 +11,7 @@ using Avalonia.Platform.Storage;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 using ClassIsland.AISmartClass.Models;
+using ClassIsland.AISmartClass.Views;
 using ClassIsland.AISmartClass.PublicApi;
 using ClassIsland.AISmartClass.Services;
 using ClassIsland.AISmartClass.Services.NotificationProviders;
@@ -45,6 +46,8 @@ public partial class AISettingsPage : SettingsPageBase
     private Button? _testBeforeSchoolButton;
     private Button? _testReminderButton;
     private Button? _testSummaryButton;
+    private Button? _testPromptButton;
+    private Button? _testContextButton;
     private TextBlock? _testResultText;
     private Border? _testResultBorder;
     private Button? _examModeButton;
@@ -184,6 +187,8 @@ public partial class AISettingsPage : SettingsPageBase
         _testBeforeSchoolButton = WireButton("TestBeforeSchoolButton", OnTestBeforeSchoolClicked);
         _testReminderButton = WireButton("TestReminderButton", OnTestReminderClicked);
         _testSummaryButton = WireButton("TestSummaryButton", OnTestSummaryClicked);
+        _testPromptButton = WireButton("TestPromptButton", OnTestPromptClicked);
+        _testContextButton = WireButton("TestContextButton", OnTestContextClicked);
         _examModeButton = WireButton("ExamModeButton", OnExamModeClicked);
         WireButton("SaveButton", OnSaveClicked);
         WireButton("GitHubBtn", OnGitHubClicked);
@@ -708,6 +713,77 @@ public partial class AISettingsPage : SettingsPageBase
         }
         catch (Exception ex) { ShowTestResult(false, $"❌ 测试失败: {ex.Message}"); }
         finally { _testBeforeSchoolButton.IsEnabled = true; }
+    }
+
+    private async void OnTestPromptClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_testPromptButton == null) return;
+        AutoSaveSettings();
+        _testPromptButton.IsEnabled = false;
+        try
+        {
+            var aiService = Plugin.GetAIService();
+            if (aiService == null)
+            {
+                ShowTestResult(false, "❌ AI 服务未初始化，请先保存配置");
+                return;
+            }
+
+            var context = Plugin.SmartClassNotifierInstance == null
+                ? null
+                : await Plugin.SmartClassNotifierInstance.BuildThoughtfulContextAsync(ThoughtfulScene.BreakStart);
+            var (systemPrompt, userPrompt) = aiService.PreviewBeforeClassPrompt("数学", "英语", context);
+            var preview = $"[System Prompt]\n{systemPrompt}\n\n[User Prompt]\n{userPrompt}";
+            ShowPromptPreview("测试 AI 提示词", preview);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"生成 AI 提示词预览失败: {ex.Message}");
+            ShowTestResult(false, $"❌ 生成提示词预览失败: {ex.Message}");
+        }
+        finally
+        {
+            _testPromptButton.IsEnabled = true;
+        }
+    }
+
+    private async void OnTestContextClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_testContextButton == null) return;
+        AutoSaveSettings();
+        _testContextButton.IsEnabled = false;
+        try
+        {
+            var notifier = Plugin.SmartClassNotifierInstance;
+            if (notifier == null)
+            {
+                ShowTestResult(false, "❌ 智能课表服务未初始化，暂时无法获取上下文");
+                return;
+            }
+
+            var context = await notifier.BuildThoughtfulContextAsync(ThoughtfulScene.BreakStart);
+            ShowPromptPreview("测试上下文", string.IsNullOrWhiteSpace(context)
+                ? "当前没有可用的上下文数据。\n\n这通常表示天气、时间、课程、新闻等数据源暂时没有返回内容。"
+                : context);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"生成 AI 上下文预览失败: {ex.Message}");
+            ShowTestResult(false, $"❌ 生成上下文预览失败: {ex.Message}");
+        }
+        finally
+        {
+            _testContextButton.IsEnabled = true;
+        }
+    }
+
+    private void ShowPromptPreview(string title, string content)
+    {
+        var window = new PromptPreviewWindow(title, content);
+        if (VisualRoot is Avalonia.Controls.Window owner)
+            _ = window.ShowDialog(owner);
+        else
+            window.Show();
     }
 
     private async void OnTestSummaryClicked(object? sender, RoutedEventArgs e)

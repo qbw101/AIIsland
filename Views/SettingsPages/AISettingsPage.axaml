@@ -288,6 +288,22 @@
                            FontSize="12"/>
             </Border>
 
+            <TextBlock Text="提示词与上下文预览" Classes="section-title"/>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE946;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="提示词与上下文" Classes="row-title"/>
+                        <TextBlock Text="查看当前 AI 请求实际使用的提示词与上下文数据，用于核对配置和内容。" Classes="row-description"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button x:Name="TestPromptButton" Content="测试 AI 提示词"/>
+                        <Button x:Name="TestContextButton" Content="测试上下文"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
             <TextBlock Text="生成参数" Classes="section-title"/>
 
             <Border Classes="setting-row">

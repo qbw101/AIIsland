@@ -113,14 +113,21 @@ public partial class AIChatService
     //  课前提醒
     // ========================================
 
-    public async Task<string> GenerateBeforeClassReminder(
-        string? previousSubject, string nextSubject, CancellationToken ct = default, bool throwOnError = false,
-        string? context = null)
+    /// <summary>构造课间提醒实际发送给 AI 的提示词，供设置页诊断使用。</summary>
+    public (string SystemPrompt, string UserPrompt) PreviewBeforeClassPrompt(
+        string? previousSubject, string nextSubject, string? context = null)
     {
         var systemPrompt = PromptTemplates.GetBeforeClassSystem(EffectiveToneStyle);
         var userMessage = string.Format(PromptTemplates.GetBeforeClassUser(EffectiveToneStyle),
             previousSubject ?? "无", nextSubject);
-        userMessage = AppendThoughtfulContext(userMessage, context);
+        return (systemPrompt, AppendThoughtfulContext(userMessage, context));
+    }
+
+    public async Task<string> GenerateBeforeClassReminder(
+        string? previousSubject, string nextSubject, CancellationToken ct = default, bool throwOnError = false,
+        string? context = null)
+    {
+        var (systemPrompt, userMessage) = PreviewBeforeClassPrompt(previousSubject, nextSubject, context);
         if (string.IsNullOrWhiteSpace(ApiKey))
         {
             if (throwOnError)
