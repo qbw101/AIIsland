@@ -14,19 +14,7 @@ public partial class AIChatService
     private async Task<string> SendRequestAsync(
         string system, string user, AiRequestSnapshot snapshot, CancellationToken ct)
     {
-        var body = new
-        {
-            model = snapshot.Model,
-            temperature = snapshot.Temperature,
-            max_tokens = snapshot.MaxTokens,
-            messages = new[]
-            {
-                new { role = "system", content = system },
-                new { role = "user", content = user }
-            }
-        };
-
-        var jsonBody = JsonSerializer.Serialize(body);
+        var jsonBody = JsonSerializer.Serialize(BuildChatBody(system, user, snapshot, stream: false));
         var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
 
         using var request = new HttpRequestMessage(HttpMethod.Post, snapshot.Endpoint) { Content = content };
@@ -66,20 +54,7 @@ public partial class AIChatService
     private async IAsyncEnumerable<string> SendStreamRequestAsync(
         string system, string user, AiRequestSnapshot snapshot, [EnumeratorCancellation] CancellationToken ct)
     {
-        var body = new
-        {
-            model = snapshot.Model,
-            temperature = snapshot.Temperature,
-            max_tokens = snapshot.MaxTokens,
-            stream = true,
-            messages = new[]
-            {
-                new { role = "system", content = system },
-                new { role = "user", content = user }
-            }
-        };
-
-        var jsonBody = JsonSerializer.Serialize(body);
+        var jsonBody = JsonSerializer.Serialize(BuildChatBody(system, user, snapshot, stream: true));
         var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
 
         using var request = new HttpRequestMessage(HttpMethod.Post, snapshot.Endpoint) { Content = content };
@@ -194,4 +169,37 @@ public partial class AIChatService
             ? string.Join(", ", values)
             : null;
     }
+
+    /// <summary>
+    /// 构造 Chat Completions 请求体。对 DeepSeek V4 系列额外注入 thinking=disabled。
+    /// DeepSeek V4（deepseek-v4-flash / -pro）默认开启思考模式，会先把思维链写入
+    /// reasoning_content，若 max_tokens 较小，content 可能被挤空，导致流式解析不到
+    /// 任何正文而触发「AI 流式响应内容为空」降级。本插件只需要简短文本，禁用思考模式
+    /// 可获得稳定、更快的 content 输出。
+    /// </summary>
+    private static Dictionary<string, object?> BuildChatBody(
+        string system, string user, AiRequestSnapshot snapshot, bool stream)
+    {
+        var body = new Dictionary<string, object?>
+        {
+            ["model"] = snapshot.Model,
+            ["temperature"] = snapshot.Temperature,
+            ["max_tokens"] = snapshot.MaxTokens,
+            ["stream"] = stream,
+            ["messages"] = new object[]
+            {
+                new { role = "system", content = system },
+                new { role = "user", content = user }
+            }
+        };
+
+        if (IsDeepSeekProvider(snapshot))
+            body["thinking"] = new { type = "disabled" };
+
+        return body;
+    }
+
+    private static bool IsDeepSeekProvider(AiRequestSnapshot snapshot) =>
+        snapshot.Endpoint.Contains("deepseek", StringComparison.OrdinalIgnoreCase) ||
+        snapshot.Model.StartsWith("deepseek-", StringComparison.OrdinalIgnoreCase);
 }

@@ -9,6 +9,7 @@ using ClassIsland.Core.Extensions.Registry;
 using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.AISmartClass.Models;
 using ClassIsland.AISmartClass.Services;
+using ClassIsland.AISmartClass.Services.ExamMode;
 using ClassIsland.AISmartClass.Services.NotificationProviders;
 using ClassIsland.AISmartClass.Controls.NotificationProviders;
 using ClassIsland.AISmartClass.Controls.Automation;
@@ -451,7 +452,10 @@ public class Plugin : PluginBase
 
             // 5. 注册提醒提供方（课前提醒 / 放学总结 / 换课提醒 / 定时提醒）
             services.AddNotificationProvider<SmartClassNotifier, SmartClassNotifierSettingsControl>();
-            Logger.Info("SmartClassNotifier 已注册");
+            services.AddNotificationProvider<ExamModeScheduler>();
+            services.AddSingleton<ExamNotificationFilterService>();
+            services.AddHostedService(provider => provider.GetRequiredService<ExamNotificationFilterService>());
+            Logger.Info("SmartClassNotifier / ExamModeScheduler / ExamNotificationFilterService 已注册");
 
             services.AddAction<GenerateAiNotificationAction, GenerateAiNotificationActionSettingsControl>();
             services.AddAction<RefreshAiIslandComponentsAction, RefreshAiIslandComponentsActionSettingsControl>();
@@ -476,9 +480,9 @@ public class Plugin : PluginBase
             SettingsPageIconPatcher.Initialize();
             Logger.Info("AISettingsPage 已注册");
 
-            // 8. 注册考试模式 HTTP 服务器
-            services.AddSingleton<ExamModeServer>();
-            Logger.Info("ExamModeServer 已注册");
+            // 8. 考试模式 HTTP 服务器由 ExamModeServer.GetOrCreate() 统一管理进程级单例，
+            // 避免依赖注入容器再构造第二个未被实际使用的实例。
+            Logger.Info("ExamModeServer 进程级单例已就绪");
 
             // 9. 首次运行检测：没有配置文件时自动弹出欢迎向导
             try

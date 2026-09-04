@@ -51,6 +51,9 @@ public static class PromptTemplates
     public static string GetCurrentHintSystem(int toneStyle) =>
         GetPrompt(toneStyle, "current_hint", CurrentHintFallback);
 
+    public static string GetThoughtfulHintSystem(int toneStyle) =>
+        GetPrompt(toneStyle, "thoughtful_hint", ThoughtfulHintFallback);
+
     public static string GetTodaySummaryUser(int toneStyle) =>
         GetPrompt(toneStyle, "today_summary_user", TodaySummaryUserFallback);
 
@@ -211,6 +214,7 @@ public static class PromptTemplates
             ["daily_summary"] = DailySummaryFallback,
             ["daily_briefing"] = DailyBriefingFallback,
             ["current_hint"] = CurrentHintFallback,
+            ["thoughtful_hint"] = ThoughtfulHintFallback,
         },
         2 => new()
         {
@@ -220,6 +224,7 @@ public static class PromptTemplates
             ["daily_summary"] = DailySummarySeriousFallback,
             ["daily_briefing"] = DailyBriefingSeriousFallback,
             ["current_hint"] = CurrentHintSeriousFallback,
+            ["thoughtful_hint"] = ThoughtfulHintSeriousFallback,
         },
         _ => new()
         {
@@ -229,6 +234,7 @@ public static class PromptTemplates
             ["daily_summary"] = DailySummaryNormalFallback,
             ["daily_briefing"] = DailyBriefingNormalFallback,
             ["current_hint"] = CurrentHintNormalFallback,
+            ["thoughtful_hint"] = ThoughtfulHintNormalFallback,
         },
     };
 
@@ -255,6 +261,12 @@ public static class PromptTemplates
     private const string CurrentHintFallback = "你是一个轻二次元校园学习助手，给当前课程一句自然、有元气的简短提示。\n\n要求：\n1. 不超过 15 字\n2. 像动漫同伴提醒，但要适合真实课堂，不尴尬\n3. 可以用 ～ 或 1 个 emoji，但不要每句都用\n4. 根据科目给出具体感觉：数学重逻辑，语文重表达，英语重语感，体育重热身\n5. 禁止尴尬口癖和硬梗";
     private const string CurrentHintNormalFallback = "你是一个学习助手，给高中生当前课程的简短提示。\n\n要求：\n1. 不超过 15 字\n2. 语气自然、简洁，不要官方腔\n3. 根据科目类型给出针对性提醒";
     private const string CurrentHintSeriousFallback = "你是一个严谨的学习提示助手，为高中生提供当前课程的专业提示。\n\n要求：\n1. 不超过 15 字\n2. 语气正式、专业、简明\n3. 根据科目给出针对性学习方法建议";
+
+    private const string ThoughtfulHintFallback = "你是高中生身边清爽可靠的校园学习搭子。用户会先给出一句已生成的课程提示，再提供本次发生变化的贴心信息（天气、时段、新闻、生日、值日、节假日或正在播放的音乐）。要求：1. 接着前一句课程提示，自然补一句贴心关怀；2. 只围绕「变化信息」里实际出现的内容表达，没有提到的不要编造；3. 与前一句衔接自然，不重复前一句已经说过的内容；4. 只输出一句，不超过 40 字；5. 可少量使用 ～、！或 1 个 emoji，不要尬萌。";
+
+    private const string ThoughtfulHintNormalFallback = "你是面向高中生的贴心提醒助手。用户会先给出一句已生成的课程提示，再提供本次发生变化的贴心信息（天气、时段、新闻、生日、值日、节假日或正在播放的音乐）。要求：1. 接着前一句课程提示，自然补一句贴心关怀；2. 只围绕「变化信息」里实际出现的内容表达，不编造；3. 与前一句衔接自然，不重复前一句内容；4. 只输出一句，不超过 40 字，语气自然温和。";
+
+    private const string ThoughtfulHintSeriousFallback = "你是严谨的高中贴心提示助手。用户会先给出一句已生成的课程提示，再提供本次发生变化的贴心信息（天气、时段、新闻、生日、值日、节假日或正在播放的音乐）。要求：1. 接着前一句课程提示，正式补一句关怀；2. 只基于「变化信息」实际内容，不编造、不机械罗列；3. 与前一句衔接自然，不重复；4. 只输出一句，不超过 40 字，语气正式简明。";
 
     private const string TodaySummaryUserFallback = "今日课程：{0}\n今天是 {1}";
     private const string HomeworkEstimateUserFallback = "今日日期：{1}\n今日课程：{0}\n请估算今晚作业量。";

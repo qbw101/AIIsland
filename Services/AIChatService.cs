@@ -112,7 +112,7 @@ public partial class AIChatService : IDisposable
         _inflightRequests.Clear();
     }
 
-    /// <summary>获取 temperature 值：使用自定义温度，未设置时默认为1.0</summary>
+    /// <summary>获取 temperature 值：自定义温度优先，未设置时按语气风格映射。</summary>
     private double GetTemperature()
     {
         // 如果用户设置了自定义温度，使用自定义值（限制在0.0-2.0范围内）
@@ -120,9 +120,15 @@ public partial class AIChatService : IDisposable
         {
             return Math.Clamp(CustomTemperature.Value, 0.0, 2.0);
         }
-        
-        // 默认使用1.0，兼容所有模型（包括要求temperature=1的模型）
-        return 1.0;
+
+        // 未自定义时按语气风格映射：活泼高创造性、标准平衡、严肃稳定准确
+        return EffectiveToneStyle switch
+        {
+            0 => 1.0,
+            1 => 0.7,
+            2 => 0.3,
+            _ => 0.7
+        };
     }
 
     // ========================================

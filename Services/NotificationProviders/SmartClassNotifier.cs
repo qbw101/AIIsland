@@ -1,6 +1,9 @@
 using System.Diagnostics;
+using System.Globalization;
 using Avalonia.Threading;
 using ClassIsland.Core.Abstractions.Services;
+using ClassIsland.Core.Models.Weather;
+using Microsoft.Extensions.DependencyInjection;
 using ClassIsland.Core.Abstractions.Services.NotificationProviders;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Models.Notification;
@@ -15,7 +18,8 @@ public enum ThoughtfulScene
     BeforeSchool,
     DailyBriefing,
     BreakStart,
-    AfterSchool
+    AfterSchool,
+    ThoughtfulHint
 }
 
 [NotificationProviderInfo(
@@ -919,150 +923,12 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
                 ? _systemContext.GetCurrentMusicAsync(ct)
                 : Task.FromResult<WindowsSystemContextService.MusicTrack?>(null);
 
-            // 优先使用 ClassIsland 官方天气服务
-            if (needWeather && _weatherService != null && _weatherService.IsWeatherRefreshed)
+            if (needWeather)
             {
-                // 通过反射获取 LastWeatherInfo，因为 SDK 版本可能不包含此属性
-                var lastWeatherInfoProp = _weatherService.GetType().GetProperty("LastWeatherInfo");
-                if (lastWeatherInfoProp != null)
-                {
-                    var weatherInfo = lastWeatherInfoProp.GetValue(_weatherService);
-                    if (weatherInfo != null)
-                    {
-                        // 获取 Current 属性
-                        var currentProp = weatherInfo.GetType().GetProperty("Current");
-                        var currentWeather = currentProp?.GetValue(weatherInfo);
-                        if (currentWeather != null)
-                        {
-                            var current = new List<string>();
-                            if (Settings.EnableWeatherReminder)
-                            {
-                                // 获取 Weather 属性
-                                var weatherCodeProp = currentWeather.GetType().GetProperty("Weather");
-                                var weatherCode = weatherCodeProp?.GetValue(currentWeather) as string;
-                                if (!string.IsNullOrEmpty(weatherCode))
-                                {
-                                    var weatherText = _weatherService.GetWeatherTextByCode(weatherCode);
-                                    current.Add(weatherText);
-                                }
-                            }
-                            if (Settings.EnableTemperatureReminder)
-                            {
-                                // 获取 Temperature 属性
-                                var tempProp = currentWeather.GetType().GetProperty("Temperature");
-                                var tempObj = tempProp?.GetValue(currentWeather);
-                                var tempValueProp = tempObj?.GetType().GetProperty("Value");
-                                var tempValue = tempValueProp?.GetValue(tempObj);
+                var weather = await GetWeatherSnapshotAsync(ct).ConfigureAwait(false);
+                if (weather?.Location != null)
+                    lines.Add($"当前位置：{weather.Location.Address}（{weather.Location.Latitude:F4}, {weather.Location.Longitude:F4}）");
 
-                                // 获取 FeelsLike 属性
-                                var feelsLikeProp = currentWeather.GetType().GetProperty("FeelsLike");
-                                var feelsLikeObj = feelsLikeProp?.GetValue(currentWeather);
-                                var feelsLikeValueProp = feelsLikeObj?.GetType().GetProperty("Value");
-                                var feelsLikeValue = feelsLikeValueProp?.GetValue(feelsLikeObj);
-
-                                if (tempValue != null)
-                                {
-                                    var temperature = $"{tempValue}°C";
-                                    if (feelsLikeValue != null)
-                                        temperature += $"，体感 {feelsLikeValue}°C";
-                                    current.Add(temperature);
-                                }
-                            }
-                            if (current.Count > 0) lines.Add($"当前天气：{string.Join("，", current)}");
-                        }
-
-                        // 天气预警
-                        if (Settings.EnableWeatherAlertReminder)
-                        {
-                            var alertsProp = weatherInfo.GetType().GetProperty("Alerts");
-                            var alerts = alertsProp?.GetValue(weatherInfo) as System.Collections.IList;
-                            if (alerts != null && alerts.Count > 0)
-                            {
-                                var alertTexts = new List<string>();
-                                int count = 0;
-                                foreach (var alert in alerts)
-                                {
-                                    if (count >= 3) break; // 最多显示3条预警
-                                    var levelProp = alert?.GetType().GetProperty("Level");
-                                    var titleProp = alert?.GetType().GetProperty("Title");
-                                    var level = levelProp?.GetValue(alert) as string;
-                                    var title = titleProp?.GetValue(alert) as string;
-                                    if (!string.IsNullOrWhiteSpace(title))
-                                    {
-                                        alertTexts.Add(string.IsNullOrWhiteSpace(level)
-                                            ? title
-                                            : $"{title}（{level}）");
-                                    }
-                                    count++;
-                                }
-                                if (alertTexts.Count > 0)
-                                    lines.Add($"天气预警：{string.Join("；", alertTexts)}");
-                            }
-                        }
-
-                        // 明日天气预报（放学总结场景）
-                        if (scene == ThoughtfulScene.AfterSchool)
-                        {
-                            var forecastDailyProp = weatherInfo.GetType().GetProperty("ForecastDaily");
-                            var forecastDaily = forecastDailyProp?.GetValue(weatherInfo);
-                            if (forecastDaily != null)
-                            {
-                                var weatherType = forecastDaily.GetType();
-                                var weatherProp = weatherType.GetProperty("Weather");
-                                if (weatherProp != null)
-                                {
-                                    var weatherObj = weatherProp.GetValue(forecastDaily);
-                                    if (weatherObj != null)
-                                    {
-                                        var weatherObjType = weatherObj.GetType();
-                                        var valueProp = weatherObjType.GetProperty("Value");
-                                        var weatherList = valueProp?.GetValue(weatherObj) as System.Collections.IList;
-                                        if (weatherList != null && weatherList.Count > 1)
-                                        {
-                                            var tomorrowForecast = weatherList[1];
-                                            var forecast = new List<string>();
-                                            if (Settings.EnableWeatherReminder)
-                                            {
-                                                var fromProp = tomorrowForecast?.GetType().GetProperty("From");
-                                                var weatherCode = fromProp?.GetValue(tomorrowForecast) as string;
-                                                if (!string.IsNullOrEmpty(weatherCode))
-                                                {
-                                                    var tomorrowWeather = _weatherService.GetWeatherTextByCode(weatherCode);
-                                                    forecast.Add(tomorrowWeather);
-                                                }
-                                            }
-                                            if (Settings.EnableTemperatureReminder)
-                                            {
-                                                var minTempProp = tomorrowForecast?.GetType().GetProperty("MinimumTemperature");
-                                                var minTempObj = minTempProp?.GetValue(tomorrowForecast);
-                                                var minTempValueProp = minTempObj?.GetType().GetProperty("Value");
-                                                var minTemp = minTempValueProp?.GetValue(minTempObj);
-
-                                                var maxTempProp = tomorrowForecast?.GetType().GetProperty("MaximumTemperature");
-                                                var maxTempObj = maxTempProp?.GetValue(tomorrowForecast);
-                                                var maxTempValueProp = maxTempObj?.GetType().GetProperty("Value");
-                                                var maxTemp = maxTempValueProp?.GetValue(maxTempObj);
-
-                                                if (minTemp != null && maxTemp != null)
-                                                    forecast.Add($"{minTemp}～{maxTemp}°C");
-                                            }
-                                            if (forecast.Count > 0) lines.Add($"明日天气：{string.Join("，", forecast)}");
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            else if (needWeather)
-            {
-                // 备用方案：使用原有天气服务
-                var location = await _locationService.GetLocationAsync(ct);
-                if (location != null)
-                    lines.Add($"当前位置：{location.Address}（{location.Latitude:F4}, {location.Longitude:F4}）");
-
-                var weather = await _systemContext.GetCurrentWeatherAsync(location, ct);
                 if (weather != null)
                 {
                     var current = new List<string>();
@@ -1079,12 +945,13 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
 
                     if (Settings.EnableWeatherAlertReminder && weather.Alerts.Count > 0)
                     {
-                        var alertTexts = weather.Alerts
+                        var alertTexts = weather.Alerts.Take(3)
                             .Select(a => string.IsNullOrWhiteSpace(a.Level)
                                 ? a.Title
                                 : $"{a.Title}（{a.Level}）")
                             .ToList();
-                        lines.Add($"天气预警：{string.Join("；", alertTexts)}");
+                        if (alertTexts.Count > 0)
+                            lines.Add($"天气预警：{string.Join("；", alertTexts)}");
                     }
 
                     if (scene == ThoughtfulScene.AfterSchool && weather.Tomorrow != null)
@@ -1094,14 +961,7 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
                         if (Settings.EnableWeatherReminder)
                             forecast.Add(WindowsSystemContextService.DescribeDailyWeather(tomorrow));
                         if (Settings.EnableTemperatureReminder)
-                        {
                             forecast.Add($"{tomorrow.MinimumTemperatureC:0.#}～{tomorrow.MaximumTemperatureC:0.#}°C");
-                            if (tomorrow.MinimumApparentTemperatureC is double minimumApparent &&
-                                tomorrow.MaximumApparentTemperatureC is double maximumApparent)
-                            {
-                                forecast.Add($"体感 {minimumApparent:0.#}～{maximumApparent:0.#}°C");
-                            }
-                        }
                         if (forecast.Count > 0) lines.Add($"明日天气：{string.Join("，", forecast)}");
                     }
                 }
@@ -1158,6 +1018,283 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
         var context = string.Join("\n", lines);
         Logger.Info($"贴心提醒提示词上下文: {context.Replace("\n", " | ")}");
         return context;
+    }
+
+    private async Task<WindowsSystemContextService.WeatherSnapshot?> GetWeatherSnapshotAsync(
+        CancellationToken ct)
+    {
+        Logger.Info($"[天气] 开始检索；官方服务={(_weatherService == null ? "未注入" : "已注入")}，" +
+                    $"官方缓存={_weatherService?.IsWeatherRefreshed == true}");
+
+        if (_weatherService != null)
+        {
+            try
+            {
+                if (!_weatherService.IsWeatherRefreshed)
+                {
+                    Logger.Info("[天气] ClassIsland 天气尚未刷新，开始主动刷新");
+                    await _weatherService.QueryWeatherAsync().WaitAsync(ct).ConfigureAwait(false);
+                    Logger.Info($"[天气] ClassIsland 主动刷新结束；刷新状态={_weatherService.IsWeatherRefreshed}");
+                }
+
+                if (_weatherService.IsWeatherRefreshed)
+                {
+                    var officialWeather = TryReadClassIslandWeatherSnapshot();
+                    if (officialWeather != null)
+                    {
+                        LogWeatherResult("ClassIsland 官方天气缓存", officialWeather);
+                        return officialWeather;
+                    }
+
+                    Logger.Warn("[天气] ClassIsland 已刷新但无法读取 LastWeatherInfo，转用小米天气回退");
+                }
+                else
+                {
+                    Logger.Warn("[天气] ClassIsland 天气刷新未成功，转用小米天气回退");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "调用 ClassIsland 官方天气服务失败，转用小米天气回退");
+            }
+        }
+        else
+        {
+            Logger.Warn("[天气] 未注入 ClassIsland IWeatherService，转用小米天气回退");
+        }
+
+        var location = await _locationService.GetLocationAsync(ct).ConfigureAwait(false);
+        if (location == null)
+        {
+            Logger.Warn("[天气] 无法从 ClassIsland 设置取得位置，天气检索终止");
+            return null;
+        }
+
+        Logger.Info($"[天气] 使用小米天气回退；位置={location.Address}，" +
+                    $"坐标=({location.Latitude:F4}, {location.Longitude:F4})，来源={location.Provider}");
+        var fallbackWeather = await _systemContext.GetCurrentWeatherAsync(location, ct).ConfigureAwait(false);
+        if (fallbackWeather == null)
+        {
+            Logger.Warn("[天气] 小米天气回退未返回有效天气数据");
+            return null;
+        }
+
+        LogWeatherResult("小米天气回退", fallbackWeather);
+        return fallbackWeather;
+    }
+
+    private WindowsSystemContextService.WeatherSnapshot? TryReadClassIslandWeatherSnapshot()
+    {
+        try
+        {
+            var settingsServiceType = AppDomain.CurrentDomain.GetAssemblies()
+                .SelectMany(assembly =>
+                {
+                    try { return assembly.GetTypes(); }
+                    catch { return Array.Empty<Type>(); }
+                })
+                .FirstOrDefault(type => type.FullName == "ClassIsland.Services.SettingsService");
+            if (settingsServiceType == null)
+            {
+                Logger.Warn("[天气] 未找到 ClassIsland.Services.SettingsService 类型");
+                return null;
+            }
+
+            var settingsService = ClassIsland.Shared.IAppHost.Host?.Services.GetService(settingsServiceType);
+            var settings = settingsServiceType.GetProperty("Settings")?.GetValue(settingsService);
+            var weatherInfo = settings?.GetType().GetProperty("LastWeatherInfo")?.GetValue(settings) as WeatherInfo;
+            if (weatherInfo == null)
+            {
+                Logger.Warn("[天气] ClassIsland Settings.LastWeatherInfo 为空或类型不匹配");
+                return null;
+            }
+
+            if (!TryParseWeatherNumber(weatherInfo.Current.Temperature.Value, out var temperature) ||
+                !int.TryParse(weatherInfo.Current.Weather, NumberStyles.Integer, CultureInfo.InvariantCulture, out var weatherCode))
+            {
+                Logger.Warn($"[天气] ClassIsland 当前天气字段无效；weather={weatherInfo.Current.Weather}，" +
+                            $"temperature={weatherInfo.Current.Temperature.Value}");
+                return null;
+            }
+
+            double? apparentTemperature = TryParseWeatherNumber(weatherInfo.Current.FeelsLike.Value, out var apparent)
+                ? apparent
+                : null;
+            var alerts = weatherInfo.Alerts
+                .Where(alert => !string.IsNullOrWhiteSpace(alert.Title))
+                .Select(alert => new WindowsSystemContextService.WeatherAlert(
+                    alert.Title.Trim(), alert.Level?.Trim(), alert.Detail?.Trim(), alert.PubTime))
+                .ToList();
+
+            WindowsSystemContextService.DailyWeatherForecast? tomorrow = null;
+            var temperatures = weatherInfo.ForecastDaily.Temperature.Value;
+            var weather = weatherInfo.ForecastDaily.Weather.Value;
+            if (temperatures?.Count > 1 && weather?.Count > 1 &&
+                TryParseWeatherNumber(temperatures[1].From, out var firstTemperature) &&
+                TryParseWeatherNumber(temperatures[1].To, out var secondTemperature) &&
+                int.TryParse(weather[1].From, NumberStyles.Integer, CultureInfo.InvariantCulture, out var tomorrowWeatherCode))
+            {
+                var nightWeatherCode = int.TryParse(
+                    weather[1].To, NumberStyles.Integer, CultureInfo.InvariantCulture, out var nightCode)
+                    ? nightCode
+                    : (int?)null;
+                tomorrow = new WindowsSystemContextService.DailyWeatherForecast(
+                    Math.Min(firstTemperature, secondTemperature),
+                    Math.Max(firstTemperature, secondTemperature),
+                    null,
+                    null,
+                    tomorrowWeatherCode,
+                    nightWeatherCode);
+            }
+
+            return new WindowsSystemContextService.WeatherSnapshot(
+                temperature, apparentTemperature, weatherCode, null, alerts, tomorrow);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "读取 ClassIsland Settings.LastWeatherInfo 失败");
+            return null;
+        }
+    }
+
+    private static bool TryParseWeatherNumber(string? value, out double result)
+        => double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out result) ||
+           double.TryParse(value, NumberStyles.Float, CultureInfo.CurrentCulture, out result);
+
+    private static void LogWeatherResult(
+        string source,
+        WindowsSystemContextService.WeatherSnapshot weather)
+    {
+        var description = WindowsSystemContextService.DescribeWeatherCode(weather.WeatherCode);
+        var apparent = weather.ApparentTemperatureC is double value
+            ? $"，体感={value:0.#}°C"
+            : "";
+        Logger.Info($"[天气] 检索成功；来源={source}，天气={description}({weather.WeatherCode})，" +
+                    $"温度={weather.TemperatureC:0.#}°C{apparent}，预警={weather.Alerts.Count}，" +
+                    $"明日预报={(weather.Tomorrow == null ? "无" : "有")}");
+    }
+
+    /// <summary>
+    /// 组装贴心提示所需的结构化上下文快照（时段、天气、预警、新闻、生日、值日、节假日、音乐）。
+    /// 与 <see cref="BuildThoughtfulContextAsync"/> 的字符串版相互独立，专供增量 diff 使用。
+    /// </summary>
+    public async Task<ThoughtfulContextSnapshot> BuildThoughtfulContextSnapshotAsync(CancellationToken ct = default)
+    {
+        if (Settings == null) return new ThoughtfulContextSnapshot();
+        EnsureWindowsContextAvailability();
+
+        var now = DateTime.Now;
+        string? weatherDescription = null;
+        double? temperatureC = null;
+        var alerts = new List<string>();
+        var news = new List<string>();
+        var birthday = "";
+        var duty = "";
+        var holiday = "";
+        var musicKey = "";
+
+        if (Settings.EnableDailyBriefingHoliday)
+            holiday = DailyBriefingDataService.GetHolidayDescription(now.Date);
+
+        if (PluginIntegrationService.IsAuthorized(Settings, PluginIntegrationService.BirthdayIslandId))
+            birthday = DailyBriefingDataService.GetBirthdayGreeting();
+
+        var dutyIds = PluginIntegrationService.GetAuthorizedDutyPluginIds(Settings);
+        if (dutyIds.Count > 0)
+            duty = await GetDutyReminderWithRetryAsync(ct, dutyIds).ConfigureAwait(false);
+
+        try
+        {
+            if (Settings.EnableDailyBriefingNews)
+                news.AddRange(await _dailyBriefingData.GetNewsAsync(
+                    Settings.ClassIslandInstallDirectory, Settings.RssFeedUrls, ct).ConfigureAwait(false));
+        }
+        catch (Exception ex)
+        {
+            Logger.Info($"获取贴心提示新闻失败: {ex.Message}");
+        }
+
+        try
+        {
+            var needWeather = Settings.EnableWeatherReminder ||
+                              Settings.EnableTemperatureReminder ||
+                              Settings.EnableWeatherAlertReminder;
+            var weatherTask = needWeather
+                ? GetWeatherSnapshotAsync(ct)
+                : Task.FromResult<WindowsSystemContextService.WeatherSnapshot?>(null);
+            var musicTask = Settings.EnableMusicReminder
+                ? _systemContext.GetCurrentMusicAsync(ct)
+                : Task.FromResult<WindowsSystemContextService.MusicTrack?>(null);
+            await Task.WhenAll(weatherTask, musicTask).ConfigureAwait(false);
+
+            var weather = await weatherTask.ConfigureAwait(false);
+            if (weather != null)
+            {
+                if (Settings.EnableWeatherReminder)
+                    weatherDescription = WindowsSystemContextService.DescribeWeatherCode(weather.WeatherCode);
+                if (Settings.EnableTemperatureReminder)
+                    temperatureC = weather.TemperatureC;
+                if (Settings.EnableWeatherAlertReminder && weather.Alerts.Count > 0)
+                {
+                    alerts.AddRange(weather.Alerts.Select(a =>
+                        string.IsNullOrWhiteSpace(a.Level) ? a.Title : $"{a.Title}（{a.Level}）"));
+                }
+            }
+
+            var music = await musicTask.ConfigureAwait(false);
+            if (music != null)
+            {
+                var artist = string.IsNullOrWhiteSpace(music.Artist) ? "未知歌手" : music.Artist;
+                musicKey = $"{music.Title}—{artist}";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Info($"构建贴心提示上下文快照失败: {ex.Message}");
+        }
+
+        return new ThoughtfulContextSnapshot
+        {
+            DateLabel = now.ToString("yyyy-MM-dd"),
+            TimePeriod = GetTimePeriod(now.Hour),
+            WeatherDescription = weatherDescription,
+            TemperatureC = temperatureC,
+            WeatherAlerts = alerts,
+            NewsTitles = news,
+            BirthdayGreeting = birthday,
+            DutyReminder = duty,
+            HolidayDescription = holiday,
+            MusicKey = musicKey
+        };
+    }
+
+    /// <summary>
+    /// 获取贴心提示的增量变化项：组装快照 → 与缓存比较 → 只返回变化内容 → 更新缓存。
+    /// 无变化时返回空列表。
+    /// </summary>
+    public async Task<IReadOnlyList<string>> GetThoughtfulHintChangesAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            var snapshot = await BuildThoughtfulContextSnapshotAsync(ct).ConfigureAwait(false);
+            var previous = ThoughtfulContextCache.GetLast();
+            var changes = snapshot.Diff(previous);
+            ThoughtfulContextCache.Update(snapshot);
+            return changes;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Logger.Info($"获取贴心提示变化失败: {ex.Message}");
+            return Array.Empty<string>();
+        }
     }
 
     private static string GetTimePeriod(int hour) => hour switch

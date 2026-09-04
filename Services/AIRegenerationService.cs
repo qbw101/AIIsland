@@ -47,6 +47,8 @@ public static class AIRegenerationService
         try
         {
             Plugin.GetAIService()?.ClearCache();
+            // 同时清空贴心提示增量缓存，确保第二段贴心提示也随课程提示一起重新生成。
+            ThoughtfulContextCache.Reset();
             RegenerateHintRequested?.Invoke();
             Logger.Info("[TrayMenu] 已请求重新生成学习提示");
         }
@@ -119,6 +121,7 @@ public static class AIRegenerationService
         try
         {
             Plugin.GetAIService()?.ClearCache();
+            ThoughtfulContextCache.Reset();
             RegenerateSummaryRequested?.Invoke();
             RegenerateHintRequested?.Invoke();
             RegenerateHomeworkEstimateRequested?.Invoke();
