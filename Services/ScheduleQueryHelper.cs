@@ -466,8 +466,7 @@ public static class ScheduleQueryHelper
     {
         try
         {
-            var profile = profileService?.Profile;
-            if (profile == null) return new List<string>();
+            if (profileService == null || profileService.Profile == null) return new List<string>();
 
             var plan = GetPlanForDate(profileService, DateTime.Today.AddDays(offsetDays));
             if (plan == null) return new List<string>();
@@ -508,8 +507,7 @@ public static class ScheduleQueryHelper
     {
         try
         {
-            var profile = profileService?.Profile;
-            if (profile == null) return new List<string>();
+            if (profileService == null || profileService.Profile == null) return new List<string>();
 
             var plan = GetPlanForDate(profileService, DateTime.Today.AddDays(offsetDays));
             if (plan == null) return new List<string>();
