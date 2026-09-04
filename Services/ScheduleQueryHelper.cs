@@ -411,7 +411,7 @@ public static class ScheduleQueryHelper
                     return ps;
 
                 // 启动早期 Classes 可能暂时为空。只有等待窗口结束后仍为空，
-                // 才把它作为“已就绪但无课程”交给调用方处理。
+                // 才把它作为"已就绪但无课程"交给调用方处理。
                 if (enabledClasses.Count == 0 && i == maxAttempts - 1)
                     return ps;
             }
@@ -421,5 +421,117 @@ public static class ScheduleQueryHelper
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// 按指定日期查找应生效的课表计划。
+    /// 优先对齐 ClassIsland 主程序的 CheckClassPlan 逻辑（星期 + 课表群）；
+    /// 若未命中再放宽到仅按星期匹配，避免课表群边界导致查询落空。
+    /// 单双周轮换（WeekCountDiv）依赖主程序 SettingsService，此处不处理。
+    /// </summary>
+    public static ClassPlan? GetPlanForDate(IProfileService profileService, DateTime date)
+    {
+        try
+        {
+            var profile = profileService?.Profile;
+            if (profile == null) return null;
+
+            var weekday = (int)date.DayOfWeek;
+            var candidates = profile.ClassPlans.Values
+                .Where(p => !p.IsOverlay && p.IsEnabled && p.TimeRule.WeekDay == weekday)
+                .ToList();
+            if (candidates.Count == 0) return null;
+
+            var selectedGroup = profile.SelectedClassPlanGroupId;
+            var tempGroup = profile.TempClassPlanGroupId;
+
+            return candidates.FirstOrDefault(p =>
+                       p.AssociatedGroup == ClassPlanGroup.GlobalGroupGuid ||
+                       p.AssociatedGroup == selectedGroup ||
+                       (tempGroup.HasValue && p.AssociatedGroup == tempGroup.Value))
+                   ?? candidates[0];
+        }
+        catch (Exception ex)
+        {
+            Logger.Info($"按日期查找课表失败: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 获取指定日期的课程名称列表。
+    /// offsetDays=0 为今天，1 为明天，-1 为昨天，以此类推。
+    /// </summary>
+    public static List<string> GetSubjectNamesForDay(IProfileService profileService, int offsetDays = 0)
+    {
+        try
+        {
+            var profile = profileService?.Profile;
+            if (profile == null) return new List<string>();
+
+            var plan = GetPlanForDate(profileService, DateTime.Today.AddDays(offsetDays));
+            if (plan == null) return new List<string>();
+
+            // 获取课程名称（按时间顺序）
+            var names = new List<string>();
+            foreach (var cls in plan.Classes
+                         .Where(c => c.IsEnabled)
+                         .OrderBy(c => c.CurrentTimeLayoutItem?.StartTime ?? TimeSpan.MaxValue))
+            {
+                var name = GetSubjectName(profileService, cls.SubjectId);
+                if (!string.IsNullOrWhiteSpace(name))
+                    names.Add(name.Trim());
+            }
+
+            return names;
+        }
+        catch (Exception ex)
+        {
+            Logger.Info($"获取课程失败: {ex.Message}");
+            return new List<string>();
+        }
+    }
+
+    /// <summary>
+    /// 获取完整的时间表信息（科目 + 时间），默认当天。
+    /// </summary>
+    public static List<string> GetFullSchedule(IProfileService profileService)
+    {
+        return GetFullScheduleForDay(profileService, 0);
+    }
+
+    /// <summary>
+    /// 获取指定日期的完整时间表（科目 + 时间）。
+    /// offsetDays=0 为今天，1 为明天，-1 为昨天，以此类推。
+    /// </summary>
+    public static List<string> GetFullScheduleForDay(IProfileService profileService, int offsetDays = 0)
+    {
+        try
+        {
+            var profile = profileService?.Profile;
+            if (profile == null) return new List<string>();
+
+            var plan = GetPlanForDate(profileService, DateTime.Today.AddDays(offsetDays));
+            if (plan == null) return new List<string>();
+
+            var schedule = new List<string>();
+            foreach (var cls in plan.Classes
+                         .Where(c => c.IsEnabled && c.CurrentTimeLayoutItem != null)
+                         .OrderBy(c => c.CurrentTimeLayoutItem!.StartTime))
+            {
+                var name = GetSubjectName(profileService, cls.SubjectId);
+                if (string.IsNullOrWhiteSpace(name)) name = "未知课程";
+                var startTime = cls.CurrentTimeLayoutItem!.StartTime;
+                var endTime = cls.CurrentTimeLayoutItem!.EndTime;
+                schedule.Add($"{name} {startTime:hh\\:mm}-{endTime:hh\\:mm}");
+            }
+
+            return schedule;
+        }
+        catch (Exception ex)
+        {
+            Logger.Info($"获取时间表失败: {ex.Message}");
+            return new List<string>();
+        }
     }
 }

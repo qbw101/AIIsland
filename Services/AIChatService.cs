@@ -38,6 +38,7 @@ public partial class AIChatService : IDisposable
     public string ApiKey { get; set; } = "";
     public string Model { get; set; } = "deepseek-chat";
     public int ToneStyle { get; set; } = 1;     // 0=活泼，1=标准，2=严肃
+    public double? CustomTemperature { get; set; } = null; // 自定义温度，为null时使用语气风格映射
     public int MaxTokens { get; set; } = 200;
     public int TimeoutSeconds { get; set; } = 10;
     public int CacheMinutes { get; set; } = 5;
@@ -75,6 +76,7 @@ public partial class AIChatService : IDisposable
             ApiKey = settings.ApiKey;
             Model = settings.Model;
             ToneStyle = settings.ToneStyle;
+            CustomTemperature = settings.CustomTemperature;
             MaxTokens = settings.MaxTokens;
             TimeoutSeconds = Math.Clamp(settings.TimeoutSeconds, 3, 120);
             CacheMinutes = settings.CacheMinutes;
@@ -110,14 +112,21 @@ public partial class AIChatService : IDisposable
         _inflightRequests.Clear();
     }
 
-    /// <summary>根据语气风格获取 temperature</summary>
+    /// <summary>获取 temperature 值：自定义温度优先，未设置时按语气风格映射。</summary>
     private double GetTemperature()
     {
+        // 如果用户设置了自定义温度，使用自定义值（限制在0.0-2.0范围内）
+        if (CustomTemperature.HasValue)
+        {
+            return Math.Clamp(CustomTemperature.Value, 0.0, 2.0);
+        }
+
+        // 未自定义时按语气风格映射：活泼高创造性、标准平衡、严肃稳定准确
         return EffectiveToneStyle switch
         {
-            0 => 1.0,   // 活泼
-            1 => 0.7,   // 标准
-            2 => 0.3,   // 严肃
+            0 => 1.0,
+            1 => 0.7,
+            2 => 0.3,
             _ => 0.7
         };
     }

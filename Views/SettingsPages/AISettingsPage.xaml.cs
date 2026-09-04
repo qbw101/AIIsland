@@ -40,6 +40,7 @@ public partial class AISettingsPage : SettingsPageBase
     private NumericUpDown? _cacheBox;
     private NumericUpDown? _maxRetriesBox;
     private NumericUpDown? _aiLogRetentionDaysBox;
+    private NumericUpDown? _customTemperatureBox;
     private Button? _testButton;
     private Button? _testBeforeSchoolButton;
     private Button? _testReminderButton;
@@ -176,6 +177,7 @@ public partial class AISettingsPage : SettingsPageBase
         _cacheBox = this.FindControl<NumericUpDown>("CacheBox");
         _maxRetriesBox = this.FindControl<NumericUpDown>("MaxRetriesBox");
         _aiLogRetentionDaysBox = this.FindControl<NumericUpDown>("AiLogRetentionDaysBox");
+        _customTemperatureBox = this.FindControl<NumericUpDown>("CustomTemperatureBox");
 
         // ---- 按钮 ----
         _testButton = WireButton("TestButton", OnTestClicked);
@@ -260,6 +262,7 @@ public partial class AISettingsPage : SettingsPageBase
         WireNumericAutoSave(_cacheBox);
         WireNumericAutoSave(_maxRetriesBox);
         WireNumericAutoSave(_aiLogRetentionDaysBox);
+        WireNumericAutoSave(_customTemperatureBox);
 
         if (_toneStyleComboBox != null)
             _toneStyleComboBox.SelectionChanged += (_, _) => AutoSaveSettings();
@@ -410,6 +413,7 @@ public partial class AISettingsPage : SettingsPageBase
         if (_cacheBox != null) _cacheBox.Value = _settings.CacheMinutes;
         if (_maxRetriesBox != null) _maxRetriesBox.Value = _settings.MaxRetries;
         if (_aiLogRetentionDaysBox != null) _aiLogRetentionDaysBox.Value = _settings.AiLogRetentionDays;
+        if (_customTemperatureBox != null) _customTemperatureBox.Value = (decimal)(_settings.CustomTemperature ?? 1.0);
 
         // 功能开关
         if (_enableCacheCb != null) _enableCacheCb.IsChecked = _settings.EnableApiCache;
@@ -481,6 +485,9 @@ public partial class AISettingsPage : SettingsPageBase
             _settings.CacheMinutes = (int)(_cacheBox?.Value ?? 5);
             _settings.MaxRetries = (int)(_maxRetriesBox?.Value ?? 1);
             _settings.AiLogRetentionDays = (int)(_aiLogRetentionDaysBox?.Value ?? 30);
+            // 自定义温度：如果用户设置为默认值1.0，则视为未自定义，使用语气风格映射
+            var tempValue = _customTemperatureBox?.Value;
+            _settings.CustomTemperature = (tempValue.HasValue && Math.Abs(tempValue.Value - 1.0m) > 0.01m) ? (double)tempValue.Value : null;
 
             // 功能开关
             _settings.EnableApiCache = _enableCacheCb?.IsChecked ?? true;
@@ -648,7 +655,9 @@ public partial class AISettingsPage : SettingsPageBase
             var endpoint = _endpointBox?.Text ?? "";
             var apiKey = _apiKeyBox?.Text ?? "";
             var model = _modelBox?.Text ?? "";
-            var result = await Services.ApiConnectionTester.FullTestAsync(endpoint, apiKey, model);
+            // 使用用户设置的自定义温度，如果没有设置则使用默认值1.0
+            var temperature = _settings.CustomTemperature ?? 1.0;
+            var result = await Services.ApiConnectionTester.FullTestAsync(endpoint, apiKey, model, temperature);
             ShowTestResult(result.Success, result.Success ? $"✅ {result.Message}" : $"❌ {result.Message}");
         }
         finally { _testButton.IsEnabled = true; }

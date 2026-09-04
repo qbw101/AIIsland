@@ -27,7 +27,7 @@ public static class ApiConnectionTester
     }
 
     /// <summary>发送真实 API 请求测试连通性</summary>
-    public static async Task<Result> TestAsync(string endpoint, string apiKey, string model)
+    public static async Task<Result> TestAsync(string endpoint, string apiKey, string model, double temperature = 1.0)
     {
         try
         {
@@ -38,7 +38,7 @@ public static class ApiConnectionTester
                 model,
                 messages = new[] { new { role = "user", content = "你好，请用一句话回复。" } },
                 max_tokens = 50,
-                temperature = 0.1
+                temperature
             };
 
             var json = JsonSerializer.Serialize(body);
@@ -70,10 +70,10 @@ public static class ApiConnectionTester
     }
 
     /// <summary>完整流程：校验 + 测试</summary>
-    public static async Task<Result> FullTestAsync(string endpoint, string apiKey, string model)
+    public static async Task<Result> FullTestAsync(string endpoint, string apiKey, string model, double temperature = 1.0)
     {
         var validation = ValidateFields(endpoint, apiKey, model);
         if (!validation.Success) return validation;
-        return await TestAsync(endpoint, apiKey, model);
+        return await TestAsync(endpoint, apiKey, model, temperature);
     }
 }

@@ -39,8 +39,22 @@
 |CurrentHint | AIIsland 课程提示 | 每次上课自动生成当前课程学习提示，换课自动更新|
 |DifficultyInfo | 难度与番茄钟 | 今日课程难度星数+ 专注时长建议|
 
+### 考试模式
+
+| 功能 | 说明 |
+|---|---|
+| 同步 ClassIsland 档案 | 您可以提前编辑档案，考试模式直接同步 ClassIsland 当前课表和时间布局，不需要在 AIIsland 中重复维护考试安排。 |
+| 考试大屏 | 显示考试科目、当前时间、逐位滚动倒计时、考试进度、下一关键提醒、听力状态和考试材料 |
+| 考试控制中心 | 集中管理提醒、听力播放、考试信息，并提供运行状态诊断 |
+| 原生考试提醒 | 支持考前、开考、剩余时间和考试结束提醒，通知与提示音均使用 ClassIsland 原生提醒系统 |
+| 提醒过滤 | 可在考试模式运行期间仅保留 AIIsland 考试提醒和地震预警提醒，退出考试模式后自动恢复 |
+| 时间校准 | 启动考试模式后自动检测标准时间，偏差超过 30 秒时提示前往 ClassIsland 时钟设置校准 |
+| 听力播放器 | 支持选择或重置听力文件、播放控制、进度拖动、音量调节，以及提前、准时或延后自动播放 |
+| 考前弹窗 | 开考前 5 分钟依次询问考试材料和英语听力文件，避免弹窗相互遮挡 |
+| 考试材料填写 | 可记录试卷页数、答题卡页数和草稿纸状态；按考试场次隔离，仅在当前网页中临时保留，刷新或关闭后清空 |
+
+
 ### 其他
-* 考试模式
 * 欢迎向导（含插件授权）
 * 外部插件集成（生日祝福、值日生提醒）
 
@@ -61,7 +75,7 @@
 * 播放岛
 ![播放岛.png](http://image.qbwnas.top/openlist/d/%E5%9B%BE%E5%BA%8A/%E6%92%AD%E6%94%BE%E5%B2%9B.png?sign=UxafYI2ephvW4YGRYmBl0mSLRxb9ris1eqF_HVpgZVo%3D%3A0)
 * 考试模式
-![考试模式.png](http://image.qbwnas.top/openlist/d/%E5%9B%BE%E5%BA%8A/%E8%80%83%E8%AF%95%E6%A8%A1%E5%BC%8F.png?sign=DDVZ-hzaNeO6sGd0NXH-2W3arBOzPBSl9oAA3aQKcL0%3D%3A0)
+![考试模式new.png](http://image.qbwnas.top/openlist/d/%E5%9B%BE%E5%BA%8A/%E8%80%83%E8%AF%95%E6%A8%A1%E5%BC%8Fnew.png?sign=xjoeooJ2miJ-4LDaXxU4sKAhiWAg6dVLqdmRX2FWoTY%3D%3A0)
 * 欢迎向导
 ![欢迎向导.png](http://image.qbwnas.top/openlist/d/%E5%9B%BE%E5%BA%8A/%E6%AC%A2%E8%BF%8E%E5%90%91%E5%AF%BC.png?sign=HqZAe9cEQYRGWjBv8znE1m32SHMAz4kRQGJR7SQ8t7U%3D%3A0)
 ## 插件API

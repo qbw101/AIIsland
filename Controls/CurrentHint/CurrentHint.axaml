@@ -12,7 +12,7 @@
         <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
             <TextBlock Text="💡" FontSize="18" VerticalAlignment="Center"/>
             <StackPanel Spacing="1" VerticalAlignment="Center">
-                <TextBlock Text="学习提示" FontSize="11"
+                <TextBlock Text="贴心提示" FontSize="11"
                            Foreground="{DynamicResource TextOnAccentFillColorSecondaryBrush}"/>
                 <TextBlock Text="{Binding Hint}"
                            Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" FontWeight="Medium"

@@ -405,7 +405,8 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
             return;
 
         CurrentHint = "生成中...";
-        var result = await _ai.GenerateLearningHintStream(context.Scene, context.Focus, snapshot =>
+        // 第一段：课程提示（上课/下课都先生成）
+        var courseHint = await _ai.GenerateLearningHintStream(context.Scene, context.Focus, snapshot =>
         {
             if (generation != Interlocked.Read(ref _hintGeneration)) return;
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
@@ -415,7 +416,37 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
             });
         }, ct);
         if (generation != Interlocked.Read(ref _hintGeneration)) return;
-        _currentHintLoaded = !_ai.IsFallbackResult(result);
+
+        // 第二段：非上课时，拼接贴心提示（链式生成：把第一段结果作为第二段输入）
+        if (!string.Equals(context.Scene, "正在上课", StringComparison.Ordinal))
+        {
+            var notifier = Plugin.SmartClassNotifierInstance;
+            if (notifier != null)
+            {
+                var changes = await notifier.GetThoughtfulHintChangesAsync(ct);
+                if (generation != Interlocked.Read(ref _hintGeneration)) return;
+
+                if (changes.Count > 0)
+                {
+                    var thoughtful = await _ai.GenerateThoughtfulHintAsync(
+                        context.Scene, courseHint, changes, snapshot =>
+                        {
+                            if (generation != Interlocked.Read(ref _hintGeneration)) return;
+                            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                            {
+                                if (generation == Interlocked.Read(ref _hintGeneration))
+                                    CurrentHint = $"{courseHint}｜{snapshot}";
+                            });
+                        }, ct);
+
+                    if (generation != Interlocked.Read(ref _hintGeneration)) return;
+                    if (!string.IsNullOrWhiteSpace(thoughtful))
+                        CurrentHint = $"{courseHint}｜{thoughtful}";
+                }
+            }
+        }
+
+        _currentHintLoaded = !_ai.IsFallbackResult(courseHint);
         if (_currentHintLoaded)
         {
             _loadedHintSubject = context.CacheKey;

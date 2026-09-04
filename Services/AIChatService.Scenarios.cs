@@ -295,6 +295,73 @@ public partial class AIChatService
     }
 
     // ========================================
+    //  贴心提示（第二段，衔接课程提示）
+    // ========================================
+
+    /// <summary>
+    /// 生成第二段「贴心提示」：把已生成的课程提示作为上下文，结合本次发生变化的
+    /// 贴心信息（天气/时段/新闻/生日/值日/节假日/音乐）补一句自然衔接的关怀。
+    /// 贴心提示是可选增强，AI 不可用或变化信息为空时返回空字符串（调用方不追加）。
+    /// </summary>
+    public async Task<string> GenerateThoughtfulHintAsync(
+        string scene,
+        string previousCourseHint,
+        IReadOnlyList<string> changes,
+        Action<string> onUpdate,
+        CancellationToken ct = default)
+    {
+        if (changes == null || changes.Count == 0)
+            return "";
+
+        var systemPrompt = PromptTemplates.GetThoughtfulHintSystem(EffectiveToneStyle);
+        var userMessage = BuildThoughtfulHintUserMessage(scene, previousCourseHint, changes);
+
+        if (string.IsNullOrWhiteSpace(ApiKey))
+        {
+            await LogLocalResultAsync(
+                "贴心提示",
+                systemPrompt,
+                userMessage,
+                "",
+                true,
+                "未配置 API Key，跳过贴心提示").ConfigureAwait(false);
+            return "";
+        }
+
+        var result = await ChatStreamAsync(systemPrompt, userMessage, onUpdate, ct: ct).ConfigureAwait(false);
+
+        if (IsFallbackPhrase(result))
+        {
+            await LogLocalResultAsync(
+                "贴心提示",
+                systemPrompt,
+                userMessage,
+                "",
+                true,
+                "通用 AI 请求失败，跳过贴心提示").ConfigureAwait(false);
+            return "";
+        }
+
+        return result;
+    }
+
+    private static string BuildThoughtfulHintUserMessage(
+        string scene,
+        string previousCourseHint,
+        IReadOnlyList<string> changes)
+    {
+        var changesText = string.Join("\n", changes.Select(c => $"- {c}"));
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("请接着下面的课程提示，补一句贴心关怀。");
+        sb.AppendLine($"前一句课程提示：{previousCourseHint}");
+        if (!string.IsNullOrWhiteSpace(scene))
+            sb.AppendLine($"当前状态：{scene}");
+        sb.AppendLine("本次变化信息：");
+        sb.Append(changesText);
+        return sb.ToString();
+    }
+
+    // ========================================
     //  放学总结
     // ========================================
 

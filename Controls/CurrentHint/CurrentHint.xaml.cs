@@ -14,9 +14,9 @@ namespace ClassIsland.AISmartClass.Controls.CurrentHint;
 
 [ComponentInfo(
     "11000000-0000-0000-0000-000000000004",
-    "AIIsland 课程提示",
+    "AIIsland 贴心提示",
     "fluent(\uea80)",
-    "上课时自动生成当前课程学习提示"
+    "上课时生成当前课程提示，下课时拼接天气/新闻/生日等贴心关怀"
 )]
 [AIIslandIcon("\ue003")]
 public partial class CurrentHint : ComponentBase<CurrentHintSettings>
@@ -178,7 +178,8 @@ public partial class CurrentHint : ComponentBase<CurrentHintSettings>
             Logger.Info($"[CurrentHint] 当前状态: '{context.Scene}', 学习重点: '{context.Focus}'");
             Hint = "生成中...";
 
-            var result = await ai.GenerateLearningHintStream(context.Scene, context.Focus, snapshot =>
+            // 第一段：课程提示（上课/下课都先生成）
+            var courseHint = await ai.GenerateLearningHintStream(context.Scene, context.Focus, snapshot =>
             {
                 if (generation != Interlocked.Read(ref _refreshGeneration)) return;
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
@@ -192,7 +193,37 @@ public partial class CurrentHint : ComponentBase<CurrentHintSettings>
             }, ct);
 
             if (generation != Interlocked.Read(ref _refreshGeneration)) return;
-            _loaded = !string.IsNullOrWhiteSpace(result) && !ai.IsFallbackResult(result);
+
+            // 第二段：非上课时，拼接贴心提示（链式生成：把第一段结果作为第二段输入）
+            if (!string.Equals(context.Scene, "正在上课", StringComparison.Ordinal))
+            {
+                var notifier = Plugin.SmartClassNotifierInstance;
+                if (notifier != null)
+                {
+                    var changes = await notifier.GetThoughtfulHintChangesAsync(ct);
+                    if (generation != Interlocked.Read(ref _refreshGeneration)) return;
+
+                    if (changes.Count > 0)
+                    {
+                        var thoughtful = await ai.GenerateThoughtfulHintAsync(
+                            context.Scene, courseHint, changes, snapshot =>
+                            {
+                                if (generation != Interlocked.Read(ref _refreshGeneration)) return;
+                                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                                {
+                                    if (generation == Interlocked.Read(ref _refreshGeneration))
+                                        Hint = $"{courseHint}｜{snapshot}";
+                                });
+                            }, ct);
+
+                        if (generation != Interlocked.Read(ref _refreshGeneration)) return;
+                        if (!string.IsNullOrWhiteSpace(thoughtful))
+                            Hint = $"{courseHint}｜{thoughtful}";
+                    }
+                }
+            }
+
+            _loaded = !string.IsNullOrWhiteSpace(courseHint) && !ai.IsFallbackResult(courseHint);
             if (_loaded)
             {
                 _loadedSubject = context.CacheKey;
