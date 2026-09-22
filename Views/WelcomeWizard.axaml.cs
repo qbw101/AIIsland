@@ -26,6 +26,8 @@ public partial class WelcomeWizard : Window
     private bool _completionNotified;
     private bool _reminderSettingsInitialized;
     private bool _pluginListInitialized;
+    private bool _personaSelectorInitialized;
+    private const string WizardCustomPersonaId = "__custom__";
     private SmartClassNotifierSettings _welcomeReminderSettings = new();
     private DispatcherTimer? _welcomeAnimationTimer;
     private DispatcherTimer? _contentAnimationTimer;
@@ -37,7 +39,7 @@ public partial class WelcomeWizard : Window
     private DateTime _lastNavigateTime = DateTime.MinValue;
     private const int NavigateDebounceMs = 200;
 
-    private static readonly List<string> StepNames = new() { "开始", "功能预览", "接入 AI", "填写配置", "选择语气", "贴心提醒", "完成" };
+    private static readonly List<string> StepNames = new() { "开始", "功能预览", "接入 AI", "填写配置", "语气与角色", "贴心提醒", "完成" };
 
     // 按钮动画：颜色瞬时切换（无 BrushTransition 避免闪烁），代码仅处理缩放
     private readonly List<Button> _animatedButtons = new();
@@ -548,7 +550,11 @@ public partial class WelcomeWizard : Window
         }
         if (step == 3) UpdatePathSelection();
         if (step == 4 && _chosenPath == "recommended") PopulatePlatformList();
-        if (step == 5) UpdateToneSelection();
+        if (step == 5)
+        {
+            UpdateToneSelection();
+            InitializePersonaSelector();
+        }
         if (step == 7)
         {
             BuildCompletePage();
@@ -1163,6 +1169,103 @@ public partial class WelcomeWizard : Window
         SetSelectedState(ToneSeriousBtn, _settings.ToneStyle == 2);
     }
 
+    // ---- 偏好设置：角色语气（可选） ----
+
+    /// <summary>
+    /// 初始化角色下拉。选项只填一次，每次进入本步骤都按当前设置回填选中项，
+    /// 这样「导入配置」把整份设置换掉之后也能正确反映。
+    /// </summary>
+    private void InitializePersonaSelector()
+    {
+        if (!_personaSelectorInitialized)
+        {
+            _personaSelectorInitialized = true;
+
+            WizardPersonaComboBox.Items.Add(new ComboBoxItem { Tag = "", Content = "不使用角色（默认）" });
+            foreach (var preset in PersonaCatalog.BuiltInPersonas)
+                WizardPersonaComboBox.Items.Add(new ComboBoxItem { Tag = preset.Id, Content = preset.Name });
+            WizardPersonaComboBox.Items.Add(new ComboBoxItem { Tag = WizardCustomPersonaId, Content = "自定义角色（自己写）" });
+
+            WizardPersonaComboBox.SelectionChanged += (_, _) => ApplyPersonaSelectionToSettings();
+            WizardPersonaCustomBox.TextChanged += (_, _) =>
+                _settings.CustomPersona = WizardPersonaCustomBox.Text ?? "";
+        }
+
+        WizardPersonaCustomBox.Text = _settings.CustomPersona ?? "";
+        SelectWizardPersonaItem(_settings.PersonaEnabled
+            ? (string.IsNullOrWhiteSpace(_settings.PersonaPresetId) ? WizardCustomPersonaId : _settings.PersonaPresetId)
+            : "");
+
+        // 设置里存着未知角色 Id 时，下拉会落空，回落到「不使用角色」避免控件空白。
+        if (WizardPersonaComboBox.SelectedIndex < 0 && WizardPersonaComboBox.Items.Count > 0)
+            WizardPersonaComboBox.SelectedIndex = 0;
+
+        UpdatePersonaCustomPanelVisible();
+    }
+
+    private void SelectWizardPersonaItem(string id)
+    {
+        for (var i = 0; i < WizardPersonaComboBox.Items.Count; i++)
+        {
+            if (WizardPersonaComboBox.Items[i] is ComboBoxItem item &&
+                string.Equals(item.Tag?.ToString(), id, StringComparison.Ordinal))
+            {
+                WizardPersonaComboBox.SelectedIndex = i;
+                return;
+            }
+        }
+    }
+
+    /// <summary>把下拉选中项写回设置：空 Tag = 不使用角色，自定义 Tag = 启用但由文本框提供设定。</summary>
+    private void ApplyPersonaSelectionToSettings()
+    {
+        var tag = (WizardPersonaComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+
+        if (tag == WizardCustomPersonaId)
+        {
+            _settings.PersonaEnabled = true;
+            _settings.PersonaPresetId = "";
+        }
+        else if (tag.Length == 0)
+        {
+            _settings.PersonaEnabled = false;
+            _settings.PersonaPresetId = "";
+        }
+        else
+        {
+            _settings.PersonaEnabled = true;
+            _settings.PersonaPresetId = tag;
+        }
+
+        UpdatePersonaCustomPanelVisible();
+    }
+
+    private void UpdatePersonaCustomPanelVisible()
+    {
+        var isCustom = (WizardPersonaComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() == WizardCustomPersonaId;
+        WizardPersonaCustomPanel.IsVisible = isCustom;
+    }
+
+    /// <summary>「AI 生成」按钮：打开角色设定生成向导，结果回填到自定义设定文本框。</summary>
+    private async void OnWizardPersonaGenerateClicked(object? sender, RoutedEventArgs e)
+    {
+        if (Plugin.GetAIService() == null)
+        {
+            WizardPersonaHint.Text = "AI 服务还没就绪，先完成前面的接入步骤再试；也可以在这里手动填写设定。";
+            return;
+        }
+
+        var wizard = new PersonaWizardDialog(WizardPersonaCustomBox.Text);
+        await wizard.ShowDialog(this);
+
+        if (!wizard.Confirmed || string.IsNullOrWhiteSpace(wizard.Result))
+            return;
+
+        WizardPersonaCustomBox.Text = wizard.Result;
+        _settings.CustomPersona = wizard.Result;
+        WizardPersonaHint.Text = "已生成，可以继续修改，或直接进入下一步。";
+    }
+
     // ---- 插件授权管理 ----
 
     private void UpdatePluginAuthSelection()
@@ -1302,6 +1405,11 @@ public partial class WelcomeWizard : Window
         if (!string.IsNullOrWhiteSpace(_settings.Model))
             AddCheckItem("使用模型", _settings.Model);
         AddCheckItem("说话语气", _settings.ToneStyle switch { 0 => "活泼", 1 => "标准", 2 => "严肃", _ => "标准" });
+        AddCheckItem("角色语气", _settings.PersonaEnabled
+            ? (string.IsNullOrWhiteSpace(_settings.PersonaPresetId)
+                ? "自定义角色"
+                : PersonaCatalog.FindPreset(_settings.PersonaPresetId)?.Name ?? "自定义角色")
+            : "未启用");
 
         var notifierSettings = Plugin.SmartClassNotifierInstance?.Settings ?? _welcomeReminderSettings;
         var pluginAuthStatus = notifierSettings.EnableExternalPluginIntegration

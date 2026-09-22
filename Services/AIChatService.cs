@@ -39,6 +39,8 @@ public partial class AIChatService : IDisposable
     public string Model { get; set; } = "deepseek-chat";
     public int ToneStyle { get; set; } = 1;     // 0=活泼，1=标准，2=严肃
     public double? CustomTemperature { get; set; } = null; // 自定义温度，为null时使用语气风格映射
+    public bool PersonaEnabled { get; set; } = false;      // 是否启用角色语气
+    public string PersonaPrompt { get; set; } = "";        // 已组装的角色设定前缀（空=未启用）
     public int MaxTokens { get; set; } = 200;
     public int TimeoutSeconds { get; set; } = 10;
     public int CacheMinutes { get; set; } = 5;
@@ -55,6 +57,17 @@ public partial class AIChatService : IDisposable
     /// <summary>获取实际生效的语气风格（考试模式可覆盖为严肃）</summary>
     public int EffectiveToneStyle =>
         (UseSeriousToneInExamMode && IsInExam) ? 2 : ToneStyle;
+
+    /// <summary>
+    /// 在生成类场景的 system prompt 前拼接角色语气前缀。
+    /// 未启用 / 无有效角色 / 考试强制严肃时原样返回，不引入角色设定。
+    /// </summary>
+    internal string ApplyPersona(string basePrompt)
+    {
+        if (!PersonaEnabled || (IsInExam && UseSeriousToneInExamMode)) return basePrompt;
+        if (string.IsNullOrWhiteSpace(PersonaPrompt)) return basePrompt;
+        return $"{PersonaPrompt}\n\n{basePrompt}";
+    }
 
     public AIChatService(
         HttpClient http,
@@ -77,6 +90,8 @@ public partial class AIChatService : IDisposable
             Model = settings.Model;
             ToneStyle = settings.ToneStyle;
             CustomTemperature = settings.CustomTemperature;
+            PersonaEnabled = settings.PersonaEnabled;
+            PersonaPrompt = PersonaCatalog.BuildPersonaPrompt(settings);
             MaxTokens = settings.MaxTokens;
             TimeoutSeconds = Math.Clamp(settings.TimeoutSeconds, 3, 120);
             CacheMinutes = settings.CacheMinutes;
@@ -135,12 +150,18 @@ public partial class AIChatService : IDisposable
     //  通用聊天接口
     // ========================================
 
+    /// <summary>通用聊天接口。</summary>
+    /// <param name="bypassCache">
+    /// true 时本次调用既不读缓存也不写缓存，用于「重新生成」这类明确要求每次都是新结果的场景
+    /// （否则相同提示词会命中缓存原样返回）。
+    /// </param>
     public async Task<string> ChatAsync(
         string systemPrompt,
         string userMessage,
         double temperature = -1,
         CancellationToken ct = default,
-        bool throwOnError = false)
+        bool throwOnError = false,
+        bool bypassCache = false)
     {
         AiRequestSnapshot snapshot;
         lock (_settingsLock)
@@ -153,7 +174,7 @@ public partial class AIChatService : IDisposable
                 TimeoutSeconds,
                 Math.Max(0, CacheMinutes),
                 Math.Clamp(MaxRetries, 0, 5),
-                EnableCache,
+                EnableCache && !bypassCache,
                 EnableFallback,
                 temperature >= 0 ? temperature : GetTemperature());
         }

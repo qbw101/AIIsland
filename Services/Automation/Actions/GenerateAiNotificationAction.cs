@@ -8,7 +8,7 @@ namespace ClassIsland.AISmartClass.Services.Automation.Actions;
 [ActionInfo(
     "aiisland.generate-ai-notification",
     "生成 AIIsland 贴心提醒",
-    "\ue8bd",
+    "\U000F0058",
     addDefaultToMenu: true,
     defaultGroupToMenu: "AIIsland")]
 public class GenerateAiNotificationAction : ActionBase<GenerateAiNotificationSettings>

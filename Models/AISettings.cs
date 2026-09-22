@@ -48,6 +48,29 @@ public partial class AISettings : ObservableObject
     [property: JsonPropertyName("customTemperature")]
     private double? _customTemperature = null;
 
+    // ===== 角色语气 =====
+
+    /// <summary>
+    /// 是否启用角色语气。角色 = 说话语气/风格，独立叠加在「语气风格」之上。
+    /// </summary>
+    [ObservableProperty]
+    [property: JsonPropertyName("personaEnabled")]
+    private bool _personaEnabled = false;
+
+    /// <summary>
+    /// 选中的内置角色 Id（如 ganyu / hutao）。空表示未选内置角色（可能是自定义或关闭）。
+    /// </summary>
+    [ObservableProperty]
+    [property: JsonPropertyName("personaPresetId")]
+    private string _personaPresetId = "";
+
+    /// <summary>
+    /// 自定义角色设定文本。未选内置角色时生效。
+    /// </summary>
+    [ObservableProperty]
+    [property: JsonPropertyName("customPersona")]
+    private string _customPersona = "";
+
     // ===== 行为参数 =====
 
     [ObservableProperty]

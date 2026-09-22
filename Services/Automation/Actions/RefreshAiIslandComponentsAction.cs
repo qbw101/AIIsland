@@ -7,7 +7,7 @@ namespace ClassIsland.AISmartClass.Services.Automation.Actions;
 [ActionInfo(
     "aiisland.refresh-components",
     "刷新 AIIsland 组件",
-    "\ue72c",
+    "\U000F00DC",
     addDefaultToMenu: true,
     defaultGroupToMenu: "AIIsland")]
 public class RefreshAiIslandComponentsAction : ActionBase<RefreshAiIslandComponentsSettings>

@@ -171,8 +171,8 @@ public partial class AIChatService
     }
 
     /// <summary>
-    /// 构造 Chat Completions 请求体。对 DeepSeek V4 系列额外注入 thinking=disabled。
-    /// DeepSeek V4（deepseek-v4-flash / -pro）默认开启思考模式，会先把思维链写入
+    /// 构造 Chat Completions 请求体。对 DeepSeek 系列（含阿里百炼渠道托管的 DeepSeek）额外注入 thinking=disabled。
+    /// DeepSeek（deepseek-flash / deepseek-v4.1-flash 等）默认开启思考模式，会先把思维链写入
     /// reasoning_content，若 max_tokens 较小，content 可能被挤空，导致流式解析不到
     /// 任何正文而触发「AI 流式响应内容为空」降级。本插件只需要简短文本，禁用思考模式
     /// 可获得稳定、更快的 content 输出。

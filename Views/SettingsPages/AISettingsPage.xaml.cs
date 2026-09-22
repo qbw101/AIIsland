@@ -58,6 +58,12 @@ public partial class AISettingsPage : SettingsPageBase
     private ToggleSwitch? _enableFallbackCb;
     private ToggleSwitch? _examSeriousToneCb;
 
+    // 角色语气
+    private ToggleSwitch? _personaEnabledSwitch;
+    private ComboBox? _personaComboBox;
+    private TextBox? _customPersonaBox;
+    private const string CustomPersonaId = "__custom__";
+
     // 托盘菜单快捷操作复选框
     private CheckBox? _trayBeforeClassReminderCb;
     private CheckBox? _trayBeforeSchoolReminderCb;
@@ -211,6 +217,24 @@ public partial class AISettingsPage : SettingsPageBase
         _examSeriousToneCb = this.FindControl<ToggleSwitch>("ExamSeriousToneCb");
         if (_examSeriousToneCb != null) _examSeriousToneCb.IsCheckedChanged += (_, _) => AutoSaveSettings();
 
+        // ---- 角色语气 ----
+        _personaEnabledSwitch = this.FindControl<ToggleSwitch>("PersonaEnabledSwitch");
+        if (_personaEnabledSwitch != null)
+            _personaEnabledSwitch.IsCheckedChanged += (_, _) => { UpdatePersonaControls(); AutoSaveSettings(); };
+
+        _personaComboBox = this.FindControl<ComboBox>("PersonaComboBox");
+        if (_personaComboBox != null)
+        {
+            _personaComboBox.Items.Clear();
+            foreach (var preset in PersonaCatalog.BuiltInPersonas)
+                _personaComboBox.Items.Add(new ComboBoxItem { Tag = preset.Id, Content = preset.Name });
+            _personaComboBox.Items.Add(new ComboBoxItem { Tag = CustomPersonaId, Content = "自定义角色" });
+            _personaComboBox.SelectionChanged += (_, _) => { UpdatePersonaControls(); AutoSaveSettings(); };
+        }
+
+        _customPersonaBox = this.FindControl<TextBox>("CustomPersonaBox");
+        WireTextBoxAutoSave(_customPersonaBox);
+
         // 托盘菜单快捷操作复选框
         _trayBeforeSchoolReminderCb = this.FindControl<CheckBox>("TrayBeforeSchoolReminderCb");
         if (_trayBeforeSchoolReminderCb != null)
@@ -303,6 +327,70 @@ public partial class AISettingsPage : SettingsPageBase
         }
         if (_noPluginsText != null)
             _noPluginsText.IsVisible = _settings.PluginAuthEntries.Count == 0;
+    }
+
+    /// <summary>根据开关与预设选择刷新角色语气控件的可用状态。</summary>
+    private void UpdatePersonaControls()
+    {
+        var enabled = _personaEnabledSwitch?.IsChecked == true;
+        var isCustom = (_personaComboBox?.SelectedItem as ComboBoxItem)?.Tag?.ToString() == CustomPersonaId;
+
+        if (_personaComboBox != null)
+        {
+            _personaComboBox.IsEnabled = enabled;
+            _personaComboBox.Opacity = enabled ? 1.0 : 0.5;
+        }
+
+        if (_customPersonaBox != null)
+        {
+            _customPersonaBox.IsEnabled = enabled && isCustom;
+            _customPersonaBox.Opacity = _customPersonaBox.IsEnabled ? 1.0 : 0.5;
+        }
+    }
+
+    /// <summary>按 Id 选中角色预设下拉项；未命中内置角色时落到「自定义角色」。</summary>
+    private void SelectPersonaComboItem(string? id)
+    {
+        if (_personaComboBox == null) return;
+
+        for (var i = 0; i < _personaComboBox.Items.Count; i++)
+        {
+            if (_personaComboBox.Items[i] is ComboBoxItem item &&
+                string.Equals(item.Tag?.ToString(), id, StringComparison.OrdinalIgnoreCase))
+            {
+                _personaComboBox.SelectedIndex = i;
+                return;
+            }
+        }
+
+        // 未命中内置角色 → 落到最后一项「自定义角色」
+        if (_personaComboBox.Items.Count > 0)
+            _personaComboBox.SelectedIndex = _personaComboBox.Items.Count - 1;
+    }
+
+    /// <summary>「AI 生成」按钮：打开角色设定生成向导，生成结果回填到自定义角色设定。</summary>
+    private async void OnGeneratePersonaClicked(object? sender, RoutedEventArgs e)
+    {
+        AutoSaveSettings();
+
+        if (this.VisualRoot is not Avalonia.Controls.Window owner)
+        {
+            ShowTestResult(false, "❌ 无法打开生成向导：找不到宿主窗口。");
+            return;
+        }
+
+        var wizard = new PersonaWizardDialog(_customPersonaBox?.Text);
+        await wizard.ShowDialog(owner);
+
+        if (!wizard.Confirmed || string.IsNullOrWhiteSpace(wizard.Result))
+            return;
+
+        // 回填生成结果，并自动切到「自定义角色」使其立即生效。
+        if (_customPersonaBox != null) _customPersonaBox.Text = wizard.Result;
+        if (_personaEnabledSwitch != null) _personaEnabledSwitch.IsChecked = true;
+        SelectPersonaComboItem("");
+        UpdatePersonaControls();
+        AutoSaveSettings();
     }
 
     /// <summary>「切换授权」按钮：在直接授权与每次确认之间切换</summary>
@@ -420,6 +508,12 @@ public partial class AISettingsPage : SettingsPageBase
         if (_aiLogRetentionDaysBox != null) _aiLogRetentionDaysBox.Value = _settings.AiLogRetentionDays;
         if (_customTemperatureBox != null) _customTemperatureBox.Value = (decimal)(_settings.CustomTemperature ?? 1.0);
 
+        // 角色语气
+        if (_personaEnabledSwitch != null) _personaEnabledSwitch.IsChecked = _settings.PersonaEnabled;
+        if (_personaComboBox != null) SelectPersonaComboItem(_settings.PersonaPresetId);
+        if (_customPersonaBox != null) _customPersonaBox.Text = _settings.CustomPersona;
+        UpdatePersonaControls();
+
         // 功能开关
         if (_enableCacheCb != null) _enableCacheCb.IsChecked = _settings.EnableApiCache;
         if (_enableFallbackCb != null) _enableFallbackCb.IsChecked = _settings.EnableFallbackWhenAiUnavailable;
@@ -493,6 +587,12 @@ public partial class AISettingsPage : SettingsPageBase
             // 自定义温度：如果用户设置为默认值1.0，则视为未自定义，使用语气风格映射
             var tempValue = _customTemperatureBox?.Value;
             _settings.CustomTemperature = (tempValue.HasValue && Math.Abs(tempValue.Value - 1.0m) > 0.01m) ? (double)tempValue.Value : null;
+
+            // 角色语气
+            _settings.PersonaEnabled = _personaEnabledSwitch?.IsChecked ?? false;
+            var personaTag = (_personaComboBox?.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+            _settings.PersonaPresetId = (personaTag == CustomPersonaId) ? "" : (personaTag ?? "");
+            _settings.CustomPersona = _customPersonaBox?.Text ?? "";
 
             // 功能开关
             _settings.EnableApiCache = _enableCacheCb?.IsChecked ?? true;
@@ -573,12 +673,16 @@ public partial class AISettingsPage : SettingsPageBase
             await using var writer = new System.IO.StreamWriter(stream, System.Text.Encoding.UTF8);
             await writer.WriteAsync(json);
 
-            ShowTestResult(true, $"✅ 配置已导出到：{file.Path.LocalPath}");
+            await ShowConfigResultDialogAsync(
+                "导出配置",
+                $"配置已成功导出。\n\n保存位置：{file.Path.LocalPath}");
         }
         catch (Exception ex)
         {
             Logger.Error($"导出配置失败: {ex.Message}");
-            ShowTestResult(false, $"❌ 导出失败: {ex.Message}");
+            await ShowConfigResultDialogAsync(
+                "导出配置失败",
+                $"无法导出配置：{ex.Message}");
         }
     }
 
@@ -610,19 +714,49 @@ public partial class AISettingsPage : SettingsPageBase
 
             if (imported == null)
             {
-                ShowTestResult(false, "❌ 配置文件为空或格式不正确。");
+                await ShowConfigResultDialogAsync(
+                    "导入配置失败",
+                    "配置文件为空或格式不正确。");
                 return;
             }
 
             _settings = imported;
             ApplySettingsToControls();
             AutoSaveSettings();
-            ShowTestResult(true, "✅ 配置已导入并保存。");
+            await ShowConfigResultDialogAsync(
+                "导入配置",
+                "配置已成功导入并保存，新的设置已经生效。");
         }
         catch (Exception ex)
         {
             Logger.Error($"导入配置失败: {ex.Message}");
-            ShowTestResult(false, $"❌ 导入失败: {ex.Message}");
+            await ShowConfigResultDialogAsync(
+                "导入配置失败",
+                $"无法导入配置：{ex.Message}");
+        }
+    }
+
+    private async Task ShowConfigResultDialogAsync(string title, string message)
+    {
+        try
+        {
+            var dialog = new ContentDialog
+            {
+                Title = title,
+                Content = new TextBlock
+                {
+                    Text = message,
+                    TextWrapping = TextWrapping.Wrap,
+                    MaxWidth = 520
+                },
+                CloseButtonText = "确定",
+                DefaultButton = ContentDialogButton.Close
+            };
+            await dialog.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"显示配置操作结果对话框失败: {ex.Message}");
         }
     }
 

@@ -19,7 +19,7 @@ public static class IconPatcher
 {
     /// <summary>AIIsland Icons 字体族名（avares 资源引用）。</summary>
     private static readonly FontFamily IconFontFamily =
-        new("avares://ClassIsland.AISmartClass/icon#AIIsland Icons");
+        new("avares://ClassIsland.AISmartClass/icon/#AIIsland Icons");
 
     /// <summary>ComponentInfo.IconSource 自动属性的 backing field 名。</summary>
     private const string BackingFieldName = "<IconSource>k__BackingField";

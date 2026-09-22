@@ -66,6 +66,28 @@ public partial class SmartClassNotifierSettings : ObservableObject
     [ObservableProperty]
     [property: JsonPropertyName("enableDailyBriefingHoliday")]
     private bool _enableDailyBriefingHoliday = true;
+    // 简报中是否包含「今天」的节假日 / 周末 / 调休信息。
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowHolidayAdvanceDays))]
+    [property: JsonPropertyName("enableHolidayAdvanceReminder")]
+    private bool _enableHolidayAdvanceReminder = true;
+    // 节假日提前提醒：假期开始前 N 天给出预告。
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowHolidayAdvanceDays))]
+    [property: JsonPropertyName("enableWorkdayAdjustReminder")]
+    private bool _enableWorkdayAdjustReminder = true;
+    // 调休提前提醒：调休补班日前 N 天给出预告。
+
+    [ObservableProperty]
+    [property: JsonPropertyName("holidayReminderDaysAhead")]
+    private int _holidayReminderDaysAhead = 3;
+    // 节假日 / 调休提前提醒的天数，默认提前 3 天。
+
+    [JsonIgnore]
+    public bool ShowHolidayAdvanceDays => EnableHolidayAdvanceReminder || EnableWorkdayAdjustReminder;
+    // 两个提前提醒任一开启时，才显示「提前天数」输入框。
 
     [ObservableProperty]
     [property: JsonPropertyName("enableDailyBriefingNews")]

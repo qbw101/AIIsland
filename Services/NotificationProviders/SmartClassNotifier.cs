@@ -36,6 +36,7 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
     private readonly LocationService _locationService;
     private readonly IWeatherService? _weatherService;
     private readonly DailyBriefingDataService _dailyBriefingData = new();
+    private readonly HolidayCalendarService _holidayCalendar = new();
 
     private readonly Timer _customTimer;
     private readonly Timer _musicTimer;
@@ -845,6 +846,65 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
         return "";
     }
 
+    /// <summary>读取今天的节假日描述（节假日 / 周末 / 调休补班），失败返回空串。</summary>
+    private async Task<string> GetHolidayDescriptionAsync(DateTime date, CancellationToken ct)
+    {
+        try
+        {
+            var days = await _holidayCalendar.GetYearAsync(date.Year, ct).ConfigureAwait(false);
+            return HolidayCalendarService.DescribeToday(days, date);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Logger.Info($"[Holiday] 获取今日节假日描述失败：{ex.Message}");
+            return "";
+        }
+    }
+
+    /// <summary>
+    /// 生成节假日 / 调休的提前提醒文本行。跨年时会一并读取下一年的日历，
+    /// 保证 12 月底能提前提醒元旦。
+    /// </summary>
+    private async Task<IReadOnlyList<string>> GetHolidayAdvanceRemindersAsync(
+        DateTime now, CancellationToken ct)
+    {
+        if (Settings == null) return Array.Empty<string>();
+
+        var daysAhead = Settings.HolidayReminderDaysAhead;
+        if (daysAhead <= 0) return Array.Empty<string>();
+        if (!Settings.EnableHolidayAdvanceReminder && !Settings.EnableWorkdayAdjustReminder)
+            return Array.Empty<string>();
+
+        try
+        {
+            var days = new List<HolidayDay>(
+                await _holidayCalendar.GetYearAsync(now.Year, ct).ConfigureAwait(false));
+
+            // 提前提醒窗口跨年时，补上下一年的安排（如 12/30 提醒 1/1 元旦）。
+            var horizon = now.Date.AddDays(daysAhead);
+            if (horizon.Year != now.Year)
+                days.AddRange(await _holidayCalendar.GetYearAsync(horizon.Year, ct).ConfigureAwait(false));
+
+            return HolidayCalendarService.GetUpcomingReminders(
+                days, now, daysAhead,
+                Settings.EnableHolidayAdvanceReminder,
+                Settings.EnableWorkdayAdjustReminder);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Logger.Info($"[Holiday] 生成节假日提前提醒失败：{ex.Message}");
+            return Array.Empty<string>();
+        }
+    }
+
     public async Task<string> BuildThoughtfulContextAsync(ThoughtfulScene scene, CancellationToken ct = default)
     {
         if (Settings == null) return "";
@@ -875,9 +935,13 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
         {
             if (Settings.EnableDailyBriefingHoliday)
             {
-                var holiday = DailyBriefingDataService.GetHolidayDescription(now.Date);
+                var holiday = await GetHolidayDescriptionAsync(now.Date, ct).ConfigureAwait(false);
                 if (!string.IsNullOrWhiteSpace(holiday)) lines.Add($"节假日信息：{holiday}");
             }
+
+            // 节假日 / 调休提前提醒（默认提前 3 天）
+            foreach (var reminder in await GetHolidayAdvanceRemindersAsync(now, ct).ConfigureAwait(false))
+                lines.Add(reminder);
             
             // 生日祝福
             var birthdayGreeting = PluginIntegrationService.IsAuthorized(
@@ -1195,10 +1259,13 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
         var birthday = "";
         var duty = "";
         var holiday = "";
+        IReadOnlyList<string> holidayReminders = Array.Empty<string>();
         var musicKey = "";
 
         if (Settings.EnableDailyBriefingHoliday)
-            holiday = DailyBriefingDataService.GetHolidayDescription(now.Date);
+            holiday = await GetHolidayDescriptionAsync(now.Date, ct).ConfigureAwait(false);
+
+        holidayReminders = await GetHolidayAdvanceRemindersAsync(now, ct).ConfigureAwait(false);
 
         if (PluginIntegrationService.IsAuthorized(Settings, PluginIntegrationService.BirthdayIslandId))
             birthday = DailyBriefingDataService.GetBirthdayGreeting();
@@ -1268,6 +1335,7 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
             BirthdayGreeting = birthday,
             DutyReminder = duty,
             HolidayDescription = holiday,
+            HolidayReminders = holidayReminders,
             MusicKey = musicKey
         };
     }

@@ -715,7 +715,7 @@
                         <StackPanel Spacing="7" HorizontalAlignment="Center" Margin="0,0,0,6">
                             <TextBlock Text="第三步" Classes="section-eyebrow" HorizontalAlignment="Center"/>
                             <TextBlock Text="选择对话风格" Classes="page-title" HorizontalAlignment="Center"/>
-                            <TextBlock Text="可随时在设置中更改。先选择一个偏好的风格。"
+                            <TextBlock Text="先选一个偏好的语气；想让 AI 用某个角色的口吻，也可以在下面挑一个。随时可改。"
                                        Classes="page-subtitle" TextAlignment="Center"/>
                         </StackPanel>
 
@@ -776,6 +776,32 @@
                                 <TextBlock Grid.Column="2" Classes="choice-check"/>
                             </Grid>
                         </Button>
+
+                        <Border Height="1" Margin="0,2"
+                                Background="{DynamicResource CardStrokeColorDefaultBrush}"/>
+
+                        <!-- 角色语气：可选，叠加在语气风格之上 -->
+                        <StackPanel Spacing="7">
+                            <TextBlock Text="角色语气（可选）" FontSize="13.5" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                            <ComboBox x:Name="WizardPersonaComboBox" HorizontalAlignment="Stretch"/>
+                            <Grid x:Name="WizardPersonaCustomPanel" ColumnDefinitions="*,Auto"
+                                  ColumnSpacing="8" IsVisible="False">
+                                <TextBox x:Name="WizardPersonaCustomBox"
+                                         AcceptsReturn="True" TextWrapping="Wrap"
+                                         MinHeight="58" MaxHeight="96"
+                                         Watermark="例如：温柔耐心，说话轻声细语，喜欢鼓励别人"/>
+                                <Button Grid.Column="1" x:Name="WizardPersonaGenerateBtn"
+                                        Content="&#x2728; AI 生成" MinWidth="86"
+                                        VerticalAlignment="Center"
+                                        ToolTip.Tip="用 AI 生成一段角色语气设定，生成后可预览并编辑"
+                                        Click="OnWizardPersonaGenerateClicked"/>
+                            </Grid>
+                            <TextBlock x:Name="WizardPersonaHint"
+                                       Text="不选也能正常使用。角色语气只影响说话方式，不影响提醒内容是否准确。"
+                                       FontSize="12" LineHeight="18" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 

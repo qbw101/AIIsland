@@ -1,0 +1,125 @@
+<Window
+    x:Class="ClassIsland.AISmartClass.Views.PersonaWizardDialog"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="AI 生成角色设定"
+    Width="640" Height="740"
+    MinWidth="560" MinHeight="600"
+    CanResize="True"
+    WindowStartupLocation="CenterOwner"
+    Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+    FontFamily="Microsoft YaHei,Segoe UI,sans-serif">
+
+    <Window.Styles>
+        <Style Selector="Button">
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="MinHeight" Value="34"/>
+            <Setter Property="Padding" Value="14,6"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="Button:disabled">
+            <Setter Property="Opacity" Value="0.45"/>
+        </Style>
+        <StyleInclude Source="avares://ClassIsland.AISmartClass/Styles/StableButtonStyles.axaml"/>
+        <Style Selector="TextBox">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="MinHeight" Value="36"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style Selector="TextBox:pointerover">
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="TextBox:focus">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        </Style>
+        <Style Selector="Border.form-card">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16"/>
+        </Style>
+        <Style Selector="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.label">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.hint">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style Selector="TextBlock.error">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="*,Auto">
+        <ScrollViewer Grid.Row="0">
+            <StackPanel Spacing="16" Margin="24,20,24,16">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="AI 生成角色设定" FontSize="20" FontWeight="SemiBold"/>
+                    <TextBlock Text="填写角色名称和补充要求，AI 会生成一段带角色名称的语气设定。不满意可以反复「重新生成」，满意了再应用。"
+                               FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
+                </StackPanel>
+
+                <Border Classes="form-card">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="第一步 · 填写角色信息" FontSize="14" FontWeight="SemiBold"/>
+                        <StackPanel Spacing="6">
+                            <TextBlock Classes="label" Text="角色名称"/>
+                            <TextBox x:Name="CharacterNameBox" Watermark="例如：甘雨（可留空，让 AI 推荐）"/>
+                        </StackPanel>
+                        <StackPanel Spacing="6">
+                            <TextBlock Classes="label" Text="补充要求"/>
+                            <TextBox x:Name="ExtraBox" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="56"
+                                     Watermark="例如：多点鼓励、少点说教；语速轻快一些；偶尔带一两句俏皮话"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="form-card">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="第二步 · 调整生成提示词" FontSize="14" FontWeight="SemiBold"/>
+                        <TextBlock Classes="hint"
+                                   Text="下面是发给 AI 的提示词，已经预填好。其中的 {角色名} 和 {补充要求} 会自动替换成第一步填写的内容；你也可以整段改成自己的写法。"/>
+                        <TextBox x:Name="PromptBox" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="170"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="ResultSection" Classes="form-card" IsVisible="False">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="第三步 · 预览与编辑" FontSize="14" FontWeight="SemiBold"/>
+                        <TextBlock Classes="hint" Text="首行是角色名称，下面是语气描述，两部分都可以直接修改；点左下角「重新生成」可以换一版。确认后点「应用」填入自定义角色设定。"/>
+                        <TextBox x:Name="ResultBox" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="130"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock x:Name="StatusText" Classes="hint" IsVisible="False"/>
+                <TextBlock x:Name="ErrorText" Classes="error" IsVisible="False" TextWrapping="Wrap"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="1" Padding="20,12" Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <Button x:Name="GenerateBtn" Grid.Column="0" Content="✨ 生成设定" Click="OnGenerateClicked"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                    <Button x:Name="CancelBtn" Content="取消" MinWidth="84" Click="OnCancelClicked"/>
+                    <Button x:Name="ApplyBtn" Content="应用" MinWidth="84" Classes="primary" IsEnabled="False"
+                            Click="OnApplyClicked"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

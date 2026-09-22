@@ -37,6 +37,9 @@ public sealed class ThoughtfulContextSnapshot
     /// <summary>节假日描述。</summary>
     public string HolidayDescription { get; init; } = "";
 
+    /// <summary>节假日 / 调休的提前提醒文本行（如「3 天后开始放假」）。</summary>
+    public IReadOnlyList<string> HolidayReminders { get; init; } = Array.Empty<string>();
+
     /// <summary>当前播放的歌曲（标题·歌手）。</summary>
     public string MusicKey { get; init; } = "";
 
@@ -68,6 +71,8 @@ public sealed class ThoughtfulContextSnapshot
                 changes.Add($"值日提醒：{DutyReminder}");
             if (!string.IsNullOrWhiteSpace(HolidayDescription))
                 changes.Add($"节假日信息：{HolidayDescription}");
+            if (HolidayReminders.Count > 0)
+                changes.AddRange(HolidayReminders);
             if (!string.IsNullOrWhiteSpace(MusicKey))
                 changes.Add($"当前媒体：{MusicKey}");
             return changes;
@@ -94,6 +99,9 @@ public sealed class ThoughtfulContextSnapshot
 
         if (!string.Equals(HolidayDescription, previous.HolidayDescription, StringComparison.Ordinal))
             changes.Add($"节假日信息：{HolidayDescription}");
+
+        if (!HolidayReminders.SequenceEqual(previous.HolidayReminders, StringComparer.Ordinal))
+            changes.AddRange(HolidayReminders);
 
         if (!string.IsNullOrWhiteSpace(MusicKey) &&
             !string.Equals(MusicKey, previous.MusicKey, StringComparison.Ordinal))

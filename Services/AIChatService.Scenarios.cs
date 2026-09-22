@@ -94,7 +94,7 @@ public partial class AIChatService
 
     private (string System, string User) BuildSummarizeTodayPrompt(List<string> subjectNames)
     {
-        var systemPrompt = PromptTemplates.GetTodaySummarySystem(EffectiveToneStyle);
+        var systemPrompt = ApplyPersona(PromptTemplates.GetTodaySummarySystem(EffectiveToneStyle));
         var userMessage = string.Format(PromptTemplates.GetTodaySummaryUser(EffectiveToneStyle),
             string.Join("、", subjectNames),
             DateTime.Now.DayOfWeek switch
@@ -117,7 +117,7 @@ public partial class AIChatService
     public (string SystemPrompt, string UserPrompt) PreviewBeforeClassPrompt(
         string? previousSubject, string nextSubject, string? context = null)
     {
-        var systemPrompt = PromptTemplates.GetBeforeClassSystem(EffectiveToneStyle);
+        var systemPrompt = ApplyPersona(PromptTemplates.GetBeforeClassSystem(EffectiveToneStyle));
         var userMessage = string.Format(PromptTemplates.GetBeforeClassUser(EffectiveToneStyle),
             previousSubject ?? "无", nextSubject);
         return (systemPrompt, AppendThoughtfulContext(userMessage, context));
@@ -172,7 +172,7 @@ public partial class AIChatService
         Action<string> onUpdate,
         CancellationToken ct = default)
     {
-        var systemPrompt = PromptTemplates.GetBeforeClassSystem(EffectiveToneStyle);
+        var systemPrompt = ApplyPersona(PromptTemplates.GetBeforeClassSystem(EffectiveToneStyle));
         var userMessage = string.Format(PromptTemplates.GetBeforeClassUser(EffectiveToneStyle),
             previousSubject ?? "无", nextSubject);
         if (string.IsNullOrWhiteSpace(ApiKey))
@@ -215,7 +215,7 @@ public partial class AIChatService
 
     public async Task<string> GenerateMusicInsight(string title, string artist, string album, CancellationToken ct = default)
     {
-        const string systemPrompt = "你是学生身边贴心的音乐助手。根据正在播放的歌曲给出一句自然、简短、有趣的介绍或学习建议。不要编造事实，不超过50字。";
+        var systemPrompt = ApplyPersona("你是学生身边贴心的音乐助手。根据正在播放的歌曲给出一句自然、简短、有趣的介绍或学习建议。不要编造事实，不超过50字。");
         var userMessage = $"歌曲：{title}\n歌手：{(string.IsNullOrWhiteSpace(artist) ? "未知" : artist)}\n专辑：{(string.IsNullOrWhiteSpace(album) ? "未知" : album)}";
         if (string.IsNullOrWhiteSpace(ApiKey))
             return $"正在播放《{title}》{(string.IsNullOrWhiteSpace(artist) ? "" : $" · {artist}")}，享受这段音乐吧。";
@@ -241,7 +241,7 @@ public partial class AIChatService
     {
         var safeScene = string.IsNullOrWhiteSpace(scene) ? "当前没有正在进行的课程" : scene.Trim();
         var safeFocus = string.IsNullOrWhiteSpace(focus) ? "自主学习" : focus.Trim();
-        var systemPrompt = PromptTemplates.GetCurrentHintSystem(EffectiveToneStyle);
+        var systemPrompt = ApplyPersona(PromptTemplates.GetCurrentHintSystem(EffectiveToneStyle));
         var userMessage = $"当前状态：{safeScene}\n学习重点：{safeFocus}\n请结合当前状态给一句15字以内的学习提示，直接输出提示。";
         if (string.IsNullOrWhiteSpace(ApiKey))
         {
@@ -320,7 +320,7 @@ public partial class AIChatService
         if (changes == null || changes.Count == 0)
             return "";
 
-        var systemPrompt = PromptTemplates.GetThoughtfulHintSystem(EffectiveToneStyle);
+        var systemPrompt = ApplyPersona(PromptTemplates.GetThoughtfulHintSystem(EffectiveToneStyle));
         var userMessage = BuildThoughtfulHintUserMessage(scene, previousCourseHint, changes);
 
         if (string.IsNullOrWhiteSpace(ApiKey))
@@ -375,7 +375,7 @@ public partial class AIChatService
     public async Task<string> GenerateDailySummary(List<string> todaySubjects, CancellationToken ct = default, bool throwOnError = false,
         string? context = null)
     {
-        var systemPrompt = PromptTemplates.GetDailySummarySystem(EffectiveToneStyle);
+        var systemPrompt = ApplyPersona(PromptTemplates.GetDailySummarySystem(EffectiveToneStyle));
         var userMessage = string.Format(PromptTemplates.GetDailySummaryUser(EffectiveToneStyle),
             string.Join("\n", todaySubjects.Select((s, i) => $"第{i + 1}节：{s}")));
         userMessage = AppendBriefingContext(userMessage, context);
@@ -426,7 +426,7 @@ public partial class AIChatService
         string? context = null)
     {
         ct.ThrowIfCancellationRequested();
-        var systemPrompt = PromptTemplates.GetDailyBriefingSystem(EffectiveToneStyle);
+        var systemPrompt = ApplyPersona(PromptTemplates.GetDailyBriefingSystem(EffectiveToneStyle));
         var userMessage = string.Format(
             PromptTemplates.GetDailyBriefingUser(EffectiveToneStyle),
             DateTime.Now.ToString("yyyy-MM-dd dddd"),
@@ -858,7 +858,7 @@ public partial class AIChatService
             return empty;
         }
 
-        var systemPrompt = PromptTemplates.GetHomeworkEstimateSystem(EffectiveToneStyle);
+        var systemPrompt = ApplyPersona(PromptTemplates.GetHomeworkEstimateSystem(EffectiveToneStyle));
         var userMessage = BuildHomeworkEstimateUserMessage(subjectNames);
         if (string.IsNullOrWhiteSpace(ApiKey))
         {
@@ -950,7 +950,7 @@ public partial class AIChatService
             return empty;
         }
 
-        var systemPrompt = PromptTemplates.GetHomeworkEstimateSystem(EffectiveToneStyle);
+        var systemPrompt = ApplyPersona(PromptTemplates.GetHomeworkEstimateSystem(EffectiveToneStyle));
         var userMessage = BuildHomeworkEstimateUserMessage(subjectNames);
         if (string.IsNullOrWhiteSpace(ApiKey))
         {

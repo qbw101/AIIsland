@@ -126,13 +126,25 @@
                         <CheckBox Grid.Row="1" Content="天气预警" IsChecked="{Binding Settings.EnableWeatherAlertReminder, Mode=TwoWay}"/>
                         <CheckBox Grid.Row="1" Grid.Column="1" Content="播放音乐信息" IsChecked="{Binding Settings.EnableMusicReminder, Mode=TwoWay}"/>
                         <CheckBox Grid.Row="2" Content="自定义提醒" IsChecked="{Binding Settings.EnableCustomReminder, Mode=TwoWay}"/>
-                        <CheckBox Grid.Row="2" Grid.Column="1" Content="节假日信息" IsChecked="{Binding Settings.EnableDailyBriefingHoliday, Mode=TwoWay}"/>
+                        <CheckBox Grid.Row="2" Grid.Column="1" Content="节假日信息（今天）" IsChecked="{Binding Settings.EnableDailyBriefingHoliday, Mode=TwoWay}"/>
                         <CheckBox Grid.Row="3" Content="今日新闻" IsChecked="{Binding Settings.EnableDailyBriefingNews, Mode=TwoWay}"/>
-                        <CheckBox x:Name="ExternalPluginIntegrationCheckBox" Grid.Row="4"
+                        <CheckBox Grid.Row="3" Grid.Column="1" Content="节假日提前提醒" IsChecked="{Binding Settings.EnableHolidayAdvanceReminder, Mode=TwoWay}"/>
+                        <CheckBox Grid.Row="4" Content="调休提醒" IsChecked="{Binding Settings.EnableWorkdayAdjustReminder, Mode=TwoWay}"/>
+                        <CheckBox x:Name="ExternalPluginIntegrationCheckBox" Grid.Row="4" Grid.Column="1"
                                   Content="其他插件信息"
                                   IsChecked="{Binding Settings.EnableExternalPluginIntegration, Mode=TwoWay}"
                                   Click="OnExternalPluginIntegrationClicked"/>
                     </Grid>
+                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,2,0,0"
+                                IsVisible="{Binding Settings.ShowHolidayAdvanceDays}">
+                        <TextBlock Text="提前天数" VerticalAlignment="Center" FontSize="13"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                        <NumericUpDown Value="{Binding Settings.HolidayReminderDaysAhead, Mode=TwoWay}"
+                                       Minimum="1" Maximum="14" Increment="1" Width="120"
+                                       VerticalAlignment="Center"/>
+                        <TextBlock Text="假期 / 调休开始前多少天开始提醒。" VerticalAlignment="Center"
+                                   Classes="row-description"/>
+                    </StackPanel>
                     <TextBlock Text="允许 AIIsland 读取其他插件的数据（如生日、值日），为你提供更智能的提醒。"
                                Classes="row-description" Margin="0,4,0,0"
                                IsVisible="{Binding Settings.EnableExternalPluginIntegration}"/>

@@ -117,6 +117,24 @@ public class Plugin : PluginBase
             Logger.Info("已迁移 DeepSeek API 地址");
         }
 
+        // 预设模型名更新：DeepSeek 官方渠道为 deepseek-flash，阿里百炼渠道为 deepseek-v4.1-flash。
+        // 只迁移「模型名正好是旧预设值 deepseek-v4-flash 且端点匹配对应渠道」的组合，不动用户手填的其他模型名。
+        if (string.Equals(settings.Model?.Trim(), "deepseek-v4-flash", StringComparison.OrdinalIgnoreCase))
+        {
+            if (settings.Endpoint?.Contains("dashscope.aliyuncs.com", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                settings.Model = "deepseek-v4.1-flash";
+                changed = true;
+                Logger.Info("已迁移阿里百炼预设模型名：deepseek-v4-flash → deepseek-v4.1-flash");
+            }
+            else if (settings.Endpoint?.Contains("api.deepseek.com", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                settings.Model = "deepseek-flash";
+                changed = true;
+                Logger.Info("已迁移 DeepSeek 预设模型名：deepseek-v4-flash → deepseek-flash");
+            }
+        }
+
         if (isLegacyConfig || settings.TrayMenuDefaultsVersion < 1)
         {
             settings.TrayShowBeforeClassReminder = false;
@@ -478,6 +496,7 @@ public class Plugin : PluginBase
             services.AddSingleton(new AiIslandConfigPath(PluginConfigFolder));
             services.AddSettingsPage<AISettingsPage>();
             SettingsPageIconPatcher.Initialize();
+            AutomationIconPatcher.Initialize();
             Logger.Info("AISettingsPage 已注册");
 
             // 8. 考试模式 HTTP 服务器由 ExamModeServer.GetOrCreate() 统一管理进程级单例，

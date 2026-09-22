@@ -17,6 +17,48 @@
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
             <Setter Property="Margin" Value="0,14,0,2"/>
         </Style>
+        <Style Selector="Expander.settings-section">
+            <Setter Property="Margin" Value="0,4"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        </Style>
+        <Style Selector="Grid.section-header">
+            <Setter Property="MinHeight" Value="66"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="4,0"/>
+        </Style>
+        <Style Selector="TextBlock.expander-icon">
+            <Setter Property="FontFamily" Value="avares://ClassIsland.AISmartClass/icon/#AIIsland Icons"/>
+            <Setter Property="FontSize" Value="19"/>
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.expander-title">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.expander-description">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style Selector="StackPanel.section-content">
+            <Setter Property="Opacity" Value="0"/>
+            <Setter Property="RenderTransform" Value="translate(0px, -6px)"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.18"/>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.18"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Expander.settings-section:expanded StackPanel.section-content">
+            <Setter Property="Opacity" Value="1"/>
+            <Setter Property="RenderTransform" Value="translate(0px, 0px)"/>
+        </Style>
         <Style Selector="Border.setting-card">
             <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
             <Setter Property="CornerRadius" Value="8"/>
@@ -43,6 +85,10 @@
             <Setter Property="Width" Value="28"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="Expander.settings-section TextBlock.row-icon">
+            <Setter Property="IsVisible" Value="False"/>
+            <Setter Property="Width" Value="0"/>
         </Style>
         <Style Selector="TextBlock.row-title">
             <Setter Property="FontSize" Value="14"/>
@@ -153,7 +199,7 @@
             <TextBlock Text="插件信息" Classes="section-title"/>
 
             <Border Classes="setting-card" Padding="18,14">
-                <Grid ColumnDefinitions="58,*,Auto" ColumnSpacing="16">
+                <Grid ColumnDefinitions="58,*" ColumnSpacing="16">
                     <Image Source="avares://ClassIsland.AISmartClass/icon.png"
                            Width="44" Height="44" Stretch="Uniform"
                            VerticalAlignment="Center"/>
@@ -175,18 +221,22 @@
                                    FontSize="12"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                     </StackPanel>
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                        <Button x:Name="GitHubBtn" Classes="icon-button" Content="&#xE8A7;" ToolTip.Tip="GitHub 主页"/>
-                        <Button x:Name="IssuesBtn" Classes="icon-button" Content="&#xE7BA;" ToolTip.Tip="Bug 反馈 / 功能建议"/>
-                        <Button x:Name="WelcomeWizardButton" Classes="icon-button" Content="&#xE9CE;" ToolTip.Tip="重新运行欢迎向导"/>
-                    </StackPanel>
                 </Grid>
             </Border>
 
-            <TextBlock Text="考试模式" Classes="section-title"/>
-
+            <Expander Classes="settings-section" IsExpanded="False">
+                <Expander.Header>
+                    <Grid Classes="section-header" ColumnDefinitions="32,*" ColumnSpacing="12">
+                        <TextBlock Text="&#xF05AF;" Classes="expander-icon"/>
+                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="考试模式" Classes="expander-title"/>
+                            <TextBlock Text="启动考试倒计时仪表盘并管理考试期间的辅助功能。" Classes="expander-description"/>
+                        </StackPanel>
+                    </Grid>
+                </Expander.Header>
+                <StackPanel Classes="section-content" Spacing="6">
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                <Grid ColumnDefinitions="0,*,Auto" ColumnSpacing="14">
                     <TextBlock Text="&#xE121;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="考试模式" Classes="row-title"/>
@@ -195,11 +245,23 @@
                     <Button Grid.Column="2" x:Name="ExamModeButton" Content="启动考试模式" VerticalAlignment="Center"/>
                 </Grid>
             </Border>
+                </StackPanel>
+            </Expander>
 
-            <TextBlock Text="API 连接" Classes="section-title"/>
+            <Expander Classes="settings-section" IsExpanded="True">
+                <Expander.Header>
+                    <Grid Classes="section-header" ColumnDefinitions="32,*" ColumnSpacing="12">
+                        <TextBlock Text="&#xF0274;" Classes="expander-icon"/>
+                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="API 连接" Classes="expander-title"/>
+                            <TextBlock Text="配置模型接口、密钥和语气，并测试 AI 生成功能。" Classes="expander-description"/>
+                        </StackPanel>
+                    </Grid>
+                </Expander.Header>
+                <StackPanel Classes="section-content" Spacing="6">
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,2*" ColumnSpacing="14">
+                <Grid ColumnDefinitions="0,*,2*" ColumnSpacing="14">
                     <TextBlock Text="&#xE71B;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="API 地址" Classes="row-title"/>
@@ -212,7 +274,7 @@
             </Border>
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,2*" ColumnSpacing="14">
+                <Grid ColumnDefinitions="0,*,2*" ColumnSpacing="14">
                     <TextBlock Text="&#xE192;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="API Key" Classes="row-title"/>
@@ -225,7 +287,7 @@
             </Border>
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,320" ColumnSpacing="14">
+                <Grid ColumnDefinitions="0,*,320" ColumnSpacing="14">
                     <TextBlock Text="&#xE950;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="模型名称" Classes="row-title"/>
@@ -238,7 +300,7 @@
             </Border>
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,320" ColumnSpacing="14">
+                <Grid ColumnDefinitions="0,*,320" ColumnSpacing="14">
                     <TextBlock Text="&#xE8BD;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="语气风格" Classes="row-title"/>
@@ -253,7 +315,50 @@
             </Border>
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,160" ColumnSpacing="14">
+                <Grid ColumnDefinitions="0,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE716;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="角色语气" Classes="row-title"/>
+                        <TextBlock Text="让 AI 用某个角色（如甘雨、胡桃）的口吻表达，独立叠加在语气风格之上。" Classes="row-description"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="2" x:Name="PersonaEnabledSwitch" IsChecked="False"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="0,*,320" ColumnSpacing="14">
+                    <TextBlock Text="&#xE77B;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="角色预设" Classes="row-title"/>
+                        <TextBlock Text="选择一个内置角色，或选择「自定义角色」自己填写设定。" Classes="row-description"/>
+                    </StackPanel>
+                    <ComboBox Grid.Column="2" x:Name="PersonaComboBox" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="0,*,360" ColumnSpacing="14">
+                    <TextBlock Text="&#xE70F;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="自定义角色设定" Classes="row-title"/>
+                        <TextBlock Text="第一行写「角色名称：XX」，下面是语气与用词习惯；选中「自定义角色」时生效，也可用右侧按钮让 AI 生成。" Classes="row-description"/>
+                    </StackPanel>
+                    <Grid Grid.Column="2" ColumnDefinitions="*,Auto" ColumnSpacing="8" VerticalAlignment="Center">
+                        <TextBox x:Name="CustomPersonaBox"
+                                 AcceptsReturn="True" TextWrapping="Wrap"
+                                 MinHeight="64" MaxHeight="120"
+                                 Watermark="例如：温柔耐心，说话轻声细语，喜欢鼓励别人"
+                                 VerticalAlignment="Center"/>
+                        <Button Grid.Column="1" x:Name="GeneratePersonaButton" Content="&#x2728; AI 生成"
+                                MinWidth="88" VerticalAlignment="Center"
+                                ToolTip.Tip="用 AI 生成一段角色语气设定，生成后可预览并编辑"
+                                Click="OnGeneratePersonaClicked"/>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="0,*,160" ColumnSpacing="14">
                     <TextBlock Text="&#xE777;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="自定义温度" Classes="row-title"/>
@@ -267,7 +372,7 @@
             </Border>
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                <Grid ColumnDefinitions="0,*,Auto" ColumnSpacing="14">
                     <TextBlock Text="&#xE9D9;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="连接与生成测试" Classes="row-title"/>
@@ -287,27 +392,23 @@
                 <TextBlock x:Name="TestResultText" Classes="result-text" TextWrapping="Wrap"
                            FontSize="12"/>
             </Border>
+                </StackPanel>
+            </Expander>
 
-            <TextBlock Text="提示词与上下文预览" Classes="section-title"/>
-
-            <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
-                    <TextBlock Text="&#xE946;" Classes="row-icon"/>
-                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                        <TextBlock Text="提示词与上下文" Classes="row-title"/>
-                        <TextBlock Text="查看当前 AI 请求实际使用的提示词与上下文数据，用于核对配置和内容。" Classes="row-description"/>
-                    </StackPanel>
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <Button x:Name="TestPromptButton" Content="测试 AI 提示词"/>
-                        <Button x:Name="TestContextButton" Content="测试上下文"/>
-                    </StackPanel>
-                </Grid>
-            </Border>
-
-            <TextBlock Text="生成参数" Classes="section-title"/>
+            <Expander Classes="settings-section" IsExpanded="False">
+                <Expander.Header>
+                    <Grid Classes="section-header" ColumnDefinitions="32,*" ColumnSpacing="12">
+                        <TextBlock Text="&#xF0168;" Classes="expander-icon"/>
+                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="生成参数" Classes="expander-title"/>
+                            <TextBlock Text="调整回复长度、请求超时、缓存时长、重试和日志保留策略。" Classes="expander-description"/>
+                        </StackPanel>
+                    </Grid>
+                </Expander.Header>
+                <StackPanel Classes="section-content" Spacing="6">
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,160" ColumnSpacing="14">
+                <Grid ColumnDefinitions="0,*,160" ColumnSpacing="14">
                     <TextBlock Text="&#xE8A5;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="最大回复长度" Classes="row-title"/>
@@ -320,7 +421,7 @@
             </Border>
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,160" ColumnSpacing="14">
+                <Grid ColumnDefinitions="0,*,160" ColumnSpacing="14">
                     <TextBlock Text="&#xE916;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="超时时间（秒）" Classes="row-title"/>
@@ -333,7 +434,7 @@
             </Border>
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,160" ColumnSpacing="14">
+                <Grid ColumnDefinitions="0,*,160" ColumnSpacing="14">
                     <TextBlock Text="&#xE8FD;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="缓存时长（分钟）" Classes="row-title"/>
@@ -346,7 +447,7 @@
             </Border>
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,160" ColumnSpacing="14">
+                <Grid ColumnDefinitions="0,*,160" ColumnSpacing="14">
                     <TextBlock Text="&#xE72C;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="失败重试次数" Classes="row-title"/>
@@ -359,7 +460,7 @@
             </Border>
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,160" ColumnSpacing="14">
+                <Grid ColumnDefinitions="0,*,160" ColumnSpacing="14">
                     <TextBlock Text="&#xE74D;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="AI 日志保留天数" Classes="row-title"/>
@@ -370,11 +471,23 @@
                                    VerticalAlignment="Center"/>
                 </Grid>
             </Border>
+                </StackPanel>
+            </Expander>
 
-            <TextBlock Text="功能开关" Classes="section-title"/>
+            <Expander Classes="settings-section" IsExpanded="False">
+                <Expander.Header>
+                    <Grid Classes="section-header" ColumnDefinitions="32,*" ColumnSpacing="12">
+                        <TextBlock Text="&#xF0036;" Classes="expander-icon"/>
+                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="功能开关" Classes="expander-title"/>
+                            <TextBlock Text="控制缓存、离线降级和考试模式语气等 AI 行为。" Classes="expander-description"/>
+                        </StackPanel>
+                    </Grid>
+                </Expander.Header>
+                <StackPanel Classes="section-content" Spacing="6">
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                <Grid ColumnDefinitions="0,*,Auto" ColumnSpacing="14">
                     <TextBlock Text="&#xE945;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="启用 AI 缓存" Classes="row-title"/>
@@ -385,7 +498,7 @@
             </Border>
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                <Grid ColumnDefinitions="0,*,Auto" ColumnSpacing="14">
                     <TextBlock Text="&#xE753;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="离线降级提示" Classes="row-title"/>
@@ -396,7 +509,7 @@
             </Border>
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                <Grid ColumnDefinitions="0,*,Auto" ColumnSpacing="14">
                     <TextBlock Text="&#xE7BE;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="考试模式严肃语气" Classes="row-title"/>
@@ -405,11 +518,23 @@
                     <ToggleSwitch Grid.Column="2" x:Name="ExamSeriousToneCb" IsChecked="True"/>
                 </Grid>
             </Border>
+                </StackPanel>
+            </Expander>
 
-            <TextBlock Text="托盘菜单快捷操作" Classes="section-title"/>
+            <Expander Classes="settings-section" IsExpanded="False">
+                <Expander.Header>
+                    <Grid Classes="section-header" ColumnDefinitions="32,*" ColumnSpacing="12">
+                        <TextBlock Text="&#xF0142;" Classes="expander-icon"/>
+                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="托盘菜单快捷操作" Classes="expander-title"/>
+                            <TextBlock Text="选择显示在 ClassIsland 托盘菜单中的 AIIsland 快捷入口。" Classes="expander-description"/>
+                        </StackPanel>
+                    </Grid>
+                </Expander.Header>
+                <StackPanel Classes="section-content" Spacing="6">
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*" ColumnSpacing="14">
+                <Grid ColumnDefinitions="0,*" ColumnSpacing="14">
                     <TextBlock Text="&#xE7F4;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="10" VerticalAlignment="Center">
                         <StackPanel Spacing="2">
@@ -429,11 +554,23 @@
                     </StackPanel>
                 </Grid>
             </Border>
+                </StackPanel>
+            </Expander>
 
-            <TextBlock Text="外部插件授权" Classes="section-title"/>
+            <Expander Classes="settings-section" IsExpanded="False">
+                <Expander.Header>
+                    <Grid Classes="section-header" ColumnDefinitions="32,*" ColumnSpacing="12">
+                        <TextBlock Text="&#xF045E;" Classes="expander-icon"/>
+                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="外部插件授权" Classes="expander-title"/>
+                            <TextBlock Text="管理其他插件调用 AIIsland API 时的授权策略和记录。" Classes="expander-description"/>
+                        </StackPanel>
+                    </Grid>
+                </Expander.Header>
+                <StackPanel Classes="section-content" Spacing="6">
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                <Grid ColumnDefinitions="0,*,Auto" ColumnSpacing="14">
                     <TextBlock Text="&#xE8E8;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="默认授权策略" Classes="row-title"/>
@@ -447,7 +584,7 @@
             </Border>
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*" ColumnSpacing="14">
+                <Grid ColumnDefinitions="0,*" ColumnSpacing="14">
                     <TextBlock Text="&#xE730;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
                         <StackPanel Spacing="2">
@@ -489,11 +626,23 @@
                     </StackPanel>
                 </Grid>
             </Border>
+                </StackPanel>
+            </Expander>
 
-            <TextBlock Text="配置管理" Classes="section-title"/>
+            <Expander Classes="settings-section" IsExpanded="False">
+                <Expander.Header>
+                    <Grid Classes="section-header" ColumnDefinitions="32,*" ColumnSpacing="12">
+                        <TextBlock Text="&#xF0020;" Classes="expander-icon"/>
+                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="配置管理" Classes="expander-title"/>
+                            <TextBlock Text="导入、导出或恢复 AI 配置，导出文件包含 API Key。" Classes="expander-description"/>
+                        </StackPanel>
+                    </Grid>
+                </Expander.Header>
+                <StackPanel Classes="section-content" Spacing="6">
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                <Grid ColumnDefinitions="0,*,Auto" ColumnSpacing="14">
                     <TextBlock Text="&#xE713;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="API 配置" Classes="row-title"/>
@@ -506,11 +655,23 @@
                     </StackPanel>
                 </Grid>
             </Border>
+                </StackPanel>
+            </Expander>
 
-            <TextBlock Text="本地数据" Classes="section-title"/>
+            <Expander Classes="settings-section" IsExpanded="False">
+                <Expander.Header>
+                    <Grid Classes="section-header" ColumnDefinitions="32,*" ColumnSpacing="12">
+                        <TextBlock Text="&#xF00C5;" Classes="expander-icon"/>
+                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="本地数据" Classes="expander-title"/>
+                            <TextBlock Text="查看 AI 调用日志，管理本地提示词和离线句子库。" Classes="expander-description"/>
+                        </StackPanel>
+                    </Grid>
+                </Expander.Header>
+                <StackPanel Classes="section-content" Spacing="6">
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                <Grid ColumnDefinitions="0,*,Auto" ColumnSpacing="14">
                     <TextBlock Text="&#xE9D5;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="AI 调用日志" Classes="row-title"/>
@@ -521,7 +682,7 @@
             </Border>
 
             <Border Classes="setting-row">
-                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="14">
+                <Grid ColumnDefinitions="0,*,Auto" ColumnSpacing="14">
                     <TextBlock Text="&#xE8B7;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="离线句子库与提示词" Classes="row-title"/>
@@ -533,6 +694,64 @@
                     </StackPanel>
                 </Grid>
             </Border>
+                </StackPanel>
+            </Expander>
+
+            <Expander Classes="settings-section" IsExpanded="False">
+                <Expander.Header>
+                    <Grid Classes="section-header" ColumnDefinitions="32,*" ColumnSpacing="12">
+                        <TextBlock Text="&#xF0570;" Classes="expander-icon"/>
+                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="更多选项" Classes="expander-title"/>
+                            <TextBlock Text="访问项目主页、提交反馈、预览提示词与上下文，或重新运行欢迎向导。" Classes="expander-description"/>
+                        </StackPanel>
+                    </Grid>
+                </Expander.Header>
+                <StackPanel Classes="section-content" Spacing="6">
+                    <Border Classes="setting-row">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="打开 GitHub 主页" Classes="row-title"/>
+                                <TextBlock Text="查看 AIIsland 源代码、版本记录和项目说明。" Classes="row-description"/>
+                            </StackPanel>
+                            <Button Grid.Column="1" x:Name="GitHubBtn" Content="打开" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+
+                    <Border Classes="setting-row">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="提交 Bug 或功能建议" Classes="row-title"/>
+                                <TextBlock Text="前往 GitHub Issues 反馈问题或提出新的功能建议。" Classes="row-description"/>
+                            </StackPanel>
+                            <Button Grid.Column="1" x:Name="IssuesBtn" Content="打开" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+
+                    <Border Classes="setting-row">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="重新运行欢迎向导" Classes="row-title"/>
+                                <TextBlock Text="再次打开初始配置向导，重新检查和设置主要功能。" Classes="row-description"/>
+                            </StackPanel>
+                            <Button Grid.Column="1" x:Name="WelcomeWizardButton" Content="运行" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+
+                    <Border Classes="setting-row">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="提示词与上下文预览" Classes="row-title"/>
+                                <TextBlock Text="查看当前 AI 请求实际使用的提示词与上下文数据，用于核对配置和内容。" Classes="row-description"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <Button x:Name="TestPromptButton" Content="测试 AI 提示词"/>
+                                <Button x:Name="TestContextButton" Content="测试上下文"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </Expander>
         </StackPanel>
     </ScrollViewer>
 </ci:SettingsPageBase>

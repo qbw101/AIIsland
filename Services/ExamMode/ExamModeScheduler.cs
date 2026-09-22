@@ -35,6 +35,10 @@ public sealed class ExamModeScheduler : NotificationProviderBase, IDisposable
     {
         _lessons = lessons;
         _previousState = lessons.CurrentState;
+
+        // 替换基类默认创建的 FluentIcon 为自定义字体图标（与设置页考试模式大项图标一致）
+        IconElement = SettingsPageIconPatcher.CreateExamModeIcon();
+
         _timer = new Timer(1000) { AutoReset = true };
         _timer.Elapsed += OnTimerElapsed;
         _timer.Start();

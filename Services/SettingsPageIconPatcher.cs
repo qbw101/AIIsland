@@ -18,9 +18,10 @@ public static class SettingsPageIconPatcher
     private const string SettingsPageId = "aisettings.aisettingspage";
     private const string SettingsGlyph = "\ue006";
     private const string NotifierGlyph = "\ue007";
+    private const string ExamModeGlyph = "\U000F05AF";
 
     private static readonly FontFamily IconFontFamily =
-        new("avares://ClassIsland.AISmartClass/icon#AIIsland Icons");
+        new("avares://ClassIsland.AISmartClass/icon/#AIIsland Icons");
 
     private static IDisposable? _windowOpenedSubscription;
 
@@ -98,10 +99,23 @@ public static class SettingsPageIconPatcher
     /// </summary>
     public static FluentAvalonia.UI.Controls.FontIcon CreateNotifierIcon()
     {
+        return CreateIcon(NotifierGlyph);
+    }
+
+    /// <summary>
+    /// 构建考试模式提醒提供方的自定义字体图标（doc_plaintext_and_pencil，与设置页考试模式大项图标一致）。
+    /// </summary>
+    public static FluentAvalonia.UI.Controls.FontIcon CreateExamModeIcon()
+    {
+        return CreateIcon(ExamModeGlyph);
+    }
+
+    private static FluentAvalonia.UI.Controls.FontIcon CreateIcon(string glyph)
+    {
         return new FluentAvalonia.UI.Controls.FontIcon
         {
             FontFamily = IconFontFamily,
-            Glyph = NotifierGlyph,
+            Glyph = glyph,
             Width = 24,
             Height = 24,
             FontSize = 24

@@ -7,7 +7,7 @@ namespace ClassIsland.AISmartClass.Services.Automation.Actions;
 [ActionInfo(
     "aiisland.trigger-reminder",
     "触发 AIIsland 贴心提醒",
-    "\ue7ed",
+    "\U000F01D5",
     addDefaultToMenu: true,
     defaultGroupToMenu: "AIIsland")]
 public class TriggerAiIslandReminderAction : ActionBase<TriggerAiIslandReminderSettings>

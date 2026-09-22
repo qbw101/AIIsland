@@ -7,7 +7,7 @@ namespace ClassIsland.AISmartClass.Services.Automation.Actions;
 [ActionInfo(
     "aiisland.set-exam-mode",
     "设置考试模式",
-    "\ue91f",
+    "\U000F0129",
     addDefaultToMenu: true,
     defaultGroupToMenu: "AIIsland")]
 public class SetAiIslandExamModeAction : ActionBase<SetAiIslandExamModeSettings>

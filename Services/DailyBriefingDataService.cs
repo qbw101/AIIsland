@@ -119,20 +119,6 @@ public sealed class DailyBriefingDataService
     private static bool IsMihoyoFeed(string feed)
         => feed.Contains("/mihoyo/bbs/official/", StringComparison.OrdinalIgnoreCase);
 
-    public static string GetHolidayDescription(DateTime date)
-    {
-        if (date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
-            return "周末";
-        return (date.Month, date.Day) switch
-        {
-            (1, 1) => "元旦",
-            (5, 1) => "劳动节",
-            (10, 1) => "国庆节",
-            (12, 25) => "圣诞节",
-            _ => ""
-        };
-    }
-
     public static IReadOnlyList<string> ParseFeedUrls(string text)
     {
         return text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
