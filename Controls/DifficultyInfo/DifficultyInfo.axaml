@@ -7,33 +7,32 @@
     xmlns:models="clr-namespace:ClassIsland.AISmartClass.Models"
     FontSize="{Binding Settings.FontSize, FallbackValue=14}">
 
-    <Border CornerRadius="8" Padding="12,8"
-            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-        <Grid ColumnDefinitions="*,*">
-            <!-- 左：难度 -->
-            <StackPanel Grid.Column="0"
-                        IsVisible="{Binding Settings.ShowDifficulty}"
-                        Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                <TextBlock Text="📊" FontSize="16" VerticalAlignment="Center"/>
-                <TextBlock Text="今日难度" VerticalAlignment="Center"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                <TextBlock Text="{Binding DifficultyStars}"
-                           VerticalAlignment="Center"
-                           Foreground="{DynamicResource SystemFillColorCautionBrush}"/>
-            </StackPanel>
+    <ci:ComponentBase.Styles>
+        <StyleInclude Source="avares://ClassIsland.AISmartClass/Styles/ComponentStyles.axaml"/>
+    </ci:ComponentBase.Styles>
 
-            <!-- 右：番茄钟 -->
-            <StackPanel Grid.Column="1"
-                        IsVisible="{Binding Settings.ShowPomodoro}"
-                        Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
-                        HorizontalAlignment="Right">
-                <TextBlock Text="🍅" FontSize="16" VerticalAlignment="Center"/>
-                <TextBlock Text="专注" VerticalAlignment="Center"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                <TextBlock Text="{Binding PomodoroSuggestion}"
-                           VerticalAlignment="Center" FontWeight="Medium"/>
-            </StackPanel>
-        </Grid>
+    <Border Classes="aiIslandRoot">
+        <!-- 两项自动折行：任一开关关闭后不留空白列 -->
+        <WrapPanel Orientation="Horizontal">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8"
+                  Margin="0,0,20,4"
+                  IsVisible="{Binding Settings.ShowDifficulty}">
+                <TextBlock Grid.Column="0" Classes="aiIslandIcon" Text="&#xE002;"/>
+                <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                    <TextBlock Classes="aiIslandLabel" Text="课程难度"/>
+                    <TextBlock Classes="aiIslandBody" Text="{Binding DifficultyLabel}"/>
+                </StackPanel>
+            </Grid>
+
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8"
+                  Margin="0,0,20,4"
+                  IsVisible="{Binding Settings.ShowPomodoro}">
+                <TextBlock Grid.Column="0" Classes="aiIslandIcon" Text="&#xF0184;"/>
+                <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                    <TextBlock Classes="aiIslandLabel" Text="建议专注"/>
+                    <TextBlock Classes="aiIslandBody" Text="{Binding PomodoroSuggestion}"/>
+                </StackPanel>
+            </Grid>
+        </WrapPanel>
     </Border>
 </ci:ComponentBase>

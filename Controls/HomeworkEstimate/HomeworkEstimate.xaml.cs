@@ -28,7 +28,7 @@ public partial class HomeworkEstimate : ComponentBase<HomeworkEstimateSettings>
 
     private CancellationTokenSource? _loadCts;
     private long _loadGeneration;
-    private DateOnly _observedDate = DateOnly.FromDateTime(DateTime.Now);
+    private DateOnly _observedDate = BusinessTime.Today;
     private bool _lessonsSubscribed;
 
     public HomeworkEstimate()
@@ -42,6 +42,7 @@ public partial class HomeworkEstimate : ComponentBase<HomeworkEstimateSettings>
     {
         DataContext = this;
         base.OnLoaded(e);
+        ComponentBindingRefresh.Refresh(this);
         TrySubscribeLessonsService();
         StartLoad();
 
@@ -79,7 +80,7 @@ public partial class HomeworkEstimate : ComponentBase<HomeworkEstimateSettings>
 
     private void OnTimerTicked(object? sender, EventArgs e)
     {
-        var today = DateOnly.FromDateTime(DateTime.Now);
+        var today = BusinessTime.Today;
         if (_observedDate == today) return;
 
         _observedDate = today;

@@ -21,7 +21,7 @@
                   IsChecked="{Binding Settings.ShowHomeworkEstimate, Mode=TwoWay}"/>
 
         <CheckBox x:Name="ShowCountdownCheck"
-                  Content="倒计时 + 进度条"
+                  Content="课时倒计时"
                   IsChecked="{Binding Settings.ShowCountdown, Mode=TwoWay}"/>
 
         <CheckBox x:Name="ShowHintCheck"
@@ -29,7 +29,7 @@
                   IsChecked="{Binding Settings.ShowCurrentHint, Mode=TwoWay}"/>
 
         <CheckBox x:Name="ShowDifficultyCheck"
-                  Content="难度星数"
+                  Content="难度等级"
                   IsChecked="{Binding Settings.ShowDifficulty, Mode=TwoWay}"/>
 
         <CheckBox x:Name="ShowPomodoroCheck"

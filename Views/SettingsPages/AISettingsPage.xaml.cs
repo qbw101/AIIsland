@@ -58,6 +58,9 @@ public partial class AISettingsPage : SettingsPageBase
     private ToggleSwitch? _enableFallbackCb;
     private ToggleSwitch? _examSeriousToneCb;
 
+    // 时间来源（全局）
+    private ComboBox? _timeSourceComboBox;
+
     // 角色语气
     private ToggleSwitch? _personaEnabledSwitch;
     private ComboBox? _personaComboBox;
@@ -78,6 +81,10 @@ public partial class AISettingsPage : SettingsPageBase
     private ToggleSwitch? _defaultAuthTrustedSwitch;
     private ItemsControl? _pluginAuthList;
     private TextBlock? _noPluginsText;
+
+    // 诊断与遥测
+    private ToggleSwitch? _telemetryEnabledSwitch;
+    private ToggleSwitch? _telemetryLogTailSwitch;
 
     // 按钮缩放动画（复用 WelcomeWizard 风格）
     private readonly List<Button> _animatedButtons = new();
@@ -210,12 +217,22 @@ public partial class AISettingsPage : SettingsPageBase
         // ---- 功能开关 ----
         _enableCacheCb = this.FindControl<ToggleSwitch>("EnableCacheCb");
         if (_enableCacheCb != null) _enableCacheCb.IsCheckedChanged += (_, _) => AutoSaveSettings();
-
         _enableFallbackCb = this.FindControl<ToggleSwitch>("EnableFallbackCb");
         if (_enableFallbackCb != null) _enableFallbackCb.IsCheckedChanged += (_, _) => AutoSaveSettings();
 
         _examSeriousToneCb = this.FindControl<ToggleSwitch>("ExamSeriousToneCb");
         if (_examSeriousToneCb != null) _examSeriousToneCb.IsCheckedChanged += (_, _) => AutoSaveSettings();
+
+        // ---- 时间来源（全局，所有组件共用） ----
+        _timeSourceComboBox = this.FindControl<ComboBox>("TimeSourceComboBox");
+        if (_timeSourceComboBox != null)
+        {
+            _timeSourceComboBox.SelectionChanged += (_, _) =>
+            {
+                if (_applyingSettings) return;
+                AutoSaveSettings();
+            };
+        }
 
         // ---- 角色语气 ----
         _personaEnabledSwitch = this.FindControl<ToggleSwitch>("PersonaEnabledSwitch");
@@ -314,6 +331,15 @@ public partial class AISettingsPage : SettingsPageBase
         _pluginAuthList = this.FindControl<ItemsControl>("PluginAuthList");
         _noPluginsText = this.FindControl<TextBlock>("NoPluginsText");
         RefreshPluginAuthList();
+
+        // ---- 诊断与遥测 ----
+        _telemetryEnabledSwitch = this.FindControl<ToggleSwitch>("TelemetryEnabledSwitch");
+        if (_telemetryEnabledSwitch != null)
+            _telemetryEnabledSwitch.IsCheckedChanged += (_, _) => AutoSaveSettings();
+
+        _telemetryLogTailSwitch = this.FindControl<ToggleSwitch>("TelemetryLogTailSwitch");
+        if (_telemetryLogTailSwitch != null)
+            _telemetryLogTailSwitch.IsCheckedChanged += (_, _) => AutoSaveSettings();
     }
 
     /// <summary>刷新已授权插件列表的显示</summary>
@@ -366,6 +392,34 @@ public partial class AISettingsPage : SettingsPageBase
         // 未命中内置角色 → 落到最后一项「自定义角色」
         if (_personaComboBox.Items.Count > 0)
             _personaComboBox.SelectedIndex = _personaComboBox.Items.Count - 1;
+    }
+
+    /// <summary>按时间来源选中下拉项。</summary>
+    private void SelectTimeSourceItem(BusinessTimeSource source)
+    {
+        if (_timeSourceComboBox == null) return;
+
+        var tag = source.ToString();
+        for (var i = 0; i < _timeSourceComboBox.Items.Count; i++)
+        {
+            if (_timeSourceComboBox.Items[i] is ComboBoxItem item &&
+                string.Equals(item.Tag?.ToString(), tag, StringComparison.OrdinalIgnoreCase))
+            {
+                _timeSourceComboBox.SelectedIndex = i;
+                return;
+            }
+        }
+
+        _timeSourceComboBox.SelectedIndex = 0;
+    }
+
+    /// <summary>读取下拉框当前选中的时间来源。</summary>
+    private BusinessTimeSource ReadSelectedTimeSource()
+    {
+        var tag = (_timeSourceComboBox?.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+        return Enum.TryParse<BusinessTimeSource>(tag, ignoreCase: true, out var source)
+            ? source
+            : BusinessTimeSource.ClassIslandTime;
     }
 
     /// <summary>「AI 生成」按钮：打开角色设定生成向导，生成结果回填到自定义角色设定。</summary>
@@ -519,6 +573,9 @@ public partial class AISettingsPage : SettingsPageBase
         if (_enableFallbackCb != null) _enableFallbackCb.IsChecked = _settings.EnableFallbackWhenAiUnavailable;
         if (_examSeriousToneCb != null) _examSeriousToneCb.IsChecked = _settings.UseSeriousToneInExamMode;
 
+        // 时间来源
+        SelectTimeSourceItem(_settings.TimeSource);
+
         // 托盘菜单快捷操作开关
         if (_trayBeforeSchoolReminderCb != null) _trayBeforeSchoolReminderCb.IsChecked = _settings.TrayShowBeforeSchoolReminder;
         if (_trayBeforeClassReminderCb != null) _trayBeforeClassReminderCb.IsChecked = _settings.TrayShowBeforeClassReminder;
@@ -532,6 +589,11 @@ public partial class AISettingsPage : SettingsPageBase
         // 外部插件授权管理
         if (_defaultAuthTrustedSwitch != null) _defaultAuthTrustedSwitch.IsChecked = _settings.DefaultAuthMode == 1;
         RefreshPluginAuthList();
+
+        // 诊断与遥测
+        _settings.Telemetry ??= new TelemetrySettings();
+        if (_telemetryEnabledSwitch != null) _telemetryEnabledSwitch.IsChecked = _settings.Telemetry.Enabled;
+        if (_telemetryLogTailSwitch != null) _telemetryLogTailSwitch.IsChecked = _settings.Telemetry.IncludeLogTail;
 
         // 考试模式状态恢复：如果服务器正在运行，刷新按钮文案并锁定语气下拉
         RefreshExamModeState();
@@ -599,6 +661,9 @@ public partial class AISettingsPage : SettingsPageBase
             _settings.EnableFallbackWhenAiUnavailable = _enableFallbackCb?.IsChecked ?? true;
             _settings.UseSeriousToneInExamMode = _examSeriousToneCb?.IsChecked ?? true;
 
+            // 时间来源
+            if (_timeSourceComboBox != null) _settings.TimeSource = ReadSelectedTimeSource();
+
             // 托盘菜单快捷操作开关
             _settings.TrayShowBeforeSchoolReminder = _trayBeforeSchoolReminderCb?.IsChecked ?? false;
             _settings.TrayShowBeforeClassReminder = _trayBeforeClassReminderCb?.IsChecked ?? false;
@@ -611,6 +676,11 @@ public partial class AISettingsPage : SettingsPageBase
 
             // 外部插件授权管理
             _settings.DefaultAuthMode = (_defaultAuthTrustedSwitch?.IsChecked ?? false) ? 1 : 0;
+
+            // 诊断与遥测（服务器地址、端口与令牌为内置接入点，不再由设置页改写）
+            _settings.Telemetry ??= new TelemetrySettings();
+            _settings.Telemetry.Enabled = _telemetryEnabledSwitch?.IsChecked ?? true;
+            _settings.Telemetry.IncludeLogTail = _telemetryLogTailSwitch?.IsChecked ?? true;
 
             SaveSettingsFile();
             Plugin.SyncAISettings(_settings);
@@ -721,6 +791,8 @@ public partial class AISettingsPage : SettingsPageBase
             }
 
             _settings = imported;
+            // 导入的旧配置可能带着已下线的遥测接入点，先迁移再写回
+            Plugin.MigrateAISettings(_settings, false);
             ApplySettingsToControls();
             AutoSaveSettings();
             await ShowConfigResultDialogAsync(

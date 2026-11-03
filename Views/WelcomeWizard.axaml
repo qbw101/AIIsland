@@ -435,7 +435,7 @@
                             <Border Grid.Row="1" Grid.Column="2" Classes="feature-card">
                                 <StackPanel Spacing="5">
                                     <TextBlock Text="课时倒计时" Classes="feature-name"/>
-                                    <TextBlock Text="当前课时剩余时间加进度条，实时刷新"
+                                    <TextBlock Text="当前课时剩余时间，纯数字实时刷新"
                                                Classes="feature-desc"/>
                                 </StackPanel>
                             </Border>
@@ -450,7 +450,7 @@
                             <Border Grid.Row="2" Grid.Column="1" Classes="feature-card">
                                 <StackPanel Spacing="5">
                                     <TextBlock Text="难度与番茄钟" Classes="feature-name"/>
-                                    <TextBlock Text="今日课程难度星数与专注时长建议"
+                                    <TextBlock Text="今日课程难度与专注时长建议"
                                                Classes="feature-desc"/>
                                 </StackPanel>
                             </Border>

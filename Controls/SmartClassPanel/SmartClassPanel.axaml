@@ -10,116 +10,130 @@
     xmlns:local="clr-namespace:ClassIsland.AISmartClass.Controls.SmartClassPanel"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance local:SmartClassPanel}"
+    FontSize="12"
     MaxHeight="{Binding Settings.PanelMaxHeight}">
 
-    <StackPanel Spacing="4" Margin="4">
+    <ci:ComponentBase.Styles>
+        <StyleInclude Source="avares://ClassIsland.AISmartClass/Styles/ComponentStyles.axaml"/>
+    </ci:ComponentBase.Styles>
 
-        <!-- AI 状态指示器 -->
-        <Border IsVisible="{Binding IsAIThinking}"
-                CornerRadius="3"
-                Padding="4,2"
-                Background="{DynamicResource AccentFillColorDefaultBrush}">
-            <StackPanel Orientation="Horizontal" Spacing="4">
-                <TextBlock Text="🤖" FontSize="11" VerticalAlignment="Center"/>
-                <TextBlock Text="{Binding AIStatusText}"
-                           FontSize="11"
-                           Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}"
-                           VerticalAlignment="Center"/>
-            </StackPanel>
-        </Border>
+    <Border Classes="aiIslandRoot" Padding="8,4">
+        <StackPanel Spacing="4">
 
-        <!-- 模块 1：今日课表概览 -->
-        <Border IsVisible="{Binding Settings.ShowTodayOverview}"
-                CornerRadius="4"
-                Padding="6,3"
-                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-            <StackPanel Spacing="2">
-                <TextBlock Text="📋 课表总结" FontSize="10"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                <TextBlock Text="{Binding TodaySummary}"
-                           FontSize="12"
-                           TextWrapping="Wrap"
-                           MaxLines="2"
-                           TextTrimming="CharacterEllipsis"
-                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
-            </StackPanel>
-        </Border>
-
-        <!-- 模块 1.5：今日作业量估算 -->
-        <Border IsVisible="{Binding Settings.ShowHomeworkEstimate}"
-                CornerRadius="4"
-                Padding="6,3"
-                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-            <StackPanel Orientation="Horizontal" Spacing="6">
-                <TextBlock Text="📝" FontSize="13" VerticalAlignment="Center"/>
-                <TextBlock Text="{Binding HomeworkEstimate}"
-                           FontSize="12"
-                           TextWrapping="Wrap"
-                           VerticalAlignment="Center"
-                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
-            </StackPanel>
-        </Border>
-
-        <!-- 模块 2：进度条 + 倒计时 -->
-        <StackPanel IsVisible="{Binding Settings.ShowCountdown}" Spacing="2">
-            <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0">
-                <ProgressBar Grid.Column="0"
-                             Value="{Binding ProgressPercent}"
-                             Maximum="100"
-                             Height="4"
-                             CornerRadius="2"/>
+            <!-- AI 状态：单色图标 + 文字，无背景条 -->
+            <Grid IsVisible="{Binding IsAIThinking}"
+                  ColumnDefinitions="Auto,*"
+                  ColumnSpacing="6">
+                <TextBlock Grid.Column="0"
+                           Classes="aiIslandIcon aiIslandIconInline"
+                           Text="&#xE002;"/>
                 <TextBlock Grid.Column="1"
-                           Text="{Binding CountdownText}"
-                           FontSize="10"
-                           Margin="6,0,0,0"
+                           Classes="aiIslandLabel"
+                           Text="{Binding AIStatusText}"
                            VerticalAlignment="Center"/>
             </Grid>
+
+            <!-- 课表总结 -->
+            <Grid IsVisible="{Binding Settings.ShowTodayOverview}"
+                  ColumnDefinitions="Auto,Auto,*"
+                  ColumnSpacing="6">
+                <TextBlock Grid.Column="0"
+                           Classes="aiIslandIcon aiIslandIconInline"
+                           Text="&#xE005;"/>
+                <TextBlock Grid.Column="1"
+                           Classes="aiIslandLabel aiIslandLabelInline"
+                           Text="今日课表"/>
+                <TextBlock Grid.Column="2"
+                           Classes="aiIslandBody aiIslandBodyCompact"
+                           Text="{Binding TodaySummary}"
+                           ToolTip.Tip="{Binding TodaySummary}"/>
+            </Grid>
+
+            <!-- 作业量预估 -->
+            <Grid IsVisible="{Binding Settings.ShowHomeworkEstimate}"
+                  ColumnDefinitions="Auto,Auto,*"
+                  ColumnSpacing="6">
+                <TextBlock Grid.Column="0"
+                           Classes="aiIslandIcon aiIslandIconInline"
+                           Text="&#xE004;"/>
+                <TextBlock Grid.Column="1"
+                           Classes="aiIslandLabel aiIslandLabelInline"
+                           Text="作业量预估"/>
+                <TextBlock Grid.Column="2"
+                           Classes="aiIslandBody aiIslandBodyCompact"
+                           Text="{Binding HomeworkEstimate}"
+                           ToolTip.Tip="{Binding HomeworkEstimate}"/>
+            </Grid>
+
+            <!-- 课时倒计时：纯数字，不占额外高度 -->
+            <Grid IsVisible="{Binding Settings.ShowCountdown}"
+                  ColumnDefinitions="Auto,Auto,*"
+                  ColumnSpacing="6"
+                  Margin="0,1,0,0">
+                <TextBlock Grid.Column="0"
+                           Classes="aiIslandIcon aiIslandIconInline"
+                           Text="&#xE001;"/>
+                <TextBlock Grid.Column="1"
+                           Classes="aiIslandLabel aiIslandLabelInline"
+                           Text="课时倒计时"/>
+                <TextBlock Grid.Column="2"
+                           Classes="aiIslandBody aiIslandBodyCompact"
+                           Text="{Binding CountdownText}"
+                           ToolTip.Tip="{Binding CountdownText}"/>
+            </Grid>
+
+            <!-- 贴心提示 -->
+            <Grid IsVisible="{Binding Settings.ShowCurrentHint}"
+                  ColumnDefinitions="Auto,Auto,*"
+                  ColumnSpacing="6"
+                  Margin="0,1,0,0">
+                <TextBlock Grid.Column="0"
+                           Classes="aiIslandIcon aiIslandIconInline"
+                           Text="&#xE003;"/>
+                <TextBlock Grid.Column="1"
+                           Classes="aiIslandLabel aiIslandLabelInline"
+                           Text="贴心提示"/>
+                <TextBlock Grid.Column="2"
+                           Classes="aiIslandBody aiIslandBodyCompact"
+                           Text="{Binding CurrentHint}"
+                           ToolTip.Tip="{Binding CurrentHint}"/>
+            </Grid>
+
+            <!-- 难度与专注建议 -->
+            <WrapPanel IsVisible="{Binding ShowExtras}"
+                       Orientation="Horizontal"
+                       Margin="0,1,0,0">
+                <Grid ColumnDefinitions="Auto,Auto,Auto"
+                      ColumnSpacing="4"
+                      Margin="0,0,14,2"
+                      IsVisible="{Binding Settings.ShowDifficulty}">
+                    <TextBlock Grid.Column="0"
+                               Classes="aiIslandIcon aiIslandIconInline"
+                               Text="&#xE002;"/>
+                    <TextBlock Grid.Column="1"
+                               Classes="aiIslandLabel aiIslandLabelInline"
+                               Text="难度"/>
+                    <TextBlock Grid.Column="2"
+                               Classes="aiIslandBody aiIslandBodyCompact"
+                               Text="{Binding DifficultyLabel}"/>
+                </Grid>
+
+                <Grid ColumnDefinitions="Auto,Auto,Auto"
+                      ColumnSpacing="4"
+                      Margin="0,0,14,2"
+                      IsVisible="{Binding Settings.ShowPomodoro}">
+                    <TextBlock Grid.Column="0"
+                               Classes="aiIslandIcon aiIslandIconInline"
+                               Text="&#xF0184;"/>
+                    <TextBlock Grid.Column="1"
+                               Classes="aiIslandLabel aiIslandLabelInline"
+                               Text="专注"/>
+                    <TextBlock Grid.Column="2"
+                               Classes="aiIslandBody aiIslandBodyCompact"
+                               Text="{Binding PomodoroSuggestion}"/>
+                </Grid>
+            </WrapPanel>
+
         </StackPanel>
-
-        <!-- 模块 3：当前课程 AI 提示 -->
-        <Border IsVisible="{Binding Settings.ShowCurrentHint}"
-                CornerRadius="6"
-                Padding="8,4"
-                Background="{DynamicResource AccentFillColorDefaultBrush}">
-            <StackPanel Orientation="Horizontal" Spacing="6">
-                <TextBlock Text="💡" FontSize="13" VerticalAlignment="Center"/>
-                <TextBlock Text="{Binding CurrentHint}"
-                           FontSize="12"
-                           Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}"
-                           TextWrapping="Wrap"
-                           VerticalAlignment="Center"/>
-            </StackPanel>
-        </Border>
-
-        <!-- 模块 4：难度 + 番茄钟 -->
-        <Grid IsVisible="{Binding ShowExtras}"
-              ColumnDefinitions="*,*"
-              Margin="0,2,0,0">
-
-            <StackPanel Grid.Column="0"
-                        IsVisible="{Binding Settings.ShowDifficulty}"
-                        Orientation="Horizontal"
-                        Spacing="2">
-                <TextBlock Text="📊" FontSize="11"/>
-                <TextBlock Text="难度：" FontSize="11" VerticalAlignment="Center"/>
-                <TextBlock Text="{Binding DifficultyStars}"
-                           FontSize="11"
-                           Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
-                           VerticalAlignment="Center"/>
-            </StackPanel>
-
-            <StackPanel Grid.Column="1"
-                        IsVisible="{Binding Settings.ShowPomodoro}"
-                        Orientation="Horizontal"
-                        Spacing="2">
-                <TextBlock Text="⏱" FontSize="11"/>
-                <TextBlock Text="{Binding PomodoroSuggestion}"
-                           FontSize="11"
-                           VerticalAlignment="Center"/>
-            </StackPanel>
-        </Grid>
-
-    </StackPanel>
+    </Border>
 </ci:ComponentBase>

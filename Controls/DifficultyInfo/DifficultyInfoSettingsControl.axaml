@@ -9,7 +9,7 @@
     <ScrollViewer DataContext="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=local:DifficultyInfoSettingsControl}}">
         <StackPanel Spacing="12" Margin="8">
             <TextBlock Text="显示项" FontWeight="Bold"/>
-            <CheckBox Content="显示难度星数" IsChecked="{Binding Settings.ShowDifficulty, Mode=TwoWay}"/>
+            <CheckBox Content="显示课程难度" IsChecked="{Binding Settings.ShowDifficulty, Mode=TwoWay}"/>
             <CheckBox Content="显示番茄钟建议" IsChecked="{Binding Settings.ShowPomodoro, Mode=TwoWay}"/>
             <Separator/>
             <TextBlock Text="字体大小" FontWeight="Bold"/>

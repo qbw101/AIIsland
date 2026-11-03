@@ -12,18 +12,8 @@ public static class ThoughtfulReminderTiming
     }
 
     public static ClassInfo? GetFirstClass(ClassPlan plan)
-    {
-        return plan.Classes
-            .Where(c => c.IsEnabled && c.CurrentTimeLayoutItem != null)
-            .OrderBy(c => c.CurrentTimeLayoutItem!.StartTime)
-            .FirstOrDefault();
-    }
+        => LessonTimeline.Build(plan).FirstOrDefault()?.Class;
 
     public static ClassInfo? GetLastClass(ClassPlan plan)
-    {
-        return plan.Classes
-            .Where(c => c.IsEnabled && c.CurrentTimeLayoutItem != null)
-            .OrderByDescending(c => c.CurrentTimeLayoutItem!.EndTime)
-            .FirstOrDefault();
-    }
+        => LessonTimeline.Build(plan).LastOrDefault()?.Class;
 }

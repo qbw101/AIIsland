@@ -22,6 +22,8 @@
         </PackageReference>
         <!-- 轻量 NPSM COM 包，替代 Windows.Media.Control，避免打包 WinRT SDK。 -->
         <PackageReference Include="NPSMLib" Version="0.9.14" />
+        <!-- 崩溃取证：读取 Windows 应用程序事件日志（仅 Windows 调用） -->
+        <PackageReference Include="System.Diagnostics.EventLog" Version="8.0.1" />
     </ItemGroup>
 
     <!-- 独立作业清单插件位于仓库子目录，不参与 AIIsland 程序集编译。 -->
@@ -50,6 +52,9 @@
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
         <Content Include="PLUGIN-API.md">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+        <Content Include="TELEMETRY.md">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
     </ItemGroup>

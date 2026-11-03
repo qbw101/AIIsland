@@ -22,6 +22,29 @@ public enum ProfileReadiness
 /// <summary>等待课表后的科目查询结果，保留“未就绪”和“确认无课”的区别。</summary>
 public sealed record TodaySubjectsResult(List<string> Subjects, ProfileReadiness Readiness);
 
+/// <summary>业务日期对应的课表解析结果。HostAuthoritative 表示宿主已明确回答该日期是否有课。</summary>
+public sealed record BusinessDayPlan(ClassPlan? Plan, bool HostAuthoritative)
+{
+    /// <summary>宿主确认当天无课（而不是服务尚未就绪）。</summary>
+    public bool NoCoursesToday => HostAuthoritative && Plan == null;
+}
+
+/// <summary>宿主按日期查询课表的抽象，便于用可控实现验证权威语义。</summary>
+public interface IHostClassPlanSource
+{
+    ClassPlan? GetClassPlanByDate(DateTime date);
+}
+
+/// <summary>把 <see cref="ILessonsService.GetClassPlanByDate"/> 适配为可测试入口。</summary>
+internal sealed class LessonsServiceClassPlanSource : IHostClassPlanSource
+{
+    private readonly ILessonsService _lessons;
+
+    public LessonsServiceClassPlanSource(ILessonsService lessons) => _lessons = lessons;
+
+    public ClassPlan? GetClassPlanByDate(DateTime date) => _lessons.GetClassPlanByDate(date, out _);
+}
+
 /// <summary>学习提示所需的当前时段、重点科目和缓存标识。</summary>
 public sealed record LearningHintContext(string Scene, string Focus, string CacheKey);
 
@@ -40,15 +63,11 @@ public static class ScheduleQueryHelper
     {
         if (plan == null) return null;
 
-        foreach (var cls in plan.Classes
-                     .Where(c => c.IsEnabled && c.CurrentTimeLayoutItem != null)
-                     .OrderBy(c => c.CurrentTimeLayoutItem!.StartTime))
+        foreach (var scheduled in LessonTimeline.Build(plan))
         {
-            var layout = cls.CurrentTimeLayoutItem;
-
             // EndTime 是课间开始的边界；此刻不应再把刚结束的课程当作当前课程。
-            if (now >= layout!.StartTime && now < layout.EndTime)
-                return cls;
+            if (now >= scheduled.Layout.StartTime && now < scheduled.Layout.EndTime)
+                return scheduled.Class;
         }
 
         return null;
@@ -62,19 +81,11 @@ public static class ScheduleQueryHelper
     {
         if (plan == null) return null;
 
-        var classes = plan.Classes
-            .Where(c => c.IsEnabled && c.CurrentTimeLayoutItem != null)
-            .OrderBy(c => c.CurrentTimeLayoutItem!.StartTime)
-            .ToList();
-
+        var classes = LessonTimeline.Build(plan);
         for (int i = 0; i < classes.Count - 1; i++)
         {
-            var prevLayout = classes[i].CurrentTimeLayoutItem;
-            var nextLayout = classes[i + 1].CurrentTimeLayoutItem;
-            if (prevLayout == null || nextLayout == null) continue;
-
-            if (now >= prevLayout.EndTime && now < nextLayout.StartTime)
-                return classes[i]; // 上一节课的信息
+            if (now >= classes[i].Layout.EndTime && now < classes[i + 1].Layout.StartTime)
+                return classes[i].Class; // 上一节课的信息
         }
 
         return null;
@@ -87,65 +98,35 @@ public static class ScheduleQueryHelper
     {
         if (plan == null) return null;
 
-        foreach (var cls in plan.Classes
-                     .Where(c => c.IsEnabled && c.CurrentTimeLayoutItem != null)
-                     .OrderBy(c => c.CurrentTimeLayoutItem!.StartTime))
+        foreach (var scheduled in LessonTimeline.Build(plan))
         {
-            var layout = cls.CurrentTimeLayoutItem;
-
-            if (now < layout!.StartTime)
-                return cls;
+            if (now < scheduled.Layout.StartTime)
+                return scheduled.Class;
         }
 
         return null;
     }
 
     /// <summary>
-    /// 根据时间获取当前所在课时段（TimeLayoutItem），用于计算进度和倒计时。
+    /// 根据业务时间获取当前所在课时段（TimeLayoutItem），用于计算进度和倒计时。
     /// 上课中返回上课区间，课间返回课间区间。
     /// </summary>
     public static TimeLayoutItem? GetCurrentLayoutItem(IProfileService profileService)
+        => GetCurrentLayoutItem(profileService, BusinessTime.Now);
+
+    /// <summary>
+    /// 按指定业务时间获取当前所在课时段。
+    /// 课表按业务日期解析，布局经 <see cref="LessonTimeline"/> 安全解析，
+    /// 避免跨日期课表尚未挂载 CurrentTimeLayout 时抛异常。
+    /// </summary>
+    public static TimeLayoutItem? GetCurrentLayoutItem(IProfileService profileService, DateTime businessNow)
     {
-        try
-        {
-            var plan = GetActivePlan(profileService);
-            if (plan == null) return null;
-
-            var now = TimeSpan.FromTicks(DateTime.Now.TimeOfDay.Ticks);
-
-            foreach (var cls in plan.Classes)
-            {
-                if (!cls.IsEnabled) continue;
-                var layout = cls.CurrentTimeLayoutItem;
-                if (layout == null) continue;
-
-                // 上课区间
-                if (now >= layout.StartTime && now < layout.EndTime)
-                    return layout;
-            }
-
-            // 课间区间：找相邻两节课之间的空隙
-            var enabledClasses = plan.Classes.Where(c => c.IsEnabled).ToList();
-            for (int i = 0; i < enabledClasses.Count - 1; i++)
-            {
-                var prevLayout = enabledClasses[i].CurrentTimeLayoutItem;
-                var nextLayout = enabledClasses[i + 1].CurrentTimeLayoutItem;
-                if (prevLayout == null || nextLayout == null) continue;
-
-                if (now >= prevLayout.EndTime && now < nextLayout.StartTime)
-                {
-                    // 返回一个"虚拟"的课间区间
-                    return new TimeLayoutItem
-                    {
-                        StartTime = prevLayout.EndTime,
-                        EndTime = nextLayout.StartTime
-                    };
-                }
-            }
-
-            return null;
-        }
-        catch { return null; }
+        var snapshot = LessonSnapshotService.Capture(businessNow, profileService);
+        if (snapshot.Phase == LessonPhase.OnClass)
+            return snapshot.CurrentLayout;
+        if (snapshot.Phase == LessonPhase.Breaking)
+            return snapshot.CurrentLayout;
+        return null;
     }
 
     /// <summary>
@@ -169,6 +150,65 @@ public static class ScheduleQueryHelper
     }
 
     /// <summary>
+    /// 按业务日期解析应生效的课表计划。
+    /// 宿主 <see cref="ILessonsService.GetClassPlanByDate"/> 成功返回时，其 null 也是权威结果
+    /// （单双周不匹配、临时清空等），不能再用本地 weekday 匹配覆盖；
+    /// 只有服务未就绪或抛异常时才回退本地匹配。
+    /// </summary>
+    public static BusinessDayPlan ResolvePlanForDate(
+        IProfileService? profileService,
+        DateTime date,
+        IHostClassPlanSource? hostSource = null)
+    {
+        var host = hostSource ?? CreateHostPlanSource();
+        if (host == null && profileService?.Profile == null)
+        {
+            // 课表与宿主都未就绪，不能据此判定“今天无课”。
+            return new BusinessDayPlan(null, false);
+        }
+
+        return ResolvePlanForDateCore(host, fallbackDate => GetPlanForDate(profileService, fallbackDate), date);
+    }
+
+    /// <summary>
+    /// 课表日期解析核心：宿主可用时以其结果为准（包含 null），仅宿主缺失或异常才使用本地匹配。
+    /// 独立出来便于用可控 <see cref="IHostClassPlanSource"/> 覆盖权威语义。
+    /// </summary>
+    public static BusinessDayPlan ResolvePlanForDateCore(
+        IHostClassPlanSource? hostSource,
+        Func<DateTime, ClassPlan?> localFallback,
+        DateTime date)
+    {
+        if (hostSource != null)
+        {
+            try
+            {
+                var hostPlan = hostSource.GetClassPlanByDate(date);
+                return new BusinessDayPlan(hostPlan is { IsEnabled: true } ? hostPlan : null, true);
+            }
+            catch (Exception ex)
+            {
+                Logger.Info($"宿主课表日期查询失败，回退本地匹配: {ex.Message}");
+            }
+        }
+
+        return new BusinessDayPlan(localFallback(date), false);
+    }
+
+    /// <summary>按业务日期获取应生效的课表计划（内部使用，忽略权威性标记）。</summary>
+    public static ClassPlan? GetActivePlanForBusinessDate(
+        IProfileService? profileService,
+        DateTime businessNow,
+        IHostClassPlanSource? hostSource = null)
+        => ResolvePlanForDate(profileService, businessNow, hostSource).Plan;
+
+    private static IHostClassPlanSource? CreateHostPlanSource()
+    {
+        var lessons = Plugin.LessonsService;
+        return lessons == null ? null : new LessonsServiceClassPlanSource(lessons);
+    }
+
+    /// <summary>
     /// 将 ClassIsland 返回的科目名称转换为可安全写入提示词的文本。
     /// 空值以及由半角/全角问号组成的运行时占位符（如 ???）均视为无效。
     /// </summary>
@@ -185,7 +225,7 @@ public static class ScheduleQueryHelper
     }
 
     /// <summary>根据 ClassInfo 获取科目名称</summary>
-    public static string GetSubjectName(IProfileService profileService, Guid subjectId)
+    public static string GetSubjectName(IProfileService? profileService, Guid subjectId)
     {
         try
         {
@@ -227,7 +267,7 @@ public static class ScheduleQueryHelper
             if (profileService?.Profile == null)
                 return new List<string>();
 
-            var activePlan = GetActivePlan(profileService);
+            var activePlan = GetActivePlanForBusinessDate(profileService, BusinessTime.Now);
             if (activePlan == null)
             {
                 readiness = ProfileReadiness.NoActivePlan;
@@ -236,7 +276,9 @@ public static class ScheduleQueryHelper
 
             var classes = activePlan.Classes
                 .Where(c => c.IsEnabled)
-                .OrderBy(c => c.CurrentTimeLayoutItem?.StartTime ?? TimeSpan.MaxValue)
+                .Select(c => new { Class = c, Layout = LessonTimeline.ResolveLayoutItem(activePlan, c) })
+                .OrderBy(item => item.Layout?.StartTime ?? TimeSpan.MaxValue)
+                .Select(item => item.Class)
                 .ToList();
 
             if (classes.Count == 0)
@@ -246,7 +288,7 @@ public static class ScheduleQueryHelper
             }
 
             var todayClasses = classes
-                .Where(c => c.CurrentTimeLayoutItem != null)
+                .Where(c => LessonTimeline.ResolveLayoutItem(activePlan, c) != null)
                 .ToList();
 
             // CurrentTimeLayoutItem 在 ClassIsland 启动早期可能尚未填充，不能因此判定今天无课。
@@ -342,11 +384,11 @@ public static class ScheduleQueryHelper
     {
         try
         {
-            var plan = GetActivePlan(profileService);
+            var plan = GetActivePlanForBusinessDate(profileService, BusinessTime.Now);
             if (plan == null)
                 return new LearningHintContext("今天没有课程", "自主学习", "no-plan");
 
-            var now = DateTime.Now.TimeOfDay;
+            var now = BusinessTime.TimeOfDay;
             var current = GetCurrentClass(plan, now);
             if (current != null && !preferNextClass)
             {
@@ -355,10 +397,7 @@ public static class ScheduleQueryHelper
                 return new LearningHintContext("正在上课", subject, $"class:{current.SubjectId}");
             }
 
-            var enabled = plan.Classes
-                .Where(c => c.IsEnabled && c.CurrentTimeLayoutItem != null)
-                .OrderBy(c => c.CurrentTimeLayoutItem!.StartTime)
-                .ToList();
+            var enabled = LessonTimeline.Build(plan).Select(item => item.Class).ToList();
             var next = GetNextClass(plan, now);
             if (preferNextClass && current != null)
             {
@@ -372,7 +411,7 @@ public static class ScheduleQueryHelper
             {
                 var subject = GetSubjectName(profileService, next.SubjectId);
                 if (string.IsNullOrWhiteSpace(subject)) subject = "下一节课";
-                var hasPrevious = enabled.Any(c => c.CurrentTimeLayoutItem!.EndTime < now);
+                var hasPrevious = LessonTimeline.Build(plan).Any(item => item.Layout.EndTime < now);
                 var scene = hasPrevious ? "课间，下一节课前" : "上课前";
                 return new LearningHintContext(scene, subject, $"next:{next.SubjectId}:{scene}");
             }
@@ -403,11 +442,11 @@ public static class ScheduleQueryHelper
         {
             ct.ThrowIfCancellationRequested();
             var ps = getter();
-            var plan = ps == null ? null : GetActivePlan(ps);
+            var plan = ps == null ? null : GetActivePlanForBusinessDate(ps, BusinessTime.Now);
             if (ps?.Profile != null && plan != null)
             {
                 var enabledClasses = plan.Classes.Where(c => c.IsEnabled).ToList();
-                if (enabledClasses.Any(c => c.CurrentTimeLayoutItem != null))
+                if (LessonTimeline.Build(plan).Count > 0)
                     return ps;
 
                 // 启动早期 Classes 可能暂时为空。只有等待窗口结束后仍为空，
@@ -429,33 +468,56 @@ public static class ScheduleQueryHelper
     /// 若未命中再放宽到仅按星期匹配，避免课表群边界导致查询落空。
     /// 单双周轮换（WeekCountDiv）依赖主程序 SettingsService，此处不处理。
     /// </summary>
-    public static ClassPlan? GetPlanForDate(IProfileService profileService, DateTime date)
+    public static ClassPlan? GetPlanForDate(IProfileService? profileService, DateTime date)
     {
         try
         {
             var profile = profileService?.Profile;
             if (profile == null) return null;
 
-            var weekday = (int)date.DayOfWeek;
-            var candidates = profile.ClassPlans.Values
-                .Where(p => !p.IsOverlay && p.IsEnabled && p.TimeRule.WeekDay == weekday)
-                .ToList();
-            if (candidates.Count == 0) return null;
-
-            var selectedGroup = profile.SelectedClassPlanGroupId;
-            var tempGroup = profile.TempClassPlanGroupId;
-
-            return candidates.FirstOrDefault(p =>
-                       p.AssociatedGroup == ClassPlanGroup.GlobalGroupGuid ||
-                       p.AssociatedGroup == selectedGroup ||
-                       (tempGroup.HasValue && p.AssociatedGroup == tempGroup.Value))
-                   ?? candidates[0];
+            return SelectPlanForDate(
+                profile.ClassPlans.Values,
+                profile.SelectedClassPlanGroupId,
+                profile.TempClassPlanGroupId,
+                date);
         }
         catch (Exception ex)
         {
             Logger.Info($"按日期查找课表失败: {ex.Message}");
             return null;
         }
+    }
+
+    /// <summary>
+    /// 从课表集合中按日期、课表组选择计划。纯函数，便于测试单双周之外的宿主匹配规则。
+    /// </summary>
+    public static ClassPlan? SelectPlanForDate(
+        IEnumerable<ClassPlan> plans,
+        Guid selectedGroupId,
+        Guid? tempGroupId,
+        DateTime date)
+    {
+        var weekday = (int)date.DayOfWeek;
+        var candidates = plans
+            .Where(p => !p.IsOverlay && p.IsEnabled && p.TimeRule.WeekDay == weekday)
+            .ToList();
+        if (candidates.Count == 0) return null;
+
+        return candidates.FirstOrDefault(p =>
+                   p.AssociatedGroup == ClassPlanGroup.GlobalGroupGuid ||
+                   p.AssociatedGroup == selectedGroupId ||
+                   (tempGroupId.HasValue && p.AssociatedGroup == tempGroupId.Value))
+               ?? candidates[0];
+    }
+
+    /// <summary>
+    /// 获取业务日期偏移对应的课表计划。
+    /// 统一走宿主按日期查询，保证与倒计时/科目上下文使用同一事实源（临时课表、课表群、周轮换）。
+    /// </summary>
+    public static ClassPlan? GetPlanForBusinessDay(IProfileService? profileService, int offsetDays = 0)
+    {
+        var date = BusinessTime.Today.AddDays(offsetDays).ToDateTime(TimeOnly.MinValue);
+        return ResolvePlanForDate(profileService, date).Plan;
     }
 
     /// <summary>
@@ -468,7 +530,7 @@ public static class ScheduleQueryHelper
         {
             if (profileService == null || profileService.Profile == null) return new List<string>();
 
-            var plan = GetPlanForDate(profileService, DateTime.Today.AddDays(offsetDays));
+            var plan = GetPlanForBusinessDay(profileService, offsetDays);
             if (plan == null) return new List<string>();
 
             // 获取课程名称（按时间顺序）
@@ -509,19 +571,15 @@ public static class ScheduleQueryHelper
         {
             if (profileService == null || profileService.Profile == null) return new List<string>();
 
-            var plan = GetPlanForDate(profileService, DateTime.Today.AddDays(offsetDays));
+            var plan = GetPlanForBusinessDay(profileService, offsetDays);
             if (plan == null) return new List<string>();
 
             var schedule = new List<string>();
-            foreach (var cls in plan.Classes
-                         .Where(c => c.IsEnabled && c.CurrentTimeLayoutItem != null)
-                         .OrderBy(c => c.CurrentTimeLayoutItem!.StartTime))
+            foreach (var scheduled in LessonTimeline.Build(plan))
             {
-                var name = GetSubjectName(profileService, cls.SubjectId);
+                var name = GetSubjectName(profileService, scheduled.Class.SubjectId);
                 if (string.IsNullOrWhiteSpace(name)) name = "未知课程";
-                var startTime = cls.CurrentTimeLayoutItem!.StartTime;
-                var endTime = cls.CurrentTimeLayoutItem!.EndTime;
-                schedule.Add($"{name} {startTime:hh\\:mm}-{endTime:hh\\:mm}");
+                schedule.Add($"{name} {scheduled.Layout.StartTime:hh\\:mm}-{scheduled.Layout.EndTime:hh\\:mm}");
             }
 
             return schedule;

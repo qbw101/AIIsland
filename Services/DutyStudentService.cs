@@ -341,7 +341,8 @@ public class DutyStudentService
         if (config.Groups == null || config.Groups.Count == 0)
             return (null, 0);
 
-        var today = DateTime.Today;
+        // 值日轮换按业务日期推进，跟随插件统一时间来源。
+        var today = BusinessTime.Today.ToDateTime(TimeOnly.MinValue);
         var daysPassed = Math.Max(0, (int)(today - config.RotationStartDate).TotalDays);
         var batchNo = daysPassed / config.RotationPeriodDays;
         var idx = batchNo % config.Groups.Count;

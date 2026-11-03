@@ -22,7 +22,7 @@ public partial class SmartClassPanelSettings : ObservableObject
     [ObservableProperty]
     [property: JsonPropertyName("showCountdown")]
     private bool _showCountdown = true;
-    // 是否显示当前课时倒计时 + 进度条
+    // 是否显示当前课时倒计时
 
     [ObservableProperty]
     [property: JsonPropertyName("showCurrentHint")]
@@ -32,7 +32,7 @@ public partial class SmartClassPanelSettings : ObservableObject
     [ObservableProperty]
     [property: JsonPropertyName("showDifficulty")]
     private bool _showDifficulty = true;
-    // 是否显示难度星数预估
+    // 是否显示难度等级预估
 
     [ObservableProperty]
     [property: JsonPropertyName("showPomodoro")]

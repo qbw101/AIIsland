@@ -26,26 +26,17 @@ public class GenerateAiNotificationAction : ActionBase<GenerateAiNotificationSet
 
         var profileService = Plugin.ProfileService
             ?? throw new InvalidOperationException("ClassIsland 课表服务尚未就绪。");
-        var lessonsService = Plugin.LessonsService
-            ?? throw new InvalidOperationException("ClassIsland 课程服务尚未就绪。");
+        if (Plugin.LessonsService == null)
+            throw new InvalidOperationException("ClassIsland 课程服务尚未就绪。");
         var notifier = Plugin.SmartClassNotifierInstance
             ?? throw new InvalidOperationException("AIIsland 智能提醒提供方尚未就绪。");
 
         var todaySubjects = ScheduleQueryHelper.GetTodaySubjectNames(profileService, distinct: false);
-        var plan = ScheduleQueryHelper.GetActivePlan(profileService);
-        var now = DateTime.Now.TimeOfDay;
-        var currentClass = plan == null ? null : ScheduleQueryHelper.GetCurrentClass(plan, now);
-        var nextClass = plan == null ? null : ScheduleQueryHelper.GetNextClass(plan, now);
-        var currentSubject = ScheduleQueryHelper.NormalizeSubjectName(
-            currentClass == null
-                ? lessonsService.CurrentSubject?.Name
-                : ScheduleQueryHelper.GetSubjectName(profileService, currentClass.SubjectId),
-            "无");
-        var nextSubject = ScheduleQueryHelper.NormalizeSubjectName(
-            nextClass == null
-                ? lessonsService.NextClassSubject?.Name
-                : ScheduleQueryHelper.GetSubjectName(profileService, nextClass.SubjectId),
-            "无");
+        // 课程判断统一使用业务快照；提示词里的真实时间在 BuildCustomPrompt 中单独取系统时间。
+        var snapshot = LessonSnapshotService.Capture(profileService: profileService);
+        var plan = snapshot.Plan;
+        var currentSubject = ScheduleQueryHelper.NormalizeSubjectName(snapshot.CurrentSubjectName, "无");
+        var nextSubject = ScheduleQueryHelper.NormalizeSubjectName(snapshot.NextSubjectName, "无");
         var firstClass = plan == null ? null : ThoughtfulReminderTiming.GetFirstClass(plan);
         var firstSubject = ScheduleQueryHelper.NormalizeSubjectName(
             firstClass == null ? null : ScheduleQueryHelper.GetSubjectName(profileService, firstClass.SubjectId),

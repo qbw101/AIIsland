@@ -30,11 +30,14 @@ public partial class CurrentHint : ComponentBase<CurrentHintSettings>
     private bool _loaded;
     private string _loadedSubject = "";
     private DateOnly _loadedDate;
-    private DateOnly _observedDate = DateOnly.FromDateTime(DateTime.Now);
+    private DateOnly _observedDate = BusinessTime.Today;
     private bool _lessonsSubscribed;
     private CancellationTokenSource? _refreshCts;
     private long _refreshGeneration;
     private bool _preferNextClass;
+    private LessonPhase _lastPhase;
+    private string _lastIdentity = "";
+    private bool _phaseInitialized;
 
     public CurrentHint()
     {
@@ -47,6 +50,7 @@ public partial class CurrentHint : ComponentBase<CurrentHintSettings>
     {
         DataContext = this;
         base.OnLoaded(e);
+        ComponentBindingRefresh.Refresh(this);
         TrySubscribeLessonsService();
         AIRegenerationService.RegenerateHintRequested += OnRegenerateRequested;
         StartRefresh(force: false);
@@ -59,9 +63,6 @@ public partial class CurrentHint : ComponentBase<CurrentHintSettings>
         var ls = Plugin.LessonsService;
         if (_lessonsSubscribed && ls != null)
         {
-            ls.OnClass -= OnClassHandler;
-            ls.OnBreakingTime -= OnBreakingTimeHandler;
-            ls.OnAfterSchool -= OnAfterSchoolHandler;
             ls.PostMainTimerTicked -= OnTimerTicked;
         }
         _lessonsSubscribed = false;
@@ -85,50 +86,68 @@ public partial class CurrentHint : ComponentBase<CurrentHintSettings>
         if (_lessonsSubscribed) return;
         var ls = Plugin.LessonsService;
         if (ls == null) return;
-        ls.OnClass += OnClassHandler;
-        ls.OnBreakingTime += OnBreakingTimeHandler;
-        ls.OnAfterSchool += OnAfterSchoolHandler;
+        // 状态变化改为在计时器回调中按业务时钟推导：
+        // 宿主 OnClass/OnBreakingTime/OnAfterSchool 在时间偏移时按真实时钟触发，会刷新错误科目。
         ls.PostMainTimerTicked += OnTimerTicked;
         _lessonsSubscribed = true;
+        SeedPhaseFromBusinessClock();
     }
 
-    private void OnClassHandler(object? sender, EventArgs e)
+    /// <summary>首次订阅时用当前业务阶段建立基线，避免启动瞬间误判课间。</summary>
+    private void SeedPhaseFromBusinessClock()
     {
-        _preferNextClass = false;
-        _loaded = false;
-        StartRefresh(force: true);
-    }
-
-    private void OnBreakingTimeHandler(object? sender, EventArgs e)
-    {
-        _preferNextClass = true;
-        _loaded = false;
-        StartRefresh(force: true);
-    }
-
-    private void OnAfterSchoolHandler(object? sender, EventArgs e)
-    {
-        _preferNextClass = false;
-        _loaded = false;
-        StartRefresh(force: true);
+        try
+        {
+            var snapshot = LessonSnapshotService.Capture();
+            _lastPhase = snapshot.Phase;
+            _lastIdentity = LessonIdentity.ForHint(snapshot);
+            _phaseInitialized = true;
+            _preferNextClass = snapshot.IsBreaking;
+        }
+        catch (Exception ex)
+        {
+            Logger.Info($"[CurrentHint] 初始化课时阶段失败: {ex.Message}");
+        }
     }
 
     private void OnTimerTicked(object? sender, EventArgs e)
     {
-        var today = DateOnly.FromDateTime(DateTime.Now);
-        if (_observedDate != today)
+        var today = BusinessTime.Today;
+        var snapshot = LessonSnapshotService.Capture();
+        var phase = snapshot.Phase;
+        var identity = LessonIdentity.ForHint(snapshot);
+
+        var dateChanged = _observedDate != today;
+        if (dateChanged) _observedDate = today;
+
+        if (!_phaseInitialized)
         {
-            _observedDate = today;
-            _preferNextClass = false;
-            _loaded = false;
-            StartRefresh(force: true);
+            _phaseInitialized = true;
+            _lastPhase = phase;
+            _lastIdentity = identity;
+            _preferNextClass = snapshot.IsBreaking;
+            if (!dateChanged) return;
         }
+        else
+        {
+            var phaseChanged = phase != _lastPhase;
+            // 同一阶段内课程可能变化（切换时间来源、临时换课），必须按内容身份再比较一次。
+            var identityChanged = !string.Equals(_lastIdentity, identity, StringComparison.Ordinal);
+            if (!dateChanged && !phaseChanged && !identityChanged) return;
+
+            _lastPhase = phase;
+            _lastIdentity = identity;
+        }
+
+        _preferNextClass = snapshot.IsBreaking;
+        _loaded = false;
+        StartRefresh(force: true);
     }
 
     private void StartRefresh(bool force)
     {
         TrySubscribeLessonsService();
-        if (!force && _loaded && _loadedDate == DateOnly.FromDateTime(DateTime.Now)) return;
+        if (!force && _loaded && _loadedDate == BusinessTime.Today) return;
 
         _refreshCts?.Cancel();
         _refreshCts?.Dispose();
@@ -171,7 +190,7 @@ public partial class CurrentHint : ComponentBase<CurrentHintSettings>
                     ps, schedule.Subjects, _preferNextClass);
             }
 
-            if (_loaded && _loadedDate == DateOnly.FromDateTime(DateTime.Now) &&
+            if (_loaded && _loadedDate == BusinessTime.Today &&
                 string.Equals(_loadedSubject, context.CacheKey, StringComparison.Ordinal))
                 return;
 
@@ -227,7 +246,7 @@ public partial class CurrentHint : ComponentBase<CurrentHintSettings>
             if (_loaded)
             {
                 _loadedSubject = context.CacheKey;
-                _loadedDate = DateOnly.FromDateTime(DateTime.Now);
+                _loadedDate = BusinessTime.Today;
             }
             else if (string.IsNullOrWhiteSpace(Hint))
             {

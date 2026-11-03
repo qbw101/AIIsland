@@ -134,6 +134,17 @@ public partial class AISettings : ObservableObject
     private bool _showConfigStatusOnStartup = true;
     // 启动后显示配置状态提醒
 
+    // ===== 时间来源 =====
+
+    /// <summary>
+    /// 业务时间来源：所有课表、倒计时、提醒、考试判断统一使用此设置。
+    /// 默认使用 ClassIsland 时间，保持课时倒计时的原有默认行为。
+    /// 真实时间场景（AI 提示词、日志、网络校时、缓存有效期、超时）不受此设置影响。
+    /// </summary>
+    [ObservableProperty]
+    [property: JsonPropertyName("timeSource")]
+    private BusinessTimeSource _timeSource = BusinessTimeSource.ClassIslandTime;
+
     // ===== 托盘菜单快捷操作开关 =====
 
     [ObservableProperty]
@@ -218,6 +229,14 @@ public partial class AISettings : ObservableObject
     [ObservableProperty]
     [property: JsonPropertyName("pluginIntegrationAuthorizationCompleted")]
     private bool _pluginIntegrationAuthorizationCompleted = false;
+
+    // ===== 匿名遥测 =====
+
+    /// <summary>
+    /// 匿名遥测配置：在线状态、错误与崩溃上报。关闭后插件不会建立任何遥测连接。
+    /// </summary>
+    [property: JsonPropertyName("telemetry")]
+    public TelemetrySettings Telemetry { get; set; } = new();
 
     /// <summary>获取 temperature 值：自定义温度优先，未设置时按语气风格映射。</summary>
     public double GetTemperature()

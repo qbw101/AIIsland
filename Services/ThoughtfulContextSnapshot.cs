@@ -16,6 +16,9 @@ public sealed class ThoughtfulContextSnapshot
     /// <summary>当前时段（清晨/上午/中午/下午/晚上/深夜）。</summary>
     public string TimePeriod { get; init; } = "";
 
+    /// <summary>课表业务日期（yyyy-MM-dd）。与真实日期不同时需要在提示词中单独标注。</summary>
+    public string BusinessDateLabel { get; init; } = "";
+
     /// <summary>天气描述文本（如「晴」「多云」），由天气代码转换而来。</summary>
     public string? WeatherDescription { get; init; }
 
@@ -57,6 +60,9 @@ public sealed class ThoughtfulContextSnapshot
 
         if (previous == null)
         {
+            if (!string.IsNullOrWhiteSpace(BusinessDateLabel) &&
+                !string.Equals(BusinessDateLabel, DateLabel, StringComparison.Ordinal))
+                changes.Add($"课表日期：{BusinessDateLabel}");
             if (!string.IsNullOrWhiteSpace(TimePeriod))
                 changes.Add($"当前时段：{TimePeriod}");
             if (!string.IsNullOrWhiteSpace(WeatherDescription))
@@ -80,6 +86,11 @@ public sealed class ThoughtfulContextSnapshot
 
         if (!string.Equals(TimePeriod, previous.TimePeriod, StringComparison.Ordinal))
             changes.Add($"当前时段：{TimePeriod}");
+
+        if (!string.IsNullOrWhiteSpace(BusinessDateLabel) &&
+            !string.Equals(BusinessDateLabel, DateLabel, StringComparison.Ordinal) &&
+            !string.Equals(BusinessDateLabel, previous.BusinessDateLabel, StringComparison.Ordinal))
+            changes.Add($"课表日期：{BusinessDateLabel}");
 
         if (WeatherChanged(previous))
             changes.Add($"当前天气：{DescribeWeather()}");

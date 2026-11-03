@@ -47,7 +47,14 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
     /// <summary>已触发的课前提醒 key 集合，每个课间独立去重</summary>
     private readonly HashSet<string> _triggeredBeforeClassKeys = new();
     private readonly HashSet<string> _triggeredBeforeSchoolKeys = new();
-    private DateTime _dedupResetDate = DateTime.MinValue;
+    private DateOnly _dedupResetDate = DateOnly.MinValue;
+
+    /// <summary>上一次观察到的业务课时阶段，用于在 tick 内检测状态迁移。</summary>
+    private LessonPhase _lastPhase;
+    private bool _phaseInitialized;
+
+    /// <summary>业务时钟基线：切换时间来源/调整偏移/休眠恢复时重建，避免把跳变当自然上下课。</summary>
+    private readonly BusinessClockBaseline _clockBaseline = new();
 
     public SmartClassNotifier(IProfileService profileService, ILessonsService lessonsService, AIChatService aiService, IWeatherService? weatherService = null)
     {
@@ -66,10 +73,9 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
         // 替换基类默认创建的 FluentIcon 为自定义字体图标（bell_badge_gearshape）
         IconElement = SettingsPageIconPatcher.CreateNotifierIcon();
 
-        _lessons.OnBreakingTime += OnBreakingTimeHandler;
-        _lessons.OnAfterSchool += OnAfterSchoolHandler;
-        _lessons.OnClass += OnClassHandler;
-        _lessons.PostMainTimerTicked += OnTimerTickHandler;  // 轮询兜底：主动检测课间状态
+        // 上课/课间/放学状态统一在计时器回调中按业务时钟推导；
+        // 不订阅宿主 OnClass/OnBreakingTime/OnAfterSchool，避免时间偏移时按真实时钟提前触发。
+        _lessons.PostMainTimerTicked += OnTimerTickHandler;
 
         // 自定义提醒需要独立轮询：固定时间/每日重复/科目课前 N 分钟都依赖当前时钟。
         _customTimer = new Timer(CheckCustomReminders, null,
@@ -221,64 +227,10 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
     //  触点 1：课前提醒（课间开始时，AI 根据上节+下节科目生成个性化提醒）
     // ========================================
 
-    private async void OnBreakingTimeHandler(object? sender, EventArgs e)
-    {
-        Logger.Info("OnBreakingTime 触发");
-
-        if (Settings == null || !Settings.EnableThoughtfulReminder)
-        {
-            Logger.Info("OnBreakingTime: Settings 为 null，跳过");
-            return;
-        }
-        if (!Settings.EnableBeforeClassReminder)
-        {
-            Logger.Info("OnBreakingTime: EnableBeforeClassReminder=false，跳过");
-            return;
-        }
-
-        try
-        {
-            var nextSubject = GetNextSubjectName();
-            Logger.Info($"OnBreakingTime: nextSubject={nextSubject ?? "(空)"}");
-
-            if (string.IsNullOrEmpty(nextSubject))
-            {
-                await Task.Delay(500);
-                nextSubject = GetNextSubjectName();
-                Logger.Info($"OnBreakingTime retry: nextSubject={nextSubject ?? "(空)"}");
-            }
-            if (string.IsNullOrEmpty(nextSubject)) return;
-
-            var nextClassTime = GetNextClassStartTime();
-            ResetDedupIfNeeded();
-            var triggerKey = $"breaking_{nextSubject}_{nextClassTime.Hours:D2}{nextClassTime.Minutes:D2}";
-            Logger.Info($"OnBreakingTime triggerKey={triggerKey}");
-
-            if (!_triggeredBeforeClassKeys.Add(triggerKey))
-            {
-                Logger.Info("OnBreakingTime: 已触发过此课间，跳过");
-                return;
-            }
-
-            var previousSubject = GetCurrentSubjectName();
-            Logger.Info($"OnBreakingTime: previous={previousSubject}, next={nextSubject}");
-
-            var context = await BuildThoughtfulContextAsync(ThoughtfulScene.BreakStart);
-            var aiText = await _ai.GenerateBeforeClassReminder(previousSubject, nextSubject, context: context);
-            Logger.Info($"OnBreakingTime AI 返回: {aiText}");
-
-            ShowBeforeClassNotification(nextSubject, aiText);
-        }
-        catch (Exception ex)
-        {
-            Logger.Error($"课前提醒生成失败: {ex.Message}");
-        }
-    }
-
     /// <summary>每日零点重置去重集合</summary>
     private void ResetDedupIfNeeded()
     {
-        var today = DateTime.Now.Date;
+        var today = BusinessTime.Today;
         if (_dedupResetDate != today)
         {
             _triggeredBeforeClassKeys.Clear();
@@ -291,18 +243,14 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
     //  轮询兜底：PostMainTimerTicked 主动检测课间状态
     // ========================================
 
-    private bool _lastWasBreaking = false;
-
-    private async Task TryTriggerBeforeSchoolReminder(ClassPlan activePlan, TimeSpan now)
+    private async Task TryTriggerBeforeSchoolReminder(LessonSnapshot snapshot)
     {
-        var firstClass = ThoughtfulReminderTiming.GetFirstClass(activePlan);
-        var layout = firstClass?.CurrentTimeLayoutItem;
-        if (firstClass == null || layout == null ||
-            !ThoughtfulReminderTiming.IsDueBeforeSchool(now, layout.StartTime))
-            return;
+        // 只在第一节课开始前使用下一个课时起点，放学后/无课时不会误判。
+        if (snapshot.Phase != LessonPhase.BeforeFirstClass || snapshot.NextLayout == null) return;
+        if (!ThoughtfulReminderTiming.IsDueBeforeSchool(snapshot.Now.TimeOfDay, snapshot.NextLayout.StartTime)) return;
 
         ResetDedupIfNeeded();
-        var key = $"before-school:{DateTime.Now:yyyyMMdd}:{layout.StartTime:hh\\mm}";
+        var key = $"before-school:{BusinessTime.Today:yyyyMMdd}:{snapshot.NextLayout.StartTime:hh\\mm}";
         if (!_triggeredBeforeSchoolKeys.Add(key)) return;
 
         try
@@ -316,6 +264,20 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
         {
             Logger.Error($"智能每日简报生成失败: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// 业务日期与真实日期不同时，生成可写入 AI 上下文的标注；相同时返回空串。
+    /// 供字符串上下文与测试复用，避免把真实日期改写成业务日期。
+    /// </summary>
+    public static string BuildBusinessDateNote(DateTime realNow, DateTime businessNow)
+    {
+        if (businessNow.Date == realNow.Date)
+        {
+            return "";
+        }
+
+        return $"课表业务日期：{businessNow:yyyy-MM-dd}（{GetChineseDayOfWeek(businessNow.DayOfWeek)}）";
     }
 
     private void ShowThoughtfulNotification(string title, string body, string icon, string speech)
@@ -401,23 +363,40 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
 
         try
         {
-            var activePlan = ScheduleQueryHelper.GetActivePlan(_profileService);
-            if (activePlan == null) return;
+            var snapshot = LessonSnapshotService.Capture();
+            var phase = snapshot.Phase;
 
-            var now = TimeSpan.FromTicks(DateTime.Now.TimeOfDay.Ticks);
-            if (Settings.EnableBeforeSchoolReminder && _lessons.CurrentState != TimeState.OnClass)
-                await TryTriggerBeforeSchoolReminder(activePlan, now);
+            if (_clockBaseline.Observe(snapshot.Now))
+            {
+                // 时间跳变不是自然上下课：重建阶段基线并跳过本轮，避免立刻补发放学总结等陈旧提醒。
+                _lastPhase = phase;
+                _phaseInitialized = true;
+                Logger.Info($"[智能提醒] 检测到业务时间跳变，已重建阶段基线: {snapshot.Now:HH:mm:ss}");
+                return;
+            }
 
-            var currentClass = ScheduleQueryHelper.GetClassAtTime(activePlan, now);
-            var currentBreak = ScheduleQueryHelper.GetCurrentBreak(activePlan, now);
-            bool isInBreaking = currentClass == null && currentBreak != null;
+            // 首次观察只建立基线，避免启动后补发陈旧提醒。
+            var firstObservation = !_phaseInitialized;
+            var phaseChanged = _phaseInitialized && phase != _lastPhase;
+            _phaseInitialized = true;
+            _lastPhase = phase;
 
-            if (Settings.EnableBeforeClassReminder && isInBreaking && !_lastWasBreaking)
+            if (Settings.EnableBeforeSchoolReminder && !snapshot.IsOnClass)
+                await TryTriggerBeforeSchoolReminder(snapshot);
+
+            if (firstObservation) return;
+
+            if (Settings.EnableBeforeClassReminder && phaseChanged && snapshot.IsBreaking)
             {
                 Logger.Info("TimerTick 检测到进入课间，尝试触发提醒");
-                await TryTriggerBeforeClassReminder(activePlan, now);
+                await TryTriggerBeforeClassReminder(snapshot);
             }
-            _lastWasBreaking = isInBreaking;
+
+            if (Settings.EnableAfterSchoolSummary && phaseChanged && snapshot.IsSchoolDayEnded)
+                await GenerateAfterSchoolSummaryAsync();
+
+            if (Settings.EnableClassChangeAlert && phaseChanged && snapshot.IsOnClass)
+                ShowClassChangeAlertIfNeeded(snapshot);
         }
         catch (Exception ex)
         {
@@ -425,19 +404,21 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
         }
     }
 
-    private async Task TryTriggerBeforeClassReminder(ClassPlan activePlan, TimeSpan now)
+    private async Task TryTriggerBeforeClassReminder(LessonSnapshot snapshot)
     {
-        var nextSubject = GetNextSubjectNameFromPlan(activePlan, now);
+        var nextClassTime = snapshot.NextLayout?.StartTime;
+        if (nextClassTime == null) return;
+
+        var nextSubject = ScheduleQueryHelper.NormalizeSubjectName(snapshot.NextSubjectName, "");
         if (string.IsNullOrEmpty(nextSubject)) return;
 
-        var nextClassTime = GetNextClassStartTimeFromPlan(activePlan, now);
         ResetDedupIfNeeded();
-        var triggerKey = $"breaking_{nextSubject}_{nextClassTime.Hours:D2}{nextClassTime.Minutes:D2}";
+        var triggerKey = $"breaking_{nextSubject}_{nextClassTime.Value.Hours:D2}{nextClassTime.Value.Minutes:D2}";
 
         Logger.Info($"TryTrigger key={triggerKey}");
         if (!_triggeredBeforeClassKeys.Add(triggerKey)) return;
 
-        var previousSubject = GetCurrentSubjectNameFromPlan(activePlan, now);
+        var previousSubject = ScheduleQueryHelper.NormalizeSubjectName(snapshot.CurrentSubjectName, "上一节课");
         Logger.Info($"TryTrigger: prev={previousSubject}, next={nextSubject}");
 
         var context = await BuildThoughtfulContextAsync(ThoughtfulScene.BreakStart);
@@ -530,7 +511,7 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
     //  触点 2：放学总结
     // ========================================
 
-    private async void OnAfterSchoolHandler(object? sender, EventArgs e)
+    private async Task GenerateAfterSchoolSummaryAsync()
     {
         if (Settings == null || !Settings.EnableThoughtfulReminder || !Settings.EnableAfterSchoolSummary) return;
 
@@ -575,20 +556,14 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
     //  触点 3：换课提醒
     // ========================================
 
-    private void OnClassHandler(object? sender, EventArgs e)
+    private void ShowClassChangeAlertIfNeeded(LessonSnapshot snapshot)
     {
         if (Settings == null || !Settings.EnableThoughtfulReminder || !Settings.EnableClassChangeAlert) return;
 
         try
         {
-            var profile = _profileService.Profile;
-            if (profile == null) return;
-
-            var activePlan = profile.ClassPlans.Values.FirstOrDefault(p => p.IsActivated && p.IsEnabled);
-            if (activePlan == null) return;
-
-            var currentClass = activePlan.Classes.FirstOrDefault(c => c.IsEnabled && c.IsChangedClass);
-            if (currentClass != null)
+            var changedClass = snapshot.Plan?.Classes.FirstOrDefault(c => c.IsEnabled && c.IsChangedClass);
+            if (changedClass != null)
             {
                 ShowNotification(new NotificationRequest
                 {
@@ -630,7 +605,7 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
             return;
         EnsureWindowsContextAvailability();
         if (!Settings.EnableMusicReminder) return;
-        if (_lessons.CurrentState == TimeState.OnClass) return;
+        if (LessonSnapshotService.Capture().IsOnClass) return;
         if (Interlocked.Exchange(ref _musicChecking, 1) == 1) return;
         _ = CheckMusicReminderAsync();
     }
@@ -671,7 +646,7 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
         {
             if (Settings == null || !Settings.EnableThoughtfulReminder || !Settings.EnableCustomReminder || Settings.CustomReminders.Count == 0) return;
 
-            var now = DateTime.Now;
+            var now = BusinessTime.Now;
 
             // 快照遍历，避免在遍历期间 Settings.CustomReminders 被外部并发修改
             foreach (var reminder in Settings.CustomReminders.ToList())
@@ -740,15 +715,15 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
         var targetSubject = NormalizeSubjectName(reminder.SubjectName);
         if (string.IsNullOrEmpty(targetSubject)) return null;
 
-        var activePlan = ScheduleQueryHelper.GetActivePlan(_profileService);
+        var activePlan = ScheduleQueryHelper.GetActivePlanForBusinessDate(_profileService, now);
         if (activePlan == null) return null;
 
-        var nowTime = TimeSpan.FromTicks(now.TimeOfDay.Ticks);
+        var nowTime = now.TimeOfDay;
         var minutesBefore = Math.Clamp(reminder.MinutesBefore, 0, 120);
 
         foreach (var cls in activePlan.Classes.Where(c => c.IsEnabled))
         {
-            var layout = cls.CurrentTimeLayoutItem;
+            var layout = LessonTimeline.ResolveLayoutItem(activePlan, cls);
             if (layout == null) continue;
 
             var subject = NormalizeSubjectName(ScheduleQueryHelper.GetSubjectName(_profileService, cls.SubjectId));
@@ -910,12 +885,19 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
         if (Settings == null) return "";
         EnsureWindowsContextAvailability();
 
-        var now = DateTime.Now;
+        // 提示词里的“当前日期时间”必须是真实发生的时间，客套上下文与课程数据按业务时间。
+        var realNow = DateTime.Now;
+        var now = BusinessTime.Now;
         var lines = new List<string>
         {
-            $"当前日期时间：{now:yyyy-MM-dd HH:mm}（{GetChineseDayOfWeek(now.DayOfWeek)}，{GetTimePeriod(now.Hour)}）",
+            $"当前日期时间：{realNow:yyyy-MM-dd HH:mm}（{GetChineseDayOfWeek(realNow.DayOfWeek)}，{GetTimePeriod(realNow.Hour)}）",
             $"内容场景：{scene switch { ThoughtfulScene.DailyBriefing => "智能每日简报", ThoughtfulScene.BeforeSchool => "智能每日简报（兼容触发）", ThoughtfulScene.BreakStart => "课间开始", _ => "最后一节课结束" }}"
         };
+
+        // 业务日期与真实日期不同时单独标注，避免 AI 把课表数据当成“明天”的内容。
+        var businessDateNote = BuildBusinessDateNote(realNow, now);
+        if (businessDateNote.Length > 0)
+            lines.Add(businessDateNote);
 
         // 添加今日课程信息
         var todaySubjects = ScheduleQueryHelper.GetTodaySubjectNames(_profileService);
@@ -1251,7 +1233,10 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
         if (Settings == null) return new ThoughtfulContextSnapshot();
         EnsureWindowsContextAvailability();
 
-        var now = DateTime.Now;
+        // DateLabel/TimePeriod 进入 AI 增量提示词，必须保持真实时间；
+        // 节假日、值日、课程等业务数据使用业务时间。
+        var realNow = DateTime.Now;
+        var now = BusinessTime.Now;
         string? weatherDescription = null;
         double? temperatureC = null;
         var alerts = new List<string>();
@@ -1326,8 +1311,9 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
 
         return new ThoughtfulContextSnapshot
         {
-            DateLabel = now.ToString("yyyy-MM-dd"),
-            TimePeriod = GetTimePeriod(now.Hour),
+            DateLabel = realNow.ToString("yyyy-MM-dd"),
+            TimePeriod = GetTimePeriod(realNow.Hour),
+            BusinessDateLabel = now.ToString("yyyy-MM-dd"),
             WeatherDescription = weatherDescription,
             TemperatureC = temperatureC,
             WeatherAlerts = alerts,
@@ -1402,7 +1388,7 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
             var profile = _profileService.Profile;
             if (profile == null) return new List<string>();
 
-            var activePlan = profile.ClassPlans.Values.FirstOrDefault(p => p.IsActivated && p.IsEnabled);
+            var activePlan = ScheduleQueryHelper.GetActivePlanForBusinessDate(_profileService, BusinessTime.Now);
             if (activePlan == null) return new List<string>();
 
             var names = new List<string>();
@@ -1422,15 +1408,13 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
     {
         try
         {
-            var plan = ScheduleQueryHelper.GetActivePlan(_profileService);
+            var plan = ScheduleQueryHelper.GetActivePlanForBusinessDate(_profileService, BusinessTime.Now);
             if (plan == null) return new List<string>();
-            return plan.Classes.Where(c => c.IsEnabled)
-                .OrderBy(c => c.CurrentTimeLayoutItem?.StartTime ?? TimeSpan.MaxValue)
-                .Select((c, i) =>
+            return LessonTimeline.Build(plan)
+                .Select((item, i) =>
                 {
-                    var subject = ScheduleQueryHelper.GetSubjectName(_profileService, c.SubjectId);
-                    var time = c.CurrentTimeLayoutItem;
-                    return time == null ? $"第{i + 1}节：{subject}" : $"第{i + 1}节 {time.StartTime:hh\\:mm}-{time.EndTime:hh\\:mm}：{subject}";
+                    var subject = ScheduleQueryHelper.GetSubjectName(_profileService, item.Class.SubjectId);
+                    return $"第{i + 1}节 {item.Layout.StartTime:hh\\:mm}-{item.Layout.EndTime:hh\\:mm}：{subject}";
                 })
                 .Where(x => !x.EndsWith("："))
                 .ToList();
@@ -1456,11 +1440,12 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
     {
         try
         {
-            var activePlan = ScheduleQueryHelper.GetActivePlan(_profileService);
+            var now = BusinessTime.Now;
+            var activePlan = ScheduleQueryHelper.GetActivePlanForBusinessDate(_profileService, now);
             if (activePlan == null) return "";
 
-            var now = TimeSpan.FromTicks(DateTime.Now.TimeOfDay.Ticks);
-            var currentClass = ScheduleQueryHelper.GetClassAtTime(activePlan, now);
+            var nowTime = now.TimeOfDay;
+            var currentClass = ScheduleQueryHelper.GetClassAtTime(activePlan, nowTime);
             if (currentClass != null)
                 return ScheduleQueryHelper.GetSubjectName(_profileService, currentClass.SubjectId);
         }
@@ -1472,11 +1457,11 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
     {
         try
         {
-            var activePlan = ScheduleQueryHelper.GetActivePlan(_profileService);
+            var now = BusinessTime.Now;
+            var activePlan = ScheduleQueryHelper.GetActivePlanForBusinessDate(_profileService, now);
             if (activePlan == null) return "";
 
-            var now = TimeSpan.FromTicks(DateTime.Now.TimeOfDay.Ticks);
-            return GetNextSubjectNameFromPlan(activePlan, now);
+            return GetNextSubjectNameFromPlan(activePlan, now.TimeOfDay);
         }
         catch { }
         return "";
@@ -1486,11 +1471,11 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
     {
         try
         {
-            var activePlan = ScheduleQueryHelper.GetActivePlan(_profileService);
+            var now = BusinessTime.Now;
+            var activePlan = ScheduleQueryHelper.GetActivePlanForBusinessDate(_profileService, now);
             if (activePlan == null) return TimeSpan.Zero;
 
-            var now = TimeSpan.FromTicks(DateTime.Now.TimeOfDay.Ticks);
-            return GetNextClassStartTimeFromPlan(activePlan, now);
+            return GetNextClassStartTimeFromPlan(activePlan, now.TimeOfDay);
         }
         catch { }
         return TimeSpan.Zero;
@@ -1522,9 +1507,9 @@ public class SmartClassNotifier : NotificationProviderBase<SmartClassNotifierSet
     {
         try
         {
-            var nextClass = ScheduleQueryHelper.GetNextClass(plan, now);
-            if (nextClass?.CurrentTimeLayoutItem != null)
-                return nextClass.CurrentTimeLayoutItem.StartTime;
+            var next = LessonTimeline.Build(plan).FirstOrDefault(item => item.Layout.StartTime > now);
+            if (next != null)
+                return next.Layout.StartTime;
         }
         catch { }
         return TimeSpan.Zero;

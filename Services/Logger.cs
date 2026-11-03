@@ -13,6 +13,12 @@ public static class Logger
     private static ILogger? _logger;
 
     /// <summary>
+    /// 错误日志旁路：遥测模块订阅该事件，把错误上报到服务器。
+    /// 订阅者必须自行吞掉异常，绝不能影响日志调用方。
+    /// </summary>
+    public static event Action<string, Exception?>? ErrorReported;
+
+    /// <summary>
     /// 初始化日志服务（由 Plugin 类在启动时调用）
     /// </summary>
     public static void Initialize(ILoggerFactory? loggerFactory)
@@ -45,6 +51,7 @@ public static class Logger
         var formattedMsg = $"{ShortName(file)}::{member} — {message}";
         System.Diagnostics.Trace.WriteLine($"{Prefix} ❌ {formattedMsg}");
         _logger?.LogError("{Message}", formattedMsg);
+        RaiseErrorReported(formattedMsg, null);
     }
 
     public static void Error(Exception ex, string? context = null,
@@ -55,6 +62,22 @@ public static class Logger
         var formattedMsg = $"{ShortName(file)}::{member}{ctx}";
         System.Diagnostics.Trace.WriteLine($"{Prefix} ❌ {formattedMsg} — {ex.GetType().Name}: {ex.Message}");
         _logger?.LogError(ex, "{Message}", formattedMsg);
+        RaiseErrorReported($"{formattedMsg} — {ex.GetType().Name}: {ex.Message}", ex);
+    }
+
+    private static void RaiseErrorReported(string message, Exception? exception)
+    {
+        var handler = ErrorReported;
+        if (handler == null) return;
+
+        try
+        {
+            handler(message, exception);
+        }
+        catch
+        {
+            // 遥测上报失败不能影响正常日志
+        }
     }
 
     private static string ShortName(string filePath)

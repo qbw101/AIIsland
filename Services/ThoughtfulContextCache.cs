@@ -19,7 +19,7 @@ public static class ThoughtfulContextCache
     {
         lock (Lock)
         {
-            if (_lastDate != DateOnly.FromDateTime(DateTime.Now))
+            if (_lastDate != BusinessTime.Today)
                 return null;
             return _last;
         }
@@ -30,7 +30,7 @@ public static class ThoughtfulContextCache
     {
         lock (Lock)
         {
-            _lastDate = DateOnly.FromDateTime(DateTime.Now);
+            _lastDate = BusinessTime.Today;
             _last = snapshot;
         }
     }

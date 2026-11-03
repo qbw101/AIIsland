@@ -1,0 +1,61 @@
+<Styles
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+      AIIsland 组件统一视觉。
+      仅在组件本地通过 StyleInclude 引入，不覆盖宿主全局样式；
+      所有选择器都要求 aiIsland 前缀类，避免影响宿主或其他插件的控件。
+      颜色一律继承宿主前景色，不硬编码黑白或强调色文字。
+    -->
+
+    <!-- 透明内容容器：无卡片背景、无边框、无阴影、无大圆角 -->
+    <Style Selector="Border.aiIslandRoot">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="Padding" Value="8,6"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+    </Style>
+
+    <!-- 单色字体图标：固定 22px 槽位，与正文间距由外层 ColumnSpacing 控制 -->
+    <Style Selector="TextBlock.aiIslandIcon">
+        <Setter Property="FontFamily" Value="avares://ClassIsland.AISmartClass/icon/#AIIsland Icons"/>
+        <Setter Property="FontSize" Value="18"/>
+        <Setter Property="Width" Value="22"/>
+        <Setter Property="TextAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Opacity" Value="0.9"/>
+    </Style>
+
+    <!-- 次要标签：统一 11px，用透明度而非固定灰色区分层级 -->
+    <Style Selector="TextBlock.aiIslandLabel">
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="Opacity" Value="0.72"/>
+        <Setter Property="TextWrapping" Value="NoWrap"/>
+    </Style>
+
+    <!-- 正文：字号继承组件 Settings.FontSize；最多两行，超出省略 -->
+    <Style Selector="TextBlock.aiIslandBody">
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="MaxLines" Value="2"/>
+        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+    </Style>
+
+    <!-- 聚合面板：更紧凑的单行布局 -->
+    <Style Selector="TextBlock.aiIslandIconInline">
+        <Setter Property="VerticalAlignment" Value="Top"/>
+        <Setter Property="Margin" Value="0,1,0,0"/>
+    </Style>
+
+    <Style Selector="TextBlock.aiIslandBodyCompact">
+        <Setter Property="FontSize" Value="12"/>
+    </Style>
+
+    <Style Selector="TextBlock.aiIslandLabelInline">
+        <Setter Property="VerticalAlignment" Value="Top"/>
+        <Setter Property="Margin" Value="0,1,0,0"/>
+    </Style>
+
+</Styles>

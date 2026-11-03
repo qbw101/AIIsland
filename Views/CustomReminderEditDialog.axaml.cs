@@ -68,7 +68,9 @@ public partial class CustomReminderEditDialog : Window
     {
         if (_typeCombo != null) _typeCombo.SelectedIndex = (int)_workingCopy.Type;
 
-        var dateTime = _workingCopy.FixedDateTime ?? DateTime.Today.AddHours(8);
+        // 固定时间提醒按业务日期比较（见 SmartClassNotifier），默认日期也取业务日期保持一致。
+        var dateTime = _workingCopy.FixedDateTime
+                       ?? ClassIsland.AISmartClass.Services.BusinessTime.Today.ToDateTime(TimeOnly.MinValue).AddHours(8);
         if (_datePicker != null) _datePicker.SelectedDate = dateTime.Date;
         if (_hourBox != null) _hourBox.Value = dateTime.Hour;
         if (_minuteBox != null) _minuteBox.Value = dateTime.Minute;
@@ -117,7 +119,8 @@ public partial class CustomReminderEditDialog : Window
         {
             var hour = Math.Clamp((int)(_hourBox?.Value ?? 8), 0, 23);
             var minute = Math.Clamp((int)(_minuteBox?.Value ?? 0), 0, 59);
-            var date = _datePicker?.SelectedDate?.DateTime.Date ?? DateTime.Today;
+            var date = _datePicker?.SelectedDate?.DateTime.Date
+                       ?? ClassIsland.AISmartClass.Services.BusinessTime.Today.ToDateTime(TimeOnly.MinValue);
 
             _workingCopy.FixedDateTime = type == ReminderType.FixedTime
                 ? new DateTime(date.Year, date.Month, date.Day, hour, minute, 0)

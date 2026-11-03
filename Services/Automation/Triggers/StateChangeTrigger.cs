@@ -4,8 +4,9 @@ using ClassIsland.Shared.Enums;
 namespace ClassIsland.AISmartClass.Services.Automation.Triggers;
 
 /// <summary>
-/// 状态变化触发器：订阅课表事件，当 CurrentState 发生切换时触发一次。
-/// 复用 SmartClassNotifier 已验证的事件订阅模式。
+/// 状态变化触发器：按统一业务时钟检测课时阶段切换。
+/// 不使用宿主 OnClass/OnBreakingTime/OnAfterSchool 事件，
+/// 因为时间偏移时宿主事件按真实时钟触发，会与其他业务状态不一致。
 /// </summary>
 public class StateChangeTrigger : IRuleTrigger
 {
@@ -13,36 +14,38 @@ public class StateChangeTrigger : IRuleTrigger
 
     private readonly ILessonsService _lessons;
     private TimeState _lastState;
+    private bool _initialized;
 
     public StateChangeTrigger(ILessonsService lessons)
     {
         _lessons = lessons;
-        _lastState = lessons.CurrentState;
     }
 
     public void Start()
     {
-        _lessons.OnBreakingTime += OnStateChanged;
-        _lessons.OnAfterSchool += OnStateChanged;
-        _lessons.OnClass += OnStateChanged;
         _lessons.PostMainTimerTicked += OnTick;
     }
 
     public void Stop()
     {
-        _lessons.OnBreakingTime -= OnStateChanged;
-        _lessons.OnAfterSchool -= OnStateChanged;
-        _lessons.OnClass -= OnStateChanged;
         _lessons.PostMainTimerTicked -= OnTick;
     }
-
-    private void OnStateChanged(object? sender, EventArgs e) => Fire();
 
     private void OnTick(object? sender, EventArgs e) => Fire();
 
     private void Fire()
     {
-        var state = _lessons.CurrentState;
+        var snapshot = LessonSnapshotService.Capture();
+        var state = snapshot.ToTimeState();
+
+        if (!_initialized)
+        {
+            // 首次取样只建立基线，不补发状态变化。
+            _initialized = true;
+            _lastState = state;
+            return;
+        }
+
         if (state == _lastState)
         {
             return;
@@ -52,7 +55,7 @@ public class StateChangeTrigger : IRuleTrigger
         var ctx = new RuleContext
         {
             LessonsService = _lessons,
-            CurrentState = state
+            Snapshot = snapshot
         };
         Triggered?.Invoke(ctx);
     }

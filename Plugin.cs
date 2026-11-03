@@ -11,6 +11,7 @@ using ClassIsland.AISmartClass.Models;
 using ClassIsland.AISmartClass.Services;
 using ClassIsland.AISmartClass.Services.ExamMode;
 using ClassIsland.AISmartClass.Services.NotificationProviders;
+using ClassIsland.AISmartClass.Services.Telemetry;
 using ClassIsland.AISmartClass.Controls.NotificationProviders;
 using ClassIsland.AISmartClass.Controls.Automation;
 using ClassIsland.AISmartClass.Views.SettingsPages;
@@ -43,6 +44,9 @@ public class Plugin : PluginBase
 
     /// <summary>自然语言解析服务引用。</summary>
     private static ReminderParserService? _sharedReminderParser;
+
+    /// <summary>匿名遥测服务引用。</summary>
+    private static TelemetryService? _sharedTelemetry;
 
     /// <summary>插件配置文件夹路径，供其他组件使用。</summary>
     public static string? ConfigFolderPath { get; private set; }
@@ -102,10 +106,19 @@ public class Plugin : PluginBase
         }
     }
 
+
     /// <summary>将旧版托盘菜单默认值迁移为当前默认组合。</summary>
     public static bool MigrateAISettings(AISettings settings, bool isLegacyConfig)
     {
         var changed = false;
+
+        var normalizedTimeSource = settings.TimeSource.Normalize();
+        if (normalizedTimeSource != settings.TimeSource)
+        {
+            settings.TimeSource = normalizedTimeSource;
+            changed = true;
+            Logger.Info($"已修正无效的时间来源，回退为 {normalizedTimeSource}");
+        }
 
         if (string.Equals(
                 settings.Endpoint?.TrimEnd('/'),
@@ -135,6 +148,26 @@ public class Plugin : PluginBase
             }
         }
 
+        // 遥测接入点不再暴露在设置页，旧版默认端点统一迁移到内置接入点。
+        settings.Telemetry ??= new TelemetrySettings();
+        var telemetryHost = (settings.Telemetry.ServerHost ?? "").Trim();
+        if (telemetryHost.Length == 0 ||
+            (string.Equals(telemetryHost, TelemetrySettings.LegacyServerHost, StringComparison.OrdinalIgnoreCase) &&
+             settings.Telemetry.ServerPort == TelemetrySettings.LegacyServerPort))
+        {
+            settings.Telemetry.ServerHost = TelemetrySettings.DefaultServerHost;
+            settings.Telemetry.ServerPort = TelemetrySettings.DefaultServerPort;
+            changed = true;
+            Logger.Info("已迁移遥测服务器地址");
+        }
+
+        if (string.IsNullOrWhiteSpace(settings.Telemetry.Token))
+        {
+            settings.Telemetry.Token = TelemetrySettings.DefaultToken;
+            changed = true;
+            Logger.Info("已补齐遥测接入令牌");
+        }
+
         if (isLegacyConfig || settings.TrayMenuDefaultsVersion < 1)
         {
             settings.TrayShowBeforeClassReminder = false;
@@ -161,6 +194,16 @@ public class Plugin : PluginBase
         {
             _sharedInvocationLogger.RetentionDays = settings.AiLogRetentionDays;
             _ = _sharedInvocationLogger.CleanupExpiredLogsAsync();
+        }
+
+        try
+        {
+            settings.Telemetry ??= new Models.TelemetrySettings();
+            _sharedTelemetry?.ApplySettings(settings.Telemetry);
+        }
+        catch (Exception ex)
+        {
+            Logger.Info($"同步遥测设置失败: {ex.Message}");
         }
 
         try
@@ -301,6 +344,9 @@ public class Plugin : PluginBase
     /// <summary>获取自然语言解析服务实例。</summary>
     public static ReminderParserService? GetReminderParser() => _sharedReminderParser;
 
+    /// <summary>获取遥测服务实例，供设置页展示状态与测试。</summary>
+    public static TelemetryService? GetTelemetry() => _sharedTelemetry;
+
     /// <summary>IHostedService：在应用启动后获取核心服务，写入静态属性供各组件使用。</summary>
     internal class PluginInitializer : IHostedService
     {
@@ -325,10 +371,34 @@ public class Plugin : PluginBase
         {
             // 初始化日志服务，使日志自动写入 ClassIsland 日志系统
             Logger.Initialize(_loggerFactory);
+
+            // 启动匿名遥测（未启用或未配置服务器时自动跳过）
+            try
+            {
+                _sharedTelemetry?.Start();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"[Telemetry] 启动失败: {ex.Message}");
+            }
             
             ProfileService = _profileService;
             LessonsService = _lessonsService;
             Logger.Info("ProfileService / LessonsService 已写入静态属性");
+
+            // 统一业务时钟：设置读取是委托调用，ClassIsland 时间服务只解析一次并缓存。
+            // 服务未注册或读取异常时 BusinessTime 自动回退系统时间。
+            try
+            {
+                BusinessTime.Configure(
+                    () => GetAISettings()?.TimeSource ?? Models.BusinessTimeSource.ClassIslandTime,
+                    () => ClassIsland.Shared.IAppHost.TryGetService<IExactTimeService>());
+                Logger.Info("业务时钟已接入 ClassIsland 时间服务");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"业务时钟初始化失败，将使用系统时间: {ex.Message}");
+            }
 
             // 注册托盘菜单快捷操作（IHostedService 启动阶段主窗口尚未初始化，
             // TaskBarIconService.MoreOptionsMenu 为 null，需等待 AppStarted 事件后再注册）
@@ -386,7 +456,22 @@ public class Plugin : PluginBase
             }
         }
 
-        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public async Task StopAsync(CancellationToken cancellationToken)
+        {
+            BusinessTime.Reset();
+
+            var telemetry = _sharedTelemetry;
+            if (telemetry == null) return;
+
+            try
+            {
+                await telemetry.ShutdownAsync().WaitAsync(TimeSpan.FromSeconds(6), cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                Logger.Info($"[Telemetry] 关闭时出现异常: {ex.Message}");
+            }
+        }
     }
 
     public override void Initialize(HostBuilderContext context, IServiceCollection services)
@@ -428,6 +513,7 @@ public class Plugin : PluginBase
                     var json = File.ReadAllText(configPath);
                     var settings = JsonSerializer.Deserialize<AISettings>(json,
                         new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new AISettings();
+                    settings.TimeSource = settings.TimeSource.Normalize();
                     if (MigrateAISettings(settings, IsLegacyTrayMenuSettings(json)))
                     {
                         File.WriteAllText(configPath, JsonSerializer.Serialize(settings,
@@ -449,6 +535,25 @@ public class Plugin : PluginBase
             // 4.5 注册托管服务：应用启动后自动获取 IProfileService / ILessonsService
             services.AddHostedService<PluginInitializer>();
             Logger.Info("PluginInitializer 已注册");
+
+            // 4.6 匿名遥测：只上报在线状态、错误与崩溃，关闭后不建立任何连接
+            try
+            {
+                _sharedSettings ??= new AISettings();
+                _sharedSettings.Telemetry ??= new Models.TelemetrySettings();
+                var telemetry = new TelemetryService(
+                    _sharedSettings.Telemetry,
+                    PluginConfigFolder,
+                    () => SaveAISettingsFile(_sharedSettings!));
+                _sharedTelemetry = telemetry;
+                services.AddSingleton(telemetry);
+                Logger.Info($"TelemetryService 已创建（启用={_sharedSettings.Telemetry.Enabled}，" +
+                            $"服务器={_sharedSettings.Telemetry.ServerHost}:{_sharedSettings.Telemetry.ServerPort}）");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"初始化遥测服务失败: {ex.Message}");
+            }
 
             // 5. 注册自然语言解析服务
             var parser = new ReminderParserService(aiService);

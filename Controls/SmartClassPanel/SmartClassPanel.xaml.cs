@@ -38,10 +38,9 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
     private readonly IProfileService _profileService = null!;
     private readonly AIChatService _ai = null!;
 
-    // ===== 内部状态（ILessonsService 仅事件，通过事件追踪状态） =====
+    // ===== 内部状态 =====
+    // 课时阶段不再由宿主事件锁定，每次计时器回调按统一业务时钟重新计算（见 LessonClock）。
 
-    private enum LessonState { BeforeClass, OnClass, Breaking, AfterSchool, Unknown }
-    private LessonState _state = LessonState.Unknown;
 
     // ===== Avalonia DirectProperty 绑定属性 =====
 
@@ -59,13 +58,6 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
     private string _currentHint = "";
     public string CurrentHint { get => _currentHint; set => SetAndRaise(CurrentHintProperty, ref _currentHint, value); }
 
-    public static readonly DirectProperty<SmartClassPanel, double> ProgressPercentProperty =
-        AvaloniaProperty.RegisterDirect<SmartClassPanel, double>(nameof(ProgressPercent),
-            o => o.ProgressPercent, (o, v) => o.ProgressPercent = v);
-
-    private double _progressPercent = 0;
-    public double ProgressPercent { get => _progressPercent; set => SetAndRaise(ProgressPercentProperty, ref _progressPercent, value); }
-
     public static readonly DirectProperty<SmartClassPanel, string> CountdownTextProperty =
         AvaloniaProperty.RegisterDirect<SmartClassPanel, string>(nameof(CountdownText),
             o => o.CountdownText, (o, v) => o.CountdownText = v);
@@ -73,18 +65,18 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
     private string _countdownText = "";
     public string CountdownText { get => _countdownText; set => SetAndRaise(CountdownTextProperty, ref _countdownText, value); }
 
-    public static readonly DirectProperty<SmartClassPanel, string> DifficultyStarsProperty =
-        AvaloniaProperty.RegisterDirect<SmartClassPanel, string>(nameof(DifficultyStars),
-            o => o.DifficultyStars, (o, v) => o.DifficultyStars = v);
+    public static readonly DirectProperty<SmartClassPanel, string> DifficultyLabelProperty =
+        AvaloniaProperty.RegisterDirect<SmartClassPanel, string>(nameof(DifficultyLabel),
+            o => o.DifficultyLabel, (o, v) => o.DifficultyLabel = v);
 
-    private string _difficultyStars = "⭐⭐⭐";
-    public string DifficultyStars { get => _difficultyStars; set => SetAndRaise(DifficultyStarsProperty, ref _difficultyStars, value); }
+    private string _difficultyLabel = "3 / 5";
+    public string DifficultyLabel { get => _difficultyLabel; set => SetAndRaise(DifficultyLabelProperty, ref _difficultyLabel, value); }
 
     public static readonly DirectProperty<SmartClassPanel, string> PomodoroSuggestionProperty =
         AvaloniaProperty.RegisterDirect<SmartClassPanel, string>(nameof(PomodoroSuggestion),
             o => o.PomodoroSuggestion, (o, v) => o.PomodoroSuggestion = v);
 
-    private string _pomodoroSuggestion = "25min";
+    private string _pomodoroSuggestion = "25 分钟";
     public string PomodoroSuggestion { get => _pomodoroSuggestion; set => SetAndRaise(PomodoroSuggestionProperty, ref _pomodoroSuggestion, value); }
 
     // ===== AI 状态指示器 =====
@@ -129,7 +121,10 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
     private long _homeworkGeneration;
     private long _hintGeneration;
     private DateOnly _summaryLoadedDate;
-    private DateOnly _observedDate = DateOnly.FromDateTime(DateTime.Now);
+    private DateOnly _observedDate = BusinessTime.Today;
+    private LessonPhase _lastPhase;
+    private string _lastIdentity = "";
+    private bool _phaseInitialized;
     private bool _preferNextClass;
 
     // ===== 构造函数 =====
@@ -153,12 +148,12 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
     protected override void OnLoaded(RoutedEventArgs e)
     {
         base.OnLoaded(e);
+        ComponentBindingRefresh.Refresh(this);
 
+        // 上课/课间/放学等状态变化统一在 OnTimerTick 内按业务时钟推导，
+        // 不再订阅宿主 OnClass/OnBreakingTime/OnAfterSchool：
+        // 时间偏移时宿主事件按真实时钟触发，会让提示与科目提前或滞后。
         _lessons.PostMainTimerTicked += OnTimerTick;
-        _lessons.OnClass += OnOnClass;
-        _lessons.OnBreakingTime += OnOnBreakingTime;
-        _lessons.OnAfterSchool += OnOnAfterSchool;
-        _lessons.CurrentTimeStateChanged += OnTimeStateChanged;
 
         AIRegenerationService.RegenerateSummaryRequested += OnRegenerateSummaryRequested;
         AIRegenerationService.RegenerateHintRequested += OnRegenerateHintRequested;
@@ -171,10 +166,6 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
         base.OnUnloaded(e);
 
         _lessons.PostMainTimerTicked -= OnTimerTick;
-        _lessons.OnClass -= OnOnClass;
-        _lessons.OnBreakingTime -= OnOnBreakingTime;
-        _lessons.OnAfterSchool -= OnOnAfterSchool;
-        _lessons.CurrentTimeStateChanged -= OnTimeStateChanged;
 
         AIRegenerationService.RegenerateSummaryRequested -= OnRegenerateSummaryRequested;
         AIRegenerationService.RegenerateHintRequested -= OnRegenerateHintRequested;
@@ -214,16 +205,6 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
 
     // ===== 事件处理 =====
 
-    private void OnOnClass(object? sender, EventArgs e)
-    {
-        _state = LessonState.OnClass;
-        _preferNextClass = false;
-        ShowExtras = true;
-        _currentHintLoaded = false;
-        SetAIStatus(true, "生成中...");
-        StartHintRefresh();
-    }
-
     private void StartHintRefresh()
     {
         _hintCts?.Cancel();
@@ -254,28 +235,6 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
             }
         }
     }
-
-    private void OnOnBreakingTime(object? sender, EventArgs e)
-    {
-        _state = LessonState.Breaking;
-        _preferNextClass = true;
-        ShowExtras = true;
-        _currentHintLoaded = false;
-        StartHintRefresh();
-    }
-
-    private void OnOnAfterSchool(object? sender, EventArgs e)
-    {
-        _state = LessonState.AfterSchool;
-        _preferNextClass = false;
-        ShowExtras = false;
-        ProgressPercent = 100;
-        CountdownText = "放学啦 🎉";
-        _currentHintLoaded = false;
-        StartHintRefresh();
-    }
-
-    private void OnTimeStateChanged(object? sender, EventArgs e) { }
 
     // ===== 异步初始化 =====
 
@@ -325,7 +284,7 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
 
     private async Task LoadTodaySummary(CancellationToken ct)
     {
-        var today = DateOnly.FromDateTime(DateTime.Now);
+        var today = BusinessTime.Today;
         if (_summaryLoadedDate != today)
             _todayOverviewLoaded = false;
         if (!Settings.ShowTodayOverview || _todayOverviewLoaded) return;
@@ -387,7 +346,7 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
             () => _profileService, ct: ct);
         if (generation != Interlocked.Read(ref _hintGeneration)) return;
 
-        var today = DateOnly.FromDateTime(DateTime.Now);
+        var today = BusinessTime.Today;
         if (schedule.Readiness is not (ProfileReadiness.Ready or ProfileReadiness.ReadyWithoutCourses))
         {
             CurrentHint = "课表加载中，请稍后刷新";
@@ -458,40 +417,84 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
     {
         var subjects = await GetTodaySubjectNamesAsync(_loadingCts?.Token ?? default);
         var diff = _ai.EstimateDifficulty(subjects);
-        DifficultyStars = new string('⭐', Math.Clamp(diff, 1, 5));
-        PomodoroSuggestion = subjects.Count switch { > 5 => "建议 25min", >= 4 => "建议 30min", _ => "建议 45min" };
+        DifficultyLabel = $"{Math.Clamp(diff, 1, 5)} / 5";
+        PomodoroSuggestion = subjects.Count switch { > 5 => "25 分钟", >= 4 => "30 分钟", _ => "45 分钟" };
     }
 
     // ===== 实时事件 =====
 
     private void OnTimerTick(object? sender, EventArgs e)
     {
-        var today = DateOnly.FromDateTime(DateTime.Now);
+        var today = BusinessTime.Today;
         if (_observedDate != today)
         {
             _observedDate = today;
             RefreshForNewDay();
         }
 
+        var snapshot = LessonSnapshotService.Capture();
+        HandlePhaseTransition(snapshot);
+
         if (!Settings.ShowCountdown) return;
-        switch (_state)
+        ApplyCountdown(snapshot);
+    }
+
+    /// <summary>
+    /// 业务时钟驱动的状态迁移：替代宿主 OnClass/OnBreakingTime/OnAfterSchool 事件，
+    /// 保证提示刷新、扩展区显示和倒计时使用同一时钟。
+    /// </summary>
+    private void HandlePhaseTransition(LessonSnapshot snapshot)
+    {
+        var phase = snapshot.Phase;
+        var identity = LessonIdentity.ForHint(snapshot);
+        if (!_phaseInitialized)
         {
-            case LessonState.AfterSchool:
-                ProgressPercent = 100;
-                CountdownText = "放学啦 🎉";
+            // 首次加载只记录基线，不补发状态变化。
+            _phaseInitialized = true;
+            _lastPhase = phase;
+            _lastIdentity = identity;
+            return;
+        }
+
+        var phaseChanged = phase != _lastPhase;
+        var identityChanged = !string.Equals(_lastIdentity, identity, StringComparison.Ordinal);
+        if (!phaseChanged && !identityChanged) return;
+
+        _lastPhase = phase;
+        _lastIdentity = identity;
+
+        if (!phaseChanged)
+        {
+            // 阶段未变但课程变化（切换时间来源、临时换课）：只刷新提示，不重置扩展区。
+            _preferNextClass = phase == LessonPhase.Breaking;
+            _currentHintLoaded = false;
+            StartHintRefresh();
+            return;
+        }
+
+        switch (phase)
+        {
+            case LessonPhase.OnClass:
+                _preferNextClass = false;
+                ShowExtras = true;
+                _currentHintLoaded = false;
+                SetAIStatus(true, "生成中...");
+                StartHintRefresh();
                 break;
-            case LessonState.OnClass:
-                UpdateClassCountdown();
+
+            case LessonPhase.Breaking:
+                _preferNextClass = true;
+                ShowExtras = true;
+                _currentHintLoaded = false;
+                StartHintRefresh();
                 break;
-            case LessonState.Breaking:
-                UpdateBreakCountdown();
-                break;
-            case LessonState.BeforeClass:
-                // 课前等待阶段，无需更新
-                break;
-            case LessonState.Unknown:
-                // 未知状态时尝试根据当前时间推断
-                TryInitStateFromCurrentTime();
+
+            case LessonPhase.AfterSchool:
+                _preferNextClass = false;
+                ShowExtras = false;
+                CountdownText = "放学啦";
+                _currentHintLoaded = false;
+                StartHintRefresh();
                 break;
         }
     }
@@ -515,105 +518,37 @@ public partial class SmartClassPanel : ComponentBase<Models.SmartClassPanelSetti
         _ = LoadHomeworkEstimate(ct);
     }
 
-    /// <summary>上课中：显示剩余时间 + 进度条</summary>
-    private void UpdateClassCountdown()
-    {
-        var layout = Services.ScheduleQueryHelper.GetCurrentLayoutItem(_profileService);
-        if (layout == null) { return; }
-
-        var now = TimeSpan.FromTicks(DateTime.Now.TimeOfDay.Ticks);
-        var start = layout.StartTime;
-        var end = layout.EndTime;
-        var total = (end - start).TotalSeconds;
-        var elapsed = (now - start).TotalSeconds;
-
-        if (total <= 0) return;
-
-        ProgressPercent = Math.Clamp(elapsed / total * 100, 0, 100);
-
-        var remaining = (end - now).TotalSeconds;
-        if (remaining > 0)
-        {
-            var minutes = (int)(remaining / 60);
-            var seconds = (int)(remaining % 60);
-            CountdownText = $"距下课还有 {minutes:D2}:{seconds:D2}";
-        }
-        else
-        {
-            CountdownText = "即将下课";
-            ProgressPercent = 100;
-        }
-    }
-
-    /// <summary>课间：显示下节课倒计时</summary>
-    private void UpdateBreakCountdown()
-    {
-        var layout = Services.ScheduleQueryHelper.GetCurrentLayoutItem(_profileService);
-        if (layout == null) { return; }
-
-        var now = TimeSpan.FromTicks(DateTime.Now.TimeOfDay.Ticks);
-        var end = layout.EndTime;
-
-        // 如果当前课间已经结束（时间已过），回到上课状态等待
-        if (now > end)
-        {
-            _state = LessonState.OnClass;
-            return;
-        }
-
-        var remaining = (end - now).TotalSeconds;
-        var minutes = (int)(remaining / 60);
-        var seconds = (int)(remaining % 60);
-        CountdownText = $"课间剩余 {minutes:D2}:{seconds:D2}";
-        ProgressPercent = 100; // 课间阶段进度条满
-    }
-
     /// <summary>
-    /// Unknown 状态下，根据当前时间推断当前所处的课段。
-    /// 用于组件加载后尚未收到事件时的快速初始化。
+    /// 渲染业务课时快照。阶段与剩余时间来自同一次取样，
+    /// 时间来源切换、回拨、跨天和启动未就绪都能在下一 tick 恢复。
     /// </summary>
-    private void TryInitStateFromCurrentTime()
+    private void ApplyCountdown(LessonSnapshot snapshot)
     {
-        try
+        switch (snapshot.Phase)
         {
-            var profile = _profileService.Profile;
-            if (profile == null) return;
+            case LessonPhase.OnClass:
+                // 纯数字倒计时：标签已说明含义，避免长句挤压版面。
+                CountdownText = snapshot.Remaining > TimeSpan.Zero
+                    ? LessonClock.FormatCountdown(snapshot.Remaining)
+                    : "即将下课";
+                break;
 
-            var activePlan = profile.ClassPlans.Values.FirstOrDefault(p => p.IsActivated && p.IsEnabled);
-            if (activePlan == null) return;
+            case LessonPhase.Breaking:
+                CountdownText = LessonClock.FormatCountdown(snapshot.Remaining);
+                break;
 
-            var now = TimeSpan.FromTicks(DateTime.Now.TimeOfDay.Ticks);
-            var classInfo = Services.ScheduleQueryHelper.GetClassAtTime(activePlan, now);
+            case LessonPhase.AfterSchool:
+                CountdownText = "放学啦";
+                break;
 
-            if (classInfo != null)
-            {
-                _state = LessonState.OnClass;
-                UpdateClassCountdown();
-            }
-            else
-            {
-                // 检查是否在任何课间
-                var allLayouts = activePlan.Classes
-                    .Where(c => c.IsEnabled)
-                    .Select(c => c.CurrentTimeLayoutItem)
-                    .Where(tl => tl != null)
-                    .ToList();
+            case LessonPhase.NoCourses:
+                CountdownText = "今天没有课程";
+                break;
 
-                var inBreak = allLayouts.Any(tl => now > tl.EndTime);
-                if (inBreak)
-                {
-                    _state = LessonState.Breaking;
-                    UpdateBreakCountdown();
-                }
-                else if (allLayouts.Count > 0 && now > allLayouts.Last()!.EndTime)
-                {
-                    _state = LessonState.AfterSchool;
-                    ProgressPercent = 100;
-                    CountdownText = "放学啦 🎉";
-                }
-            }
+            default:
+                CountdownText = "等待上课";
+                break;
         }
-        catch { /* 保持 Unknown，等待事件更新 */ }
     }
 
     // ===== 辅助方法 =====

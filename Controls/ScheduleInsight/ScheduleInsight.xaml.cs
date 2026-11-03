@@ -29,7 +29,7 @@ public partial class ScheduleInsight : ComponentBase<ScheduleInsightSettings>
     private CancellationTokenSource? _loadCts;
     private long _loadGeneration;
     private DateOnly _loadedDate;
-    private DateOnly _observedDate = DateOnly.FromDateTime(DateTime.Now);
+    private DateOnly _observedDate = BusinessTime.Today;
     private bool _lessonsSubscribed;
 
     public ScheduleInsight()
@@ -43,6 +43,7 @@ public partial class ScheduleInsight : ComponentBase<ScheduleInsightSettings>
     {
         DataContext = this;
         base.OnLoaded(e);
+        ComponentBindingRefresh.Refresh(this);
         TrySubscribeLessonsService();
         AIRegenerationService.RegenerateSummaryRequested += OnRegenerateRequested;
         StartLoad();
@@ -90,7 +91,7 @@ public partial class ScheduleInsight : ComponentBase<ScheduleInsightSettings>
 
     private void OnTimerTicked(object? sender, EventArgs e)
     {
-        var today = DateOnly.FromDateTime(DateTime.Now);
+        var today = BusinessTime.Today;
         if (_observedDate != today)
         {
             _observedDate = today;
@@ -114,7 +115,7 @@ public partial class ScheduleInsight : ComponentBase<ScheduleInsightSettings>
             if (schedule.Readiness == ProfileReadiness.ReadyWithoutCourses)
             {
                 Summary = "今天没有课程安排~";
-                _loadedDate = DateOnly.FromDateTime(DateTime.Now);
+                _loadedDate = BusinessTime.Today;
                 return;
             }
 
@@ -136,7 +137,7 @@ public partial class ScheduleInsight : ComponentBase<ScheduleInsightSettings>
             }, ct);
             if (generation == Interlocked.Read(ref _loadGeneration) &&
                 !string.IsNullOrWhiteSpace(result))
-                _loadedDate = DateOnly.FromDateTime(DateTime.Now);
+                _loadedDate = BusinessTime.Today;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         catch (Exception ex)

@@ -7,19 +7,20 @@
     xmlns:models="clr-namespace:ClassIsland.AISmartClass.Models"
     FontSize="{Binding Settings.FontSize, FallbackValue=14}">
 
-    <Border CornerRadius="8" Padding="12,8"
-            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-        <StackPanel Spacing="5">
-            <Grid ColumnDefinitions="Auto,*">
-                <TextBlock Grid.Column="0" Text="⏳" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <TextBlock Grid.Column="1"
+    <ci:ComponentBase.Styles>
+        <StyleInclude Source="avares://ClassIsland.AISmartClass/Styles/ComponentStyles.axaml"/>
+    </ci:ComponentBase.Styles>
+
+    <Border Classes="aiIslandRoot">
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+            <TextBlock Grid.Column="0" Classes="aiIslandIcon" Text="&#xE001;"/>
+
+            <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                <TextBlock Classes="aiIslandLabel" Text="课时倒计时"/>
+                <TextBlock Classes="aiIslandBody"
                            Text="{Binding CountdownText}"
-                           VerticalAlignment="Center"
-                           FontWeight="Medium"/>
-            </Grid>
-            <ProgressBar Value="{Binding ProgressPercent}"
-                         Maximum="100" Height="6" CornerRadius="3"/>
-        </StackPanel>
+                           ToolTip.Tip="{Binding CountdownText}"/>
+            </StackPanel>
+        </Grid>
     </Border>
 </ci:ComponentBase>

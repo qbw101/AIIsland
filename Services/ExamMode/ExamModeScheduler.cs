@@ -1,10 +1,8 @@
 using Avalonia.Threading;
 using ClassIsland.AISmartClass.Models.ExamMode;
-using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Abstractions.Services.NotificationProviders;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Models.Notification;
-using ClassIsland.Shared.Enums;
 using System.Timers;
 using Timer = System.Timers.Timer;
 
@@ -17,11 +15,11 @@ namespace ClassIsland.AISmartClass.Services.ExamMode;
     "根据 ClassIsland 考试课表触发考前提醒、结束提醒和听力自动播放。")]
 public sealed class ExamModeScheduler : NotificationProviderBase, IDisposable
 {
-    private readonly ILessonsService _lessons;
     private readonly Timer _timer;
-    private DateTime _lastCheck = DateTime.Now;
+    private DateTime _lastCheck = BusinessTime.Now;
     private string _lastClassSessionId = "";
-    private TimeState _previousState;
+    private LessonPhase _previousPhase = LessonPhase.NoPlan;
+    private bool _phaseInitialized;
     private long _audioSequence;
     private readonly HashSet<string> _firedReminderKeys = new();
     private readonly HashSet<string> _firedStartKeys = new();
@@ -31,18 +29,15 @@ public sealed class ExamModeScheduler : NotificationProviderBase, IDisposable
     private int _isChecking;
     private int _isDisposed;
 
-    public ExamModeScheduler(ILessonsService lessons)
+    public ExamModeScheduler()
     {
-        _lessons = lessons;
-        _previousState = lessons.CurrentState;
-
         // 替换基类默认创建的 FluentIcon 为自定义字体图标（与设置页考试模式大项图标一致）
         IconElement = SettingsPageIconPatcher.CreateExamModeIcon();
 
         _timer = new Timer(1000) { AutoReset = true };
         _timer.Elapsed += OnTimerElapsed;
         _timer.Start();
-        Logger.Info("[ExamModeScheduler] 已启动，考试时间全部同步 ClassIsland");
+        Logger.Info("[ExamModeScheduler] 已启动，考试调度跟随插件统一业务时钟");
     }
 
     private void OnTimerElapsed(object? sender, ElapsedEventArgs e)
@@ -55,23 +50,41 @@ public sealed class ExamModeScheduler : NotificationProviderBase, IDisposable
 
         try
         {
-            var now = DateTime.Now;
+            var snapshot = LessonSnapshotService.Capture();
+            var now = snapshot.Now;
+
+            if (BusinessClockContinuity.ShouldResetBaseline(_lastCheck, now))
+            {
+                // 时间来源切换、偏移调整或系统休眠恢复：以当前时间重建基线，不补发陈旧提醒。
+                _lastCheck = now;
+                _previousPhase = snapshot.Phase;
+                Logger.Info($"[ExamModeScheduler] 检测到业务时间跳变，已重建调度基线: {now:HH:mm:ss}");
+                return;
+            }
+
             var settings = Plugin.GetAISettings()?.ExamMode;
             var server = ExamModeServer.GetOrCreate();
 
             if (settings is not { EnableScheduler: true } || !server.IsRunning)
             {
-                _previousState = _lessons.CurrentState;
+                _previousPhase = snapshot.Phase;
                 _lastCheck = now;
                 return;
             }
 
-            CheckPreExamReminders(settings, now, server);
-            CheckExamStart(settings, now, server);
-            CheckRemainingTimeReminders(settings, now, server);
-            CheckAudioAutoPlay(settings, now, server);
-            CheckExamEnd(settings, now, server);
-            _previousState = _lessons.CurrentState;
+            // 首次观察只建立阶段基线，避免启动时补发开考/结束提醒。
+            var firstObservation = !_phaseInitialized;
+            _phaseInitialized = true;
+
+            CheckPreExamReminders(settings, snapshot, server);
+            if (!firstObservation)
+            {
+                CheckExamStart(settings, snapshot, server);
+                CheckExamEnd(settings, snapshot, server);
+            }
+            CheckRemainingTimeReminders(settings, snapshot, server);
+            CheckAudioAutoPlay(settings, snapshot, server);
+            _previousPhase = snapshot.Phase;
             _lastCheck = now;
             PruneOldKeys(now);
         }
@@ -85,16 +98,22 @@ public sealed class ExamModeScheduler : NotificationProviderBase, IDisposable
         }
     }
 
-    private void CheckPreExamReminders(ExamModeSettings settings, DateTime now, ExamModeServer server)
+    private void CheckPreExamReminders(ExamModeSettings settings, LessonSnapshot snapshot, ExamModeServer server)
     {
-        if (!settings.ReminderEnabled || _lessons.CurrentState == TimeState.OnClass)
+        if (!settings.ReminderEnabled || snapshot.IsOnClass)
         {
             return;
         }
 
-        var nextItem = _lessons.NextClassTimeLayoutItem;
+        var nextItem = snapshot.NextLayout;
+        if (nextItem == null)
+        {
+            return;
+        }
+
+        var now = snapshot.Now;
         var start = now.Date + nextItem.StartTime;
-        var subjectName = NormalizeSubjectName(_lessons.NextClassSubject?.Name, "下一场考试");
+        var subjectName = NormalizeSubjectName(snapshot.NextSubjectName, "下一场考试");
         var sessionId = BuildSessionId(start, subjectName);
         var crossed = settings.ReminderMinutes
             .Where(m => m is > 0 and <= 120)
@@ -118,16 +137,21 @@ public sealed class ExamModeScheduler : NotificationProviderBase, IDisposable
         Logger.Info($"[ExamModeScheduler] 考前提醒已触发: {key}");
     }
 
-    private void CheckExamStart(ExamModeSettings settings, DateTime now, ExamModeServer server)
+    private void CheckExamStart(ExamModeSettings settings, LessonSnapshot snapshot, ExamModeServer server)
     {
-        if (!settings.StartNotificationEnabled || _previousState == TimeState.OnClass ||
-            _lessons.CurrentState != TimeState.OnClass)
+        if (!settings.StartNotificationEnabled || _previousPhase == LessonPhase.OnClass || !snapshot.IsOnClass)
         {
             return;
         }
 
-        var item = _lessons.CurrentTimeLayoutItem;
-        var subjectName = NormalizeSubjectName(_lessons.CurrentSubject?.Name, "本场考试");
+        var item = snapshot.CurrentLayout;
+        if (item == null)
+        {
+            return;
+        }
+
+        var now = snapshot.Now;
+        var subjectName = NormalizeSubjectName(snapshot.CurrentSubjectName, "本场考试");
         var start = now.Date + item.StartTime;
         var end = now.Date + item.EndTime;
         var sessionId = BuildSessionId(start, subjectName);
@@ -144,15 +168,21 @@ public sealed class ExamModeScheduler : NotificationProviderBase, IDisposable
         Logger.Info($"[ExamModeScheduler] 开考提醒已触发: {sessionId}");
     }
 
-    private void CheckRemainingTimeReminders(ExamModeSettings settings, DateTime now, ExamModeServer server)
+    private void CheckRemainingTimeReminders(ExamModeSettings settings, LessonSnapshot snapshot, ExamModeServer server)
     {
-        if (!settings.RemainingNotificationEnabled || _lessons.CurrentState != TimeState.OnClass)
+        if (!settings.RemainingNotificationEnabled || !snapshot.IsOnClass)
         {
             return;
         }
 
-        var item = _lessons.CurrentTimeLayoutItem;
-        var subjectName = NormalizeSubjectName(_lessons.CurrentSubject?.Name, "本场考试");
+        var item = snapshot.CurrentLayout;
+        if (item == null)
+        {
+            return;
+        }
+
+        var now = snapshot.Now;
+        var subjectName = NormalizeSubjectName(snapshot.CurrentSubjectName, "本场考试");
         var start = now.Date + item.StartTime;
         var end = now.Date + item.EndTime;
         var sessionId = BuildSessionId(start, subjectName);
@@ -179,7 +209,7 @@ public sealed class ExamModeScheduler : NotificationProviderBase, IDisposable
         Logger.Info($"[ExamModeScheduler] 剩余时间提醒已触发: {key}");
     }
 
-    private void CheckAudioAutoPlay(ExamModeSettings settings, DateTime now, ExamModeServer server)
+    private void CheckAudioAutoPlay(ExamModeSettings settings, LessonSnapshot snapshot, ExamModeServer server)
     {
         if (!settings.AutoPlayEnabled || string.IsNullOrWhiteSpace(settings.AudioPath) ||
             !File.Exists(settings.AudioPath))
@@ -188,16 +218,27 @@ public sealed class ExamModeScheduler : NotificationProviderBase, IDisposable
         }
 
         var offset = Math.Clamp(settings.AutoPlayOffsetMinutes, -60, 60);
-        var isClassTime = _lessons.CurrentState == TimeState.OnClass;
-        if ((offset < 0 && isClassTime) || (offset >= 0 && !isClassTime))
+        // 负偏移表示开考前（尚未进入考试），非负偏移表示开考后（必须在考试中）。
+        if (offset < 0 && snapshot.IsOnClass)
         {
             return;
         }
 
-        var item = isClassTime ? _lessons.CurrentTimeLayoutItem : _lessons.NextClassTimeLayoutItem;
-        var subjectName = isClassTime
-            ? NormalizeSubjectName(_lessons.CurrentSubject?.Name, "当前考试")
-            : NormalizeSubjectName(_lessons.NextClassSubject?.Name, "下一场考试");
+        if (offset >= 0 && !snapshot.IsOnClass)
+        {
+            return;
+        }
+
+        var item = snapshot.IsOnClass ? snapshot.CurrentLayout : snapshot.NextLayout;
+        if (item == null)
+        {
+            return;
+        }
+
+        var now = snapshot.Now;
+        var subjectName = snapshot.IsOnClass
+            ? NormalizeSubjectName(snapshot.CurrentSubjectName, "当前考试")
+            : NormalizeSubjectName(snapshot.NextSubjectName, "下一场考试");
         var start = now.Date + item.StartTime;
         var sessionId = BuildSessionId(start, subjectName);
         if (server.GetAudioSessionChoice(sessionId) != true)
@@ -221,26 +262,27 @@ public sealed class ExamModeScheduler : NotificationProviderBase, IDisposable
             Volume = Math.Clamp(settings.AudioVolume, 0, 1),
             SessionId = sessionId,
             ExamName = subjectName,
+            // 通信命令有效期必须使用真实时间，不能跟随业务时间偏移。
             ExpiresAtUnixSeconds = DateTimeOffset.Now.AddMinutes(2).ToUnixTimeSeconds()
         });
         Logger.Info($"[ExamModeScheduler] 听力自动播放命令已下发: {sessionId}, seq={sequence}");
     }
 
-    private void CheckExamEnd(ExamModeSettings settings, DateTime now, ExamModeServer server)
+    private void CheckExamEnd(ExamModeSettings settings, LessonSnapshot snapshot, ExamModeServer server)
     {
-        var state = _lessons.CurrentState;
-        if (_previousState != TimeState.OnClass || state == TimeState.OnClass)
+        var now = snapshot.Now;
+        if (snapshot.IsOnClass)
         {
-            if (state == TimeState.OnClass)
+            if (snapshot.CurrentLayout != null)
             {
-                var item = _lessons.CurrentTimeLayoutItem;
-                var name = NormalizeSubjectName(_lessons.CurrentSubject?.Name, "当前考试");
-                _lastClassSessionId = BuildSessionId(now.Date + item.StartTime, name);
+                var name = NormalizeSubjectName(snapshot.CurrentSubjectName, "当前考试");
+                _lastClassSessionId = BuildSessionId(now.Date + snapshot.CurrentLayout.StartTime, name);
             }
+
             return;
         }
 
-        if (!settings.EndNotificationEnabled)
+        if (_previousPhase != LessonPhase.OnClass || !settings.EndNotificationEnabled)
         {
             return;
         }

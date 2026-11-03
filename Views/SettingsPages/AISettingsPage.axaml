@@ -22,6 +22,17 @@
             <Setter Property="HorizontalAlignment" Value="Stretch"/>
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
         </Style>
+        <!-- 二级菜单标题：无图标、无额外缩进，文字在 66px 高度内垂直居中，与 setting-row 的行标题左对齐 -->
+        <Style Selector="Grid.subsection-header">
+            <Setter Property="MinHeight" Value="66"/>
+            <Setter Property="Margin" Value="0,0,4,0"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <!-- 二级菜单内容不做淡入，避免被一级分组的展开动画规则重复作用 -->
+        <Style Selector="StackPanel.subsection-content">
+            <Setter Property="Margin" Value="0,2,0,0"/>
+        </Style>
         <Style Selector="Grid.section-header">
             <Setter Property="MinHeight" Value="66"/>
             <Setter Property="HorizontalAlignment" Value="Stretch"/>
@@ -524,6 +535,47 @@
             <Expander Classes="settings-section" IsExpanded="False">
                 <Expander.Header>
                     <Grid Classes="section-header" ColumnDefinitions="32,*" ColumnSpacing="12">
+                        <TextBlock Text="&#xF0504;" Classes="expander-icon"/>
+                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="时间来源" Classes="expander-title"/>
+                            <TextBlock Text="统一决定课表、倒计时、提醒和考试模式使用哪一种时间。" Classes="expander-description"/>
+                        </StackPanel>
+                    </Grid>
+                </Expander.Header>
+                <StackPanel Classes="section-content" Spacing="6">
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="0,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE916;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="业务时间来源" Classes="row-title"/>
+                        <TextBlock Text="所有组件统一使用此设置。选 ClassIsland 时间可跟随主程序的时间偏移与校时；旧版课时倒计时组件中的独立选项已移除。"
+                                   Classes="row-description"/>
+                    </StackPanel>
+                    <ComboBox Grid.Column="2" x:Name="TimeSourceComboBox" MinWidth="220"
+                              HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <ComboBoxItem Content="ClassIsland 时间（含偏移）" Tag="ClassIslandTime"/>
+                        <ComboBoxItem Content="系统时间" Tag="SystemTime"/>
+                    </ComboBox>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="0,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE946;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="始终使用真实时间的场景" Classes="row-title"/>
+                        <TextBlock Text="AI 提示词中的日期时间、日志与授权记录、网络校时、通信过期校验、缓存有效期、超时与防抖不受上方设置影响，避免把真实发生的记录改成课表时间。"
+                                   Classes="row-description"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+                </StackPanel>
+            </Expander>
+
+            <Expander Classes="settings-section" IsExpanded="False">
+                <Expander.Header>
+                    <Grid Classes="section-header" ColumnDefinitions="32,*" ColumnSpacing="12">
                         <TextBlock Text="&#xF0142;" Classes="expander-icon"/>
                         <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                             <TextBlock Text="托盘菜单快捷操作" Classes="expander-title"/>
@@ -703,7 +755,7 @@
                         <TextBlock Text="&#xF0570;" Classes="expander-icon"/>
                         <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                             <TextBlock Text="更多选项" Classes="expander-title"/>
-                            <TextBlock Text="访问项目主页、提交反馈、预览提示词与上下文，或重新运行欢迎向导。" Classes="expander-description"/>
+                            <TextBlock Text="访问项目主页、提交反馈、预览提示词与上下文、调整诊断与遥测，或重新运行欢迎向导。" Classes="expander-description"/>
                         </StackPanel>
                     </Grid>
                 </Expander.Header>
@@ -750,6 +802,40 @@
                             </StackPanel>
                         </Grid>
                     </Border>
+
+                    <Expander Classes="settings-section" IsExpanded="False">
+                        <Expander.Header>
+                            <Grid Classes="subsection-header">
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="诊断与遥测" Classes="expander-title"/>
+                                    <TextBlock Text="匿名上报在线状态、错误与崩溃信息，帮助定位插件问题。" Classes="expander-description"/>
+                                </StackPanel>
+                            </Grid>
+                        </Expander.Header>
+                        <StackPanel Classes="subsection-content" Spacing="6">
+                            <Border Classes="setting-row">
+                                <Grid ColumnDefinitions="0,*,Auto" ColumnSpacing="14">
+                                    <TextBlock Text="&#xE7B8;" Classes="row-icon"/>
+                                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Text="匿名遥测" Classes="row-title"/>
+                                        <TextBlock Text="上报设备在线心跳、插件错误栈和崩溃现场。关闭后不会建立任何遥测连接。" Classes="row-description"/>
+                                    </StackPanel>
+                                    <ToggleSwitch Grid.Column="2" x:Name="TelemetryEnabledSwitch" IsChecked="True"/>
+                                </Grid>
+                            </Border>
+
+                            <Border Classes="setting-row">
+                                <Grid ColumnDefinitions="0,*,Auto" ColumnSpacing="14">
+                                    <TextBlock Text="&#xE9D5;" Classes="row-icon"/>
+                                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Text="崩溃时附带日志" Classes="row-title"/>
+                                        <TextBlock Text="附带 ClassIsland 日志尾部和 Windows 事件日志，定位更快，但日志里可能包含课表名称等本地文本。" Classes="row-description"/>
+                                    </StackPanel>
+                                    <ToggleSwitch Grid.Column="2" x:Name="TelemetryLogTailSwitch" IsChecked="True"/>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </Expander>
                 </StackPanel>
             </Expander>
         </StackPanel>

@@ -353,45 +353,35 @@ public class ExamModeServer : IDisposable
                 currentEnd = "--:--",
                 nextStart = "--:--",
                 debug = "ProfileService 或 LessonsService 仍为 null",
-                serverUnixSeconds = DateTimeOffset.Now.ToUnixTimeSeconds()
+                serverUnixSeconds = DateTimeOffset.Now.ToUnixTimeSeconds(),
+                businessUnixSeconds = new DateTimeOffset(BusinessTime.Now).ToUnixTimeSeconds()
             };
         }
 
-        var now = DateTime.Now;
-        var nowTime = now.TimeOfDay;
-        var currentState = lessons.CurrentState;
-        var currentSubject = lessons.CurrentSubject;
-        var nextSubject = lessons.NextClassSubject;
-        var currentItem = lessons.CurrentTimeLayoutItem;
-        var nextClassItem = lessons.NextClassTimeLayoutItem;
+        // 考试业务倒计时与页面展示使用统一业务快照；通信时间戳、校时与日志仍用真实时间。
+        var snapshot = LessonSnapshotService.Capture();
+        var now = snapshot.Now;
+        var realNow = DateTimeOffset.Now;
+        var currentState = snapshot.ToTimeState();
+        var isClassTime = snapshot.IsOnClass;
+        var isPrepareOnClass = snapshot.Phase == LessonPhase.BeforeFirstClass;
+        var isBreaking = snapshot.IsBreaking;
+        var isAfterSchool = snapshot.IsSchoolDayEnded;
 
-        var isClassTime = currentState == TimeState.OnClass;
-        var isPrepareOnClass = currentState == TimeState.PrepareOnClass;
-        var isBreaking = currentState == TimeState.Breaking;
-        var isAfterSchool = currentState == TimeState.AfterSchool;
+        var currentItem = snapshot.CurrentLayout;
+        var nextItem = snapshot.NextLayout;
 
-        // ClassIsland API 语义：上课/考试中，OnBreakingTimeLeftTime 是距下课/考试结束；非上课时，OnClassLeftTime 是距下一场开始。
-        var apiRemainingTime = isClassTime ? lessons.OnBreakingTimeLeftTime : lessons.OnClassLeftTime;
-        var remainingTime = apiRemainingTime;
-        var fallbackUsed = false;
+        var currentStartTime = currentItem?.StartTime ?? TimeSpan.Zero;
+        var currentEndTime = currentItem?.EndTime ?? TimeSpan.Zero;
+        var nextStartTime = nextItem?.StartTime ?? TimeSpan.Zero;
+        var nextEndTime = nextItem?.EndTime ?? TimeSpan.Zero;
 
-        if (remainingTime <= TimeSpan.Zero)
-        {
-            remainingTime = isClassTime
-                ? currentItem.EndTime - nowTime
-                : nextClassItem.StartTime - nowTime;
-            fallbackUsed = true;
-        }
+        var remainingTime = snapshot.Remaining;
         if (remainingTime < TimeSpan.Zero)
             remainingTime = TimeSpan.Zero;
 
-        var currentStartTime = currentItem.StartTime;
-        var currentEndTime = currentItem.EndTime;
-        var nextStartTime = nextClassItem.StartTime;
-        var nextEndTime = nextClassItem.EndTime;
-
         var totalSeconds = 0;
-        if (isClassTime && currentItem.TimeType == 0)
+        if (isClassTime && currentItem != null && currentItem.TimeType == 0)
         {
             var duration = currentEndTime - currentStartTime;
             if (duration <= TimeSpan.Zero)
@@ -403,43 +393,43 @@ public class ExamModeServer : IDisposable
         var elapsedSeconds = totalSeconds > 0 ? Math.Clamp(totalSeconds - remainingSeconds, 0, totalSeconds) : 0;
         var progressPercent = totalSeconds > 0 ? Math.Clamp(elapsedSeconds * 100.0 / totalSeconds, 0, 100) : 0;
 
-        var stateText = currentState switch
+        var stateText = snapshot.Phase switch
         {
-            TimeState.OnClass => "考试中",
-            TimeState.PrepareOnClass => "准备上课",
-            TimeState.Breaking => "课间 / 考间休息",
-            TimeState.AfterSchool => "已放学",
+            LessonPhase.OnClass => "考试中",
+            LessonPhase.BeforeFirstClass => "准备上课",
+            LessonPhase.Breaking => "课间 / 考间休息",
+            LessonPhase.AfterSchool => "已放学",
+            LessonPhase.NoCourses => "今日无考试",
             _ => "等待课程"
         };
 
-        var phase = currentState switch
+        var phase = snapshot.Phase switch
         {
-            TimeState.OnClass => "exam",
-            TimeState.PrepareOnClass => "prepare",
-            TimeState.Breaking => "break",
-            TimeState.AfterSchool => "afterSchool",
+            LessonPhase.OnClass => "exam",
+            LessonPhase.BeforeFirstClass => "prepare",
+            LessonPhase.Breaking => "break",
+            LessonPhase.AfterSchool or LessonPhase.NoCourses => "afterSchool",
             _ => "idle"
         };
 
-        var subjectName = currentState switch
+        var subjectName = snapshot.Phase switch
         {
-            TimeState.OnClass => currentSubject?.Name ?? "当前考试",
-            TimeState.PrepareOnClass => nextSubject?.Name ?? "即将开始",
-            TimeState.Breaking => "考间休息",
-            TimeState.AfterSchool => "考试结束",
-            _ => currentSubject?.Name ?? nextSubject?.Name ?? "等待课程"
+            LessonPhase.OnClass => NormalizeSubject(snapshot.CurrentSubjectName, "当前考试"),
+            LessonPhase.BeforeFirstClass => NormalizeSubject(snapshot.NextSubjectName, "即将开始"),
+            LessonPhase.Breaking => "考间休息",
+            LessonPhase.AfterSchool or LessonPhase.NoCourses => "考试结束",
+            _ => NormalizeSubject(
+                string.IsNullOrWhiteSpace(snapshot.CurrentSubjectName) ? snapshot.NextSubjectName : snapshot.CurrentSubjectName,
+                "等待课程")
         };
 
-        var rawNextName = nextSubject?.Name ?? "";
-        var nextSubjectName = string.IsNullOrWhiteSpace(rawNextName) || rawNextName == "???"
-            ? ""
-            : rawNextName;
-        var timerLabel = currentState switch
+        var nextSubjectName = NormalizeSubject(snapshot.NextSubjectName, "");
+        var timerLabel = snapshot.Phase switch
         {
-            TimeState.OnClass => remainingSeconds <= 300 ? "即将结束" : "距离考试结束",
-            TimeState.PrepareOnClass => "距离考试开始",
-            TimeState.Breaking => "距离下一场开始",
-            TimeState.AfterSchool => "今日已结束",
+            LessonPhase.OnClass => remainingSeconds <= 300 ? "即将结束" : "距离考试结束",
+            LessonPhase.BeforeFirstClass => "距离考试开始",
+            LessonPhase.Breaking => "距离下一场开始",
+            LessonPhase.AfterSchool or LessonPhase.NoCourses => "今日已结束",
             _ => "等待同步"
         };
 
@@ -461,6 +451,7 @@ public class ExamModeServer : IDisposable
         var reminderTimeline = CreateReminderTimeline(
             now,
             isClassTime,
+            hasNextExam,
             subjectName,
             nextSubjectName,
             currentStartTime,
@@ -471,10 +462,9 @@ public class ExamModeServer : IDisposable
         var debug = string.Join(" | ", new[]
         {
             $"state={currentState}",
-            $"timeType={currentItem.TimeType}",
-            $"apiRemaining={(int)apiRemainingTime.TotalSeconds}s",
+            $"phase={snapshot.Phase}",
+            $"timeType={currentItem?.TimeType.ToString() ?? "none"}",
             $"remaining={remainingSeconds}s",
-            $"fallback={fallbackUsed}",
             $"current={FormatClock(currentStartTime)}-{FormatClock(currentEndTime)}",
             $"nextStart={FormatClock(nextStartTime)}",
             $"timerRunning={lessons.IsTimerRunning}"
@@ -505,7 +495,8 @@ public class ExamModeServer : IDisposable
             isTimerRunning = lessons.IsTimerRunning,
             startTime = FormatClock(isClassTime ? currentStartTime : nextStartTime),
             endTime = FormatClock(isClassTime ? currentEndTime : nextEndTime),
-            serverUnixSeconds = DateTimeOffset.Now.ToUnixTimeSeconds(),
+            serverUnixSeconds = realNow.ToUnixTimeSeconds(),
+            businessUnixSeconds = new DateTimeOffset(now).ToUnixTimeSeconds(),
             serverTime = now.ToString("HH:mm:ss"),
             serverDate = now.ToString("yyyy-MM-dd"),
             dayOfWeek = GetChineseDayOfWeek(now.DayOfWeek),
@@ -534,16 +525,22 @@ public class ExamModeServer : IDisposable
             {
                 classIslandConnected = true,
                 localServer = $"localhost:{_port}",
-                lastSync = now.ToString("HH:mm:ss"),
+                lastSync = realNow.ToString("HH:mm:ss"),
                 lessons.IsTimerRunning
             },
             debug
         };
     }
 
+    private static string NormalizeSubject(string? name, string fallback)
+    {
+        return string.IsNullOrWhiteSpace(name) || name == "???" ? fallback : name.Trim();
+    }
+
     private object[] CreateReminderTimeline(
         DateTime now,
         bool isClassTime,
+        bool hasNextExam,
         string subjectName,
         string nextSubjectName,
         TimeSpan currentStart,
@@ -569,6 +566,11 @@ public class ExamModeServer : IDisposable
         }
         else
         {
+            if (!hasNextExam)
+            {
+                return Array.Empty<object>();
+            }
+
             var start = now.Date + nextStart;
             var nextName = string.IsNullOrWhiteSpace(nextSubjectName) ? "下一场考试" : nextSubjectName;
             if (settings.ReminderEnabled)

@@ -7,19 +7,19 @@
     xmlns:models="clr-namespace:ClassIsland.AISmartClass.Models"
     FontSize="{Binding Settings.FontSize, FallbackValue=14}">
 
-    <Border CornerRadius="8" Padding="12,8"
-            Background="{DynamicResource AccentFillColorDefaultBrush}">
-        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-            <TextBlock Text="💡" FontSize="18" VerticalAlignment="Center"/>
-            <StackPanel Spacing="1" VerticalAlignment="Center">
-                <TextBlock Text="贴心提示" FontSize="11"
-                           Foreground="{DynamicResource TextOnAccentFillColorSecondaryBrush}"/>
-                <TextBlock Text="{Binding Hint}"
-                           Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" FontWeight="Medium"
-                           TextWrapping="Wrap" MaxLines="2"
-                           TextTrimming="CharacterEllipsis"
-                           LineHeight="18"/>
+    <ci:ComponentBase.Styles>
+        <StyleInclude Source="avares://ClassIsland.AISmartClass/Styles/ComponentStyles.axaml"/>
+    </ci:ComponentBase.Styles>
+
+    <Border Classes="aiIslandRoot">
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+            <TextBlock Grid.Column="0" Classes="aiIslandIcon" Text="&#xE003;"/>
+            <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                <TextBlock Classes="aiIslandLabel" Text="贴心提示"/>
+                <TextBlock Classes="aiIslandBody"
+                           Text="{Binding Hint}"
+                           ToolTip.Tip="{Binding Hint}"/>
             </StackPanel>
-        </StackPanel>
+        </Grid>
     </Border>
 </ci:ComponentBase>
