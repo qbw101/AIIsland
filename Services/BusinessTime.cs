@@ -39,8 +39,6 @@ public sealed class BusinessTimeProvider
     /// <summary>读取当前业务时间。任何异常都回退到系统时间，保证业务不中断。</summary>
     public BusinessTimeSnapshot Read()
     {
-        var systemNow = _systemTimeAccessor();
-
         BusinessTimeSource requested;
         try
         {
@@ -50,6 +48,18 @@ public sealed class BusinessTimeProvider
         {
             requested = BusinessTimeSource.ClassIslandTime;
         }
+
+        return Read(requested);
+    }
+
+    /// <summary>
+    /// 按指定来源读取时间，不读取也不修改全局时间来源设置。
+    /// 供考试模式等需要独立时钟的消费者使用。
+    /// </summary>
+    public BusinessTimeSnapshot Read(BusinessTimeSource source)
+    {
+        var requested = source.Normalize();
+        var systemNow = _systemTimeAccessor();
 
         if (requested == BusinessTimeSource.SystemTime)
         {
@@ -101,6 +111,12 @@ public static class BusinessTime
 
     /// <summary>读取完整快照，包含回退状态。</summary>
     public static BusinessTimeSnapshot Read() => _provider.Read();
+
+    /// <summary>按指定来源读取完整快照，不改变全局时间来源。</summary>
+    public static BusinessTimeSnapshot Read(BusinessTimeSource source) => _provider.Read(source);
+
+    /// <summary>按指定来源读取当前时间，不改变全局时间来源。</summary>
+    public static DateTime NowFor(BusinessTimeSource source) => _provider.Read(source).Now;
 
     /// <summary>
     /// 配置业务时钟。

@@ -10,6 +10,13 @@ public sealed class ExamModeSettings
     [JsonPropertyName("enableScheduler")]
     public bool EnableScheduler { get; set; } = true;
 
+    /// <summary>
+    /// 考试模式独立时间来源：偏移时间（跟随 ClassIsland）或精确时间（系统时间）。
+    /// 只影响考试倒计时、考试提醒与听力自动播放，不改变日常课表的全局时间来源。
+    /// </summary>
+    [JsonPropertyName("timeSource")]
+    public BusinessTimeSource TimeSource { get; set; } = BusinessTimeSource.ClassIslandTime;
+
     [JsonPropertyName("reminderEnabled")]
     public bool ReminderEnabled { get; set; } = true;
 
@@ -50,4 +57,18 @@ public sealed class ExamModeSettings
 
     [JsonPropertyName("audioVolume")]
     public double AudioVolume { get; set; } = 0.8;
+
+    /// <summary>
+    /// 是否在考试页面内显示置顶提醒浮层。关闭后仍保留 ClassIsland 原生通知，
+    /// 仅网页不再弹出浮层（浏览器全屏时原本靠它提醒）。
+    /// </summary>
+    [JsonPropertyName("webAlertEnabled")]
+    public bool WebAlertEnabled { get; set; } = true;
+
+    /// <summary>
+    /// 考试提醒浮层在页面顶部停留的秒数，取值 3–60，默认 10 秒。
+    /// 只影响网页内的提醒浮层，系统原生通知的停留时间由 ClassIsland 决定。
+    /// </summary>
+    [JsonPropertyName("alertDurationSeconds")]
+    public int AlertDurationSeconds { get; set; } = 10;
 }

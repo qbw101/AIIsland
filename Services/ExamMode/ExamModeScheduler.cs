@@ -16,7 +16,7 @@ namespace ClassIsland.AISmartClass.Services.ExamMode;
 public sealed class ExamModeScheduler : NotificationProviderBase, IDisposable
 {
     private readonly Timer _timer;
-    private DateTime _lastCheck = BusinessTime.Now;
+    private DateTime _lastCheck = ExamTime.Now;
     private string _lastClassSessionId = "";
     private LessonPhase _previousPhase = LessonPhase.NoPlan;
     private bool _phaseInitialized;
@@ -37,7 +37,7 @@ public sealed class ExamModeScheduler : NotificationProviderBase, IDisposable
         _timer = new Timer(1000) { AutoReset = true };
         _timer.Elapsed += OnTimerElapsed;
         _timer.Start();
-        Logger.Info("[ExamModeScheduler] 已启动，考试调度跟随插件统一业务时钟");
+        Logger.Info($"[ExamModeScheduler] 已启动，考试调度使用{ExamTime.SourceText}");
     }
 
     private void OnTimerElapsed(object? sender, ElapsedEventArgs e)
@@ -50,15 +50,15 @@ public sealed class ExamModeScheduler : NotificationProviderBase, IDisposable
 
         try
         {
-            var snapshot = LessonSnapshotService.Capture();
+            var snapshot = LessonSnapshotService.Capture(ExamTime.Now);
             var now = snapshot.Now;
 
             if (BusinessClockContinuity.ShouldResetBaseline(_lastCheck, now))
             {
-                // 时间来源切换、偏移调整或系统休眠恢复：以当前时间重建基线，不补发陈旧提醒。
+                // 考试时间来源切换、偏移调整或系统休眠恢复：以当前时间重建基线，不补发陈旧提醒。
                 _lastCheck = now;
                 _previousPhase = snapshot.Phase;
-                Logger.Info($"[ExamModeScheduler] 检测到业务时间跳变，已重建调度基线: {now:HH:mm:ss}");
+                Logger.Info($"[ExamModeScheduler] 检测到考试时间跳变，已重建调度基线: {now:HH:mm:ss}");
                 return;
             }
 

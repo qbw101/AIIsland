@@ -5,7 +5,9 @@ using System.Text;
 using System.Text.Json;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using ClassIsland.AISmartClass.Models;
 using ClassIsland.AISmartClass.Models.ExamMode;
+using ClassIsland.AISmartClass.Services.ExamMode;
 using ClassIsland.Core;
 using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Shared.Enums;
@@ -252,6 +254,12 @@ public class ExamModeServer : IDisposable
             return;
         }
 
+        if (path == "/api/time-source" && ctx.Request.HttpMethod == "POST")
+        {
+            await SaveExamTimeSourceAsync(ctx);
+            return;
+        }
+
         if (path == "/api/settings")
         {
             if (ctx.Request.HttpMethod == "GET")
@@ -302,6 +310,9 @@ public class ExamModeServer : IDisposable
         var html = GetDashboardHtml();
         var bytes = Encoding.UTF8.GetBytes(html);
         ctx.Response.ContentType = "text/html; charset=utf-8";
+        // 页面是插件目录里的可更新文件，禁止浏览器缓存，避免升级后仍显示旧版界面。
+        ctx.Response.AddHeader("Cache-Control", "no-store, max-age=0");
+        ctx.Response.AddHeader("Pragma", "no-cache");
         ctx.Response.ContentLength64 = bytes.Length;
         ctx.Response.OutputStream.Write(bytes, 0, bytes.Length);
         ctx.Response.Close();
@@ -354,12 +365,14 @@ public class ExamModeServer : IDisposable
                 nextStart = "--:--",
                 debug = "ProfileService 或 LessonsService 仍为 null",
                 serverUnixSeconds = DateTimeOffset.Now.ToUnixTimeSeconds(),
-                businessUnixSeconds = new DateTimeOffset(BusinessTime.Now).ToUnixTimeSeconds()
+                businessUnixSeconds = new DateTimeOffset(ExamTime.Now).ToUnixTimeSeconds(),
+                examTimeSource = ExamTime.Source.ToString(),
+                examTimeSourceText = ExamTime.SourceText
             };
         }
 
-        // 考试业务倒计时与页面展示使用统一业务快照；通信时间戳、校时与日志仍用真实时间。
-        var snapshot = LessonSnapshotService.Capture();
+        // 考试倒计时与页面展示使用考试模式独立时钟；通信时间戳、校时与日志仍用真实时间。
+        var snapshot = LessonSnapshotService.Capture(ExamTime.Now);
         var now = snapshot.Now;
         var realNow = DateTimeOffset.Now;
         var currentState = snapshot.ToTimeState();
@@ -467,7 +480,8 @@ public class ExamModeServer : IDisposable
             $"remaining={remainingSeconds}s",
             $"current={FormatClock(currentStartTime)}-{FormatClock(currentEndTime)}",
             $"nextStart={FormatClock(nextStartTime)}",
-            $"timerRunning={lessons.IsTimerRunning}"
+            $"timerRunning={lessons.IsTimerRunning}",
+            $"timeSource={ExamTime.Source}"
         });
 
         return new
@@ -497,6 +511,8 @@ public class ExamModeServer : IDisposable
             endTime = FormatClock(isClassTime ? currentEndTime : nextEndTime),
             serverUnixSeconds = realNow.ToUnixTimeSeconds(),
             businessUnixSeconds = new DateTimeOffset(now).ToUnixTimeSeconds(),
+            examTimeSource = ExamTime.Source.ToString(),
+            examTimeSourceText = ExamTime.SourceText,
             serverTime = now.ToString("HH:mm:ss"),
             serverDate = now.ToString("yyyy-MM-dd"),
             dayOfWeek = GetChineseDayOfWeek(now.DayOfWeek),
@@ -603,6 +619,7 @@ public class ExamModeServer : IDisposable
     private object CreateExamSettingsDto()
     {
         var settings = Plugin.GetAISettings()?.ExamMode ?? new ExamModeSettings();
+        var timeSource = settings.TimeSource.Normalize();
         return new
         {
             settings.EnableScheduler,
@@ -620,13 +637,64 @@ public class ExamModeServer : IDisposable
                 : Path.GetFileName(settings.AudioPath),
             settings.AutoPlayEnabled,
             settings.AutoPlayOffsetMinutes,
-            audioVolume = Math.Clamp(settings.AudioVolume, 0, 1)
+            audioVolume = Math.Clamp(settings.AudioVolume, 0, 1),
+            settings.WebAlertEnabled,
+            alertDurationSeconds = NormalizeAlertDuration(settings.AlertDurationSeconds),
+            timeSource = timeSource.ToString(),
+            timeSourceText = timeSource == BusinessTimeSource.SystemTime ? "精确时间" : "偏移时间"
         };
     }
 
     private void ServeExamSettings(HttpListenerContext ctx)
     {
         WriteJson(ctx, CreateExamSettingsDto());
+    }
+
+    private async Task SaveExamTimeSourceAsync(HttpListenerContext ctx)
+    {
+        try
+        {
+            using var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding ?? Encoding.UTF8);
+            var json = await reader.ReadToEndAsync();
+            var request = JsonSerializer.Deserialize<ExamTimeSourceUpdateRequest>(json,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (request == null ||
+                !Enum.TryParse<BusinessTimeSource>(request.TimeSource, ignoreCase: true, out var source) ||
+                !Enum.IsDefined(typeof(BusinessTimeSource), source))
+            {
+                WriteJson(ctx, new { error = "时间来源无效" }, 400);
+                return;
+            }
+
+            var aiSettings = Plugin.GetAISettings();
+            if (aiSettings == null)
+            {
+                WriteJson(ctx, new { error = "AIIsland 设置尚未就绪" }, 503);
+                return;
+            }
+
+            aiSettings.ExamMode ??= new ExamModeSettings();
+            aiSettings.ExamMode.TimeSource = source.Normalize();
+            Plugin.SaveAISettingsFile(aiSettings);
+            Plugin.SyncAISettings(aiSettings);
+
+            var effective = aiSettings.ExamMode.TimeSource.Normalize();
+            WriteJson(ctx, new
+            {
+                timeSource = effective.ToString(),
+                timeSourceText = effective == BusinessTimeSource.SystemTime ? "精确时间" : "偏移时间"
+            });
+        }
+        catch (JsonException ex)
+        {
+            Logger.Info($"[ExamMode] 保存考试时间来源 JSON 无效: {ex.Message}");
+            WriteJson(ctx, new { error = "设置格式无效" }, 400);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"[ExamMode] 保存考试时间来源失败: {ex}");
+            WriteJson(ctx, new { error = "保存考试时间来源失败" }, 500);
+        }
     }
 
     private async Task SaveExamSettingsAsync(HttpListenerContext ctx)
@@ -663,6 +731,8 @@ public class ExamModeServer : IDisposable
             settings.AutoPlayEnabled = request.AutoPlayEnabled;
             settings.AutoPlayOffsetMinutes = Math.Clamp(request.AutoPlayOffsetMinutes, -60, 60);
             settings.AudioVolume = Math.Clamp(request.AudioVolume, 0, 1);
+            settings.WebAlertEnabled = request.WebAlertEnabled;
+            settings.AlertDurationSeconds = NormalizeAlertDuration(request.AlertDurationSeconds);
             Plugin.SaveAISettingsFile(aiSettings);
             Plugin.SyncAISettings(aiSettings);
             WriteJson(ctx, CreateExamSettingsDto());
@@ -1024,6 +1094,12 @@ public class ExamModeServer : IDisposable
             : "custom";
     }
 
+    /// <summary>提醒浮层停留时长：限制在 3–60 秒，异常值回落到默认 10 秒。</summary>
+    private static int NormalizeAlertDuration(int seconds)
+    {
+        return seconds is >= 3 and <= 60 ? seconds : 10;
+    }
+
     private sealed record TimeCalibrationResult(
         string Status,
         double OffsetSeconds,
@@ -1049,6 +1125,11 @@ public class ExamModeServer : IDisposable
         public bool HasAudio { get; set; }
     }
 
+    private sealed class ExamTimeSourceUpdateRequest
+    {
+        public string TimeSource { get; set; } = "";
+    }
+
     private sealed class ExamSettingsUpdateRequest
     {
         public bool EnableScheduler { get; set; } = true;
@@ -1063,6 +1144,8 @@ public class ExamModeServer : IDisposable
         public bool AutoPlayEnabled { get; set; }
         public int AutoPlayOffsetMinutes { get; set; }
         public double AudioVolume { get; set; } = 0.8;
+        public bool WebAlertEnabled { get; set; } = true;
+        public int AlertDurationSeconds { get; set; } = 10;
     }
 
     private static bool IsEnglishSubject(string? subjectName)
@@ -1095,11 +1178,16 @@ public class ExamModeServer : IDisposable
     }
 
     private string? _cachedHtml;
+    private string? _cachedHtmlPath;
+    private DateTime _cachedHtmlWriteTimeUtc;
 
+    /// <summary>
+    /// 读取考试仪表盘 HTML。
+    /// 插件随包更新页面文件后，只要进程未重启就会命中缓存；这里按文件写入时间判断，
+    /// 页面文件被替换后自动重新加载，避免升级后仍显示旧版界面。
+    /// </summary>
     private string GetDashboardHtml()
     {
-        if (_cachedHtml != null) return _cachedHtml;
-
         var assemblyDir = Path.GetDirectoryName(typeof(ExamModeServer).Assembly.Location)
             ?? AppContext.BaseDirectory;
         var path = Path.Combine(assemblyDir, "Data", "ExamModeDashboard.html");
@@ -1107,11 +1195,31 @@ public class ExamModeServer : IDisposable
         if (!File.Exists(path))
         {
             Logger.Error($"考试模式仪表盘 HTML 资源缺失: {path}");
-            return "<html><body>考试模式仪表盘资源缺失，请检查 Data/ExamModeDashboard.html 是否存在。</body></html>";
+            return _cachedHtml
+                   ?? "<html><body>考试模式仪表盘资源缺失，请检查 Data/ExamModeDashboard.html 是否存在。</body></html>";
         }
 
-        _cachedHtml = File.ReadAllText(path, Encoding.UTF8);
-        return _cachedHtml;
+        try
+        {
+            var writeTimeUtc = File.GetLastWriteTimeUtc(path);
+            if (_cachedHtml != null &&
+                string.Equals(_cachedHtmlPath, path, StringComparison.OrdinalIgnoreCase) &&
+                _cachedHtmlWriteTimeUtc == writeTimeUtc)
+            {
+                return _cachedHtml;
+            }
+
+            _cachedHtml = File.ReadAllText(path, Encoding.UTF8);
+            _cachedHtmlPath = path;
+            _cachedHtmlWriteTimeUtc = writeTimeUtc;
+            return _cachedHtml;
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"[ExamMode] 读取考试仪表盘页面失败: {ex.Message}");
+            return _cachedHtml
+                   ?? "<html><body>考试模式仪表盘读取失败，请重试。</body></html>";
+        }
     }
 
     public void Dispose()

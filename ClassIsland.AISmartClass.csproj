@@ -35,11 +35,16 @@
         <None Remove="ClassIsland.HomeworkList\**\*" />
     </ItemGroup>
 
-    <!-- Data 目录作为独立文件复制到输出目录 -->
+    <!-- Data 目录作为独立文件复制到输出目录。
+         考试页面必须用 Always：输出文件一旦被外部工具覆盖，时间戳会比源文件新，
+         PreserveNewest 会持续跳过复制，导致发布包里长期带着旧版考试页面。 -->
     <ItemGroup>
         <Content Include="Data\**\*">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <Link>Data\%(RecursiveDir)%(Filename)%(Extension)</Link>
+        </Content>
+        <Content Update="Data\ExamModeDashboard.html">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </Content>
     </ItemGroup>
 
