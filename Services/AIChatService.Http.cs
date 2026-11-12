@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
@@ -11,17 +12,30 @@ namespace ClassIsland.AISmartClass.Services;
 /// </summary>
 public partial class AIChatService
 {
-    private async Task<string> SendRequestAsync(
-        string system, string user, AiRequestSnapshot snapshot, CancellationToken ct)
+    /// <summary>单轮文本/图片请求的便捷重载（不涉及工具）。</summary>
+    private Task<AIChatResponse> SendRequestAsync(
+        string system, string user, VisionImage? image, AiRequestSnapshot snapshot, CancellationToken ct)
+        => SendRequestAsync(BuildSimpleMessages(system, user, image), snapshot, enableTools: false, ct);
+
+    /// <summary>
+    /// 发送一次非流式请求。<paramref name="enableTools"/> 为 true 时解析响应里的
+    /// <c>tool_calls</c>，交由上层执行工具后回传。
+    /// </summary>
+    private async Task<AIChatResponse> SendRequestAsync(
+        IReadOnlyList<ChatMessage> messages, AiRequestSnapshot snapshot, bool enableTools,
+        CancellationToken ct, bool forceNoToolCall = false)
     {
-        var jsonBody = JsonSerializer.Serialize(BuildChatBody(system, user, snapshot, stream: false));
+        var jsonBody = JsonSerializer.Serialize(
+            BuildChatBody(messages, snapshot, stream: false, enableTools, forceNoToolCall));
         var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
 
         using var request = new HttpRequestMessage(HttpMethod.Post, snapshot.Endpoint) { Content = content };
         request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {snapshot.ApiKey}");
 
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeoutCts.CancelAfter(TimeSpan.FromSeconds(snapshot.TimeoutSeconds));
+        // 0 表示不设置超时：CancelAfter(0) 会立刻取消，必须跳过
+        if (snapshot.TimeoutSeconds > 0)
+            timeoutCts.CancelAfter(TimeSpan.FromSeconds(snapshot.TimeoutSeconds));
 
         using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeoutCts.Token).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
@@ -33,11 +47,32 @@ public partial class AIChatService
         try
         {
             using var doc = JsonDocument.Parse(responseJson);
-            return doc.RootElement
+            var message = doc.RootElement
                 .GetProperty("choices")[0]
-                .GetProperty("message")
-                .GetProperty("content")
-                .GetString()?.Trim() ?? "";
+                .GetProperty("message");
+
+            var text = ReadMessageText(message, "content");
+            var toolCalls = ReadToolCalls(message);
+            var textual = false;
+
+            // 兼容把工具调用写进正文的模型（Qwen 老模板的 ✿FUNCTION✿ 协议）。
+            // 只在允许工具的轮次里解析，普通对话不会误伤正文。
+            if (enableTools && toolCalls.Count == 0)
+            {
+                var parsed = TextToolCallParser.Parse(text);
+                if (parsed.Count > 0)
+                {
+                    toolCalls = parsed;
+                    textual = true;
+                    Logger.Info($"模型以文本形式请求工具 {parsed[0].Name}（未返回结构化 tool_calls），已按文本协议处理");
+                }
+            }
+
+            return new AIChatResponse(text, ReadMessageText(message, "reasoning_content"))
+            {
+                ToolCalls = toolCalls,
+                TextualToolCalls = textual
+            };
         }
         catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException or IndexOutOfRangeException)
         {
@@ -49,12 +84,168 @@ public partial class AIChatService
     }
 
     /// <summary>
-    /// 发送流式请求并逐 token 返回。兼容 OpenAI Chat Completions SSE 格式。
+    /// 读取 message 里的文本字段，兼容字符串与分段数组（多模态返回），
+    /// 以及 content 为 null（只有 reasoning_content）的思考型模型。
     /// </summary>
-    private async IAsyncEnumerable<string> SendStreamRequestAsync(
-        string system, string user, AiRequestSnapshot snapshot, [EnumeratorCancellation] CancellationToken ct)
+    private static string ReadMessageText(JsonElement message, string propertyName, bool trim = true)
     {
-        var jsonBody = JsonSerializer.Serialize(BuildChatBody(system, user, snapshot, stream: true));
+        if (!message.TryGetProperty(propertyName, out var value)) return "";
+
+        switch (value.ValueKind)
+        {
+            case JsonValueKind.String:
+                var text = value.GetString() ?? "";
+                // 流式分片不能裁剪：分片之间往往靠空格/换行拼接，裁掉会把单词粘在一起
+                return trim ? text.Trim() : text;
+
+            case JsonValueKind.Array:
+                var parts = value.EnumerateArray().Select(part => part.ValueKind switch
+                {
+                    JsonValueKind.String => part.GetString(),
+                    JsonValueKind.Object when part.TryGetProperty("text", out var text2) &&
+                                               text2.ValueKind == JsonValueKind.String
+                        => text2.GetString(),
+                    _ => null
+                });
+                var joined = string.Concat(parts);
+                return trim ? joined.Trim() : joined;
+
+            default:
+                return "";
+        }
+    }
+
+    /// <summary>
+    /// 读取非流式响应里的 <c>message.tool_calls</c>。结构不符合预期时返回空集合，
+    /// 让本轮退化成普通文本回答，而不是整次调用失败。
+    /// </summary>
+    internal static IReadOnlyList<ChatToolCall> ReadToolCalls(JsonElement message)
+    {
+        if (!message.TryGetProperty("tool_calls", out var toolCalls) ||
+            toolCalls.ValueKind != JsonValueKind.Array)
+        {
+            return Array.Empty<ChatToolCall>();
+        }
+
+        var result = new List<ChatToolCall>();
+        var fallbackIndex = 0;
+        foreach (var item in toolCalls.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object)
+            {
+                fallbackIndex++;
+                continue;
+            }
+
+            var id = ReadOptionalString(item, "id");
+            var name = "";
+            var arguments = "";
+
+            if (item.TryGetProperty("function", out var function) &&
+                function.ValueKind == JsonValueKind.Object)
+            {
+                name = ReadOptionalString(function, "name");
+                arguments = ReadOptionalString(function, "arguments");
+            }
+
+            result.Add(new ChatToolCall(
+                string.IsNullOrEmpty(id) ? $"call_{fallbackIndex}" : id,
+                name,
+                string.IsNullOrEmpty(arguments) ? "{}" : arguments));
+            fallbackIndex++;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// 读取流式响应的 <c>delta.tool_calls</c> 分片。arguments 会被拆成多段，
+    /// 由 <see cref="ToolCallAccumulator"/> 在调用侧按 index 聚合。
+    /// </summary>
+    internal static IReadOnlyList<ChatToolCallDelta> ReadToolCallDeltas(JsonElement delta)
+    {
+        if (!delta.TryGetProperty("tool_calls", out var toolCalls) ||
+            toolCalls.ValueKind != JsonValueKind.Array)
+        {
+            return Array.Empty<ChatToolCallDelta>();
+        }
+
+        var result = new List<ChatToolCallDelta>();
+        foreach (var item in toolCalls.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object) continue;
+
+            var index = 0;
+            if (item.TryGetProperty("index", out var indexElement) &&
+                indexElement.ValueKind == JsonValueKind.Number)
+            {
+                index = indexElement.GetInt32();
+            }
+
+            var id = ReadOptionalString(item, "id");
+            string? name = null;
+            string? arguments = null;
+
+            if (item.TryGetProperty("function", out var function) &&
+                function.ValueKind == JsonValueKind.Object)
+            {
+                if (function.TryGetProperty("name", out var nameElement) &&
+                    nameElement.ValueKind == JsonValueKind.String)
+                {
+                    name = nameElement.GetString();
+                }
+
+                if (function.TryGetProperty("arguments", out var argumentsElement) &&
+                    argumentsElement.ValueKind == JsonValueKind.String)
+                {
+                    arguments = argumentsElement.GetString();
+                }
+            }
+
+            result.Add(new ChatToolCallDelta(
+                index,
+                string.IsNullOrEmpty(id) ? null : id,
+                string.IsNullOrEmpty(name) ? null : name,
+                string.IsNullOrEmpty(arguments) ? null : arguments));
+        }
+
+        return result;
+    }
+
+    private static string ReadOptionalString(JsonElement element, string propertyName)
+    {
+        return element.TryGetProperty(propertyName, out var value) &&
+               value.ValueKind == JsonValueKind.String
+            ? value.GetString() ?? ""
+            : "";
+    }
+
+    /// <summary>把「system + user（可带图）」包装成消息列表，供不涉及工具的调用点复用。</summary>
+    private static IReadOnlyList<ChatMessage> BuildSimpleMessages(
+        string system, string user, VisionImage? image)
+    {
+        return new[]
+        {
+            ChatMessage.System(system),
+            image == null ? ChatMessage.User(user) : ChatMessage.UserWithImage(user, image)
+        };
+    }
+
+    /// <summary>
+    /// 发送流式请求并逐 token 返回。兼容 OpenAI Chat Completions SSE 格式；
+    /// 传入 <paramref name="image"/> 时为带图片的多模态流式请求。
+    /// </summary>
+    /// <summary>单轮流式请求的便捷重载（不涉及工具）。</summary>
+    private IAsyncEnumerable<AIChatStreamChunk> SendStreamRequestAsync(
+        string system, string user, VisionImage? image, AiRequestSnapshot snapshot, CancellationToken ct)
+        => SendStreamRequestAsync(BuildSimpleMessages(system, user, image), snapshot, enableTools: false, ct);
+
+    private async IAsyncEnumerable<AIChatStreamChunk> SendStreamRequestAsync(
+        IReadOnlyList<ChatMessage> messages, AiRequestSnapshot snapshot, bool enableTools,
+        [EnumeratorCancellation] CancellationToken ct, bool forceNoToolCall = false)
+    {
+        var jsonBody = JsonSerializer.Serialize(
+            BuildChatBody(messages, snapshot, stream: true, enableTools, forceNoToolCall));
         var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
 
         using var request = new HttpRequestMessage(HttpMethod.Post, snapshot.Endpoint) { Content = content };
@@ -62,7 +253,9 @@ public partial class AIChatService
         request.Headers.TryAddWithoutValidation("Accept", "text/event-stream");
 
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeoutCts.CancelAfter(TimeSpan.FromSeconds(snapshot.TimeoutSeconds));
+        // 0 表示不设置超时：CancelAfter(0) 会立刻取消，必须跳过
+        if (snapshot.TimeoutSeconds > 0)
+            timeoutCts.CancelAfter(TimeSpan.FromSeconds(snapshot.TimeoutSeconds));
         var requestToken = timeoutCts.Token;
 
         using var response = await _http.SendAsync(
@@ -92,7 +285,9 @@ public partial class AIChatService
                 break;
             }
 
-            string? token = null;
+            var contentChunk = "";
+            var reasoningChunk = "";
+            IReadOnlyList<ChatToolCallDelta> toolDeltas = Array.Empty<ChatToolCallDelta>();
             try
             {
                 using var doc = JsonDocument.Parse(data);
@@ -108,10 +303,11 @@ public partial class AIChatService
                         completed = true;
                     }
 
-                    if (choice.TryGetProperty("delta", out var delta) &&
-                        delta.TryGetProperty("content", out var contentProp))
+                    if (choice.TryGetProperty("delta", out var delta))
                     {
-                        token = contentProp.GetString();
+                        contentChunk = ReadMessageText(delta, "content", trim: false);
+                        reasoningChunk = ReadMessageText(delta, "reasoning_content", trim: false);
+                        toolDeltas = ReadToolCallDeltas(delta);
                     }
                 }
             }
@@ -121,8 +317,13 @@ public partial class AIChatService
                 continue;
             }
 
-            if (!string.IsNullOrEmpty(token))
-                yield return token;
+            if (contentChunk.Length > 0 || reasoningChunk.Length > 0 || toolDeltas.Count > 0)
+            {
+                yield return new AIChatStreamChunk(contentChunk, reasoningChunk)
+                {
+                    ToolCallDeltas = toolDeltas
+                };
+            }
         }
 
         if (!completed)
@@ -176,30 +377,38 @@ public partial class AIChatService
     /// reasoning_content，若 max_tokens 较小，content 可能被挤空，导致流式解析不到
     /// 任何正文而触发「AI 流式响应内容为空」降级。本插件只需要简短文本，禁用思考模式
     /// 可获得稳定、更快的 content 输出。
+    /// <para>
+    /// 消息体由 <see cref="ChatMessage"/> 列表构造：单轮场景是 system + user（可带图），
+    /// 工具调用场景会额外追加 assistant(tool_calls) 与 tool(结果) 两条消息。
+    /// </para>
     /// </summary>
-    private static Dictionary<string, object?> BuildChatBody(
-        string system, string user, AiRequestSnapshot snapshot, bool stream)
+    private Dictionary<string, object?> BuildChatBody(
+        IReadOnlyList<ChatMessage> messages, AiRequestSnapshot snapshot, bool stream,
+        bool enableTools = false, bool forceNoToolCall = false)
     {
         var body = new Dictionary<string, object?>
         {
             ["model"] = snapshot.Model,
             ["temperature"] = snapshot.Temperature,
-            ["max_tokens"] = snapshot.MaxTokens,
             ["stream"] = stream,
-            ["messages"] = new object[]
-            {
-                new { role = "system", content = system },
-                new { role = "user", content = user }
-            }
+            ["messages"] = messages.Select(message => message.ToPayload()).ToArray()
         };
 
-        if (IsDeepSeekProvider(snapshot))
-            body["thinking"] = new { type = "disabled" };
+        // 0 表示不限制输出长度：不下发 max_tokens，由模型/接口的默认上限决定
+        if (snapshot.MaxTokens > 0)
+            body["max_tokens"] = snapshot.MaxTokens;
+
+        // 按接口族下发深度思考与思考强度（各厂商字段不同，乱塞会被 400）
+        ThinkingRequestBuilder.Apply(
+            body, snapshot.Endpoint, snapshot.Model,
+            snapshot.EnableDeepThinking, snapshot.ThinkingEffort);
+
+        // 工具定义：中间轮允许模型继续调用（搜索 → 抓取），收尾轮由调用方
+        // 传 forceNoToolCall 强制作答。消息里已有 tool 结果时必须继续携带 tools 定义，
+        // 否则严格实现会判「有 tool 消息却没有 tools」直接 400。
+        // web_fetch 可以在设置里单独关掉，关闭时只下发 web_search。
+        ToolRequestBuilder.Apply(body, enableTools, forceNoToolCall, enableFetch: EnableWebFetch);
 
         return body;
     }
-
-    private static bool IsDeepSeekProvider(AiRequestSnapshot snapshot) =>
-        snapshot.Endpoint.Contains("deepseek", StringComparison.OrdinalIgnoreCase) ||
-        snapshot.Model.StartsWith("deepseek-", StringComparison.OrdinalIgnoreCase);
 }

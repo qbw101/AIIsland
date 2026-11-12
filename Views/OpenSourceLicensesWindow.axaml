@@ -1,0 +1,97 @@
+<Window
+    x:Class="ClassIsland.AISmartClass.Views.OpenSourceLicensesWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="clr-namespace:ClassIsland.AISmartClass.Models"
+    Title="开源库与许可"
+    Width="940" Height="700" MinWidth="760" MinHeight="520"
+    WindowStartupLocation="CenterOwner"
+    Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+    FontFamily="Microsoft YaHei,Segoe UI,sans-serif">
+    <Window.Resources>
+        <DataTemplate x:Key="LibraryTemplate" x:DataType="models:OpenSourceLibrary">
+            <StackPanel Spacing="4" Margin="4,6">
+                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                <TextBlock Text="{Binding Summary}" Classes="description" TextWrapping="Wrap"/>
+            </StackPanel>
+        </DataTemplate>
+    </Window.Resources>
+    <Window.Styles>
+        <Style Selector="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.description">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="Button">
+            <Setter Property="MinHeight" Value="34"/>
+            <Setter Property="Padding" Value="14,6"/>
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+        <Style Selector="ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        </Style>
+        <StyleInclude Source="avares://ClassIsland.AISmartClass/Styles/StableButtonStyles.axaml"/>
+    </Window.Styles>
+    <Grid RowDefinitions="Auto,*,Auto">
+        <StackPanel Spacing="6" Margin="24,20,24,16">
+            <TextBlock Text="开源库与许可" FontSize="22" FontWeight="SemiBold"/>
+            <TextBlock Text="感谢开源社区。这里列出本版本的直接引用和间接依赖，包含由 ClassIsland 宿主提供的组件。"
+                       Classes="description" TextWrapping="Wrap"/>
+        </StackPanel>
+        <Grid Grid.Row="1" ColumnDefinitions="280,20,*" Margin="24,0,24,16">
+            <Grid RowDefinitions="Auto,*">
+                <TextBox x:Name="SearchBox" Watermark="搜索库名或许可证" Margin="0,0,0,10"
+                         AutomationProperties.Name="搜索开源依赖"/>
+                <TabControl x:Name="LibraryTabs" Grid.Row="1">
+                    <TabItem x:Name="DirectTab" Header="直接依赖" FontSize="13" Padding="10,8">
+                        <ListBox x:Name="DirectList" ItemTemplate="{StaticResource LibraryTemplate}"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 AutomationProperties.Name="直接依赖列表"/>
+                    </TabItem>
+                    <TabItem x:Name="TransitiveTab" Header="间接依赖" FontSize="13" Padding="10,8">
+                        <ListBox x:Name="TransitiveList" ItemTemplate="{StaticResource LibraryTemplate}"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 AutomationProperties.Name="间接依赖列表"/>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+            <Border Grid.Column="2" Padding="18" CornerRadius="8"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                <Grid>
+                    <TextBlock x:Name="EmptyMessage" Text="选择一个库，查看项目地址与许可声明。"
+                               Classes="description" TextWrapping="Wrap" VerticalAlignment="Center"
+                               HorizontalAlignment="Center"/>
+                    <Grid x:Name="DetailsPanel" IsVisible="False" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*">
+                        <TextBlock x:Name="LibraryNameText" FontSize="19" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="LibraryVersionText" Grid.Row="1" Classes="description"
+                                   TextWrapping="Wrap" Margin="0,6,0,4"/>
+                        <TextBlock x:Name="LibraryLicenseText" Grid.Row="2" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                        <SelectableTextBlock x:Name="SourceUrlText" Grid.Row="3" FontSize="12"
+                                             TextWrapping="Wrap" Margin="0,0,0,10"/>
+                        <WrapPanel Grid.Row="4" Margin="0,0,0,10">
+                            <Button x:Name="SourceButton" Content="GitHub" Click="OnSourceClicked" Margin="0,0,8,6"/>
+                            <Button x:Name="LicenseButton" Content="许可原文" Click="OnLicenseClicked" Margin="0,0,8,6"/>
+                            <Button Content="NuGet" Click="OnNugetClicked" Margin="0,0,0,6"/>
+                        </WrapPanel>
+                        <TextBox x:Name="NoticeBox" Grid.Row="5" IsReadOnly="True" AcceptsReturn="True"
+                                 TextWrapping="Wrap" FontSize="12" Padding="12"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 AutomationProperties.Name="版权及许可声明"/>
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+        <Border Grid.Row="2" Padding="24,12"
+                Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                <TextBlock x:Name="StatusText" Text="许可信息以各项目原文为准。" Classes="description"
+                           TextWrapping="Wrap" VerticalAlignment="Center"/>
+                <Button Grid.Column="1" Content="关闭" Click="OnCloseClicked"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

@@ -10,6 +10,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Avalonia.Platform.Storage;
+using ClassIsland.AISmartClass.Controls;
 using ClassIsland.AISmartClass.Models;
 using ClassIsland.AISmartClass.Services;
 using ClassIsland.AISmartClass.Services.NotificationProviders;
@@ -28,12 +29,19 @@ public partial class WelcomeWizard : Window
     private bool _pluginListInitialized;
     private bool _personaSelectorInitialized;
     private const string WizardCustomPersonaId = "__custom__";
+    // 标记需要展开成子元素逐个入场的容器
+    private const string EntranceGroupTag = "entrance-group";
     private SmartClassNotifierSettings _welcomeReminderSettings = new();
     private DispatcherTimer? _welcomeAnimationTimer;
     private DispatcherTimer? _contentAnimationTimer;
     private DispatcherTimer? _transitionTimer;
     private DispatcherTimer? _completionAnimationTimer;
     private AISettings _settings = new();
+    private ToastHostControl? _toast;
+
+    // 图片识别不支持提醒：整个向导只弹一次，避免反复打断
+    private bool _visionWarned;
+    private TaskCompletionSource<bool>? _visionWarningCompletion;
 
     // 导航防抖：上次导航时间，200ms 内的重复点击被忽略
     private DateTime _lastNavigateTime = DateTime.MinValue;
@@ -69,9 +77,15 @@ public partial class WelcomeWizard : Window
     public WelcomeWizard()
     {
         InitializeComponent();
+        _toast = this.FindControl<ToastHostControl>("Toast");
+        WireVisionStatus();
         BuildStepIndicator();
         NavigateTo(1);
     }
+
+    /// <summary>右下角轻提示，与设置页保持一致。</summary>
+    private void ShowToast(string message, ToastKind kind = ToastKind.Info, int? durationMs = null)
+        => _toast?.Show(message, kind, durationMs);
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
@@ -263,16 +277,8 @@ public partial class WelcomeWizard : Window
     private void StartContentEntrance(Border page)
     {
         StopContentEntrance();
-        if (page.Child is not StackPanel panel) return;
-
-        var targets = new List<Control>();
-        foreach (var child in panel.Children)
-        {
-            if (ReferenceEquals(child, FeatureTimeline) && child is Grid featureGrid)
-                targets.AddRange(featureGrid.Children);
-            else
-                targets.Add(child);
-        }
+        var targets = CollectEntranceTargets(page.Child);
+        if (targets.Count == 0) return;
 
         foreach (var child in targets)
         {
@@ -312,6 +318,33 @@ public partial class WelcomeWizard : Window
             if (complete) StopContentEntrance();
         };
         _contentAnimationTimer.Start();
+    }
+
+    /// <summary>
+    /// 收集页面上要参与入场动画的元素。
+    /// 页面根可以是 StackPanel、Grid 或任何容器；带 <c>Tag="entrance-group"</c> 的容器
+    /// 会展开成它的直接子元素（时间轴、左右两栏）逐个上浮，其余容器整体入场。
+    /// 这样每个步骤的进入节奏一致，不会出现某个页面整块直接出现的情况。
+    /// </summary>
+    private static List<Control> CollectEntranceTargets(Control? root)
+    {
+        var targets = new List<Control>();
+        if (root is not Panel panel)
+        {
+            if (root != null) targets.Add(root);
+            return targets;
+        }
+
+        foreach (var child in panel.Children)
+        {
+            if (child is Panel group &&
+                string.Equals(group.Tag as string, EntranceGroupTag, StringComparison.Ordinal))
+                targets.AddRange(group.Children);
+            else
+                targets.Add(child);
+        }
+
+        return targets;
     }
 
     /// <summary>
@@ -515,6 +548,8 @@ public partial class WelcomeWizard : Window
 
         // 先完成插件检测和动态控件创建，再开始页面过渡，避免动画期间发生布局重排。
         if (step == 6) UpdatePluginAuthSelection();
+        // 推荐平台列表同理：先填数据把高度定下来，动画期间不再变尺寸。
+        if (step == 4 && _chosenPath == "recommended") PopulatePlatformList();
 
         // 确保 oldPage 处于完全可见状态（动画中断或异常状态修复）
         if (oldPage != null && oldPage != newPage)
@@ -549,7 +584,7 @@ public partial class WelcomeWizard : Window
             StartContentEntrance(newPage);
         }
         if (step == 3) UpdatePathSelection();
-        if (step == 4 && _chosenPath == "recommended") PopulatePlatformList();
+        if (step == 4) UpdateVisionStatus();
         if (step == 5)
         {
             UpdateToneSelection();
@@ -712,7 +747,7 @@ public partial class WelcomeWizard : Window
 
             if (imported == null)
             {
-                StepLabel.Text = "配置文件为空或格式不正确。";
+                ShowToast("配置文件为空或格式不正确", ToastKind.Error);
                 return;
             }
 
@@ -730,11 +765,12 @@ public partial class WelcomeWizard : Window
             RecommendedKeyBox.Text = _settings.ApiKey;
 
             NavigateTo(5);
+            ShowToast("已导入配置", ToastKind.Success);
         }
         catch (Exception ex)
         {
             Logger.Error($"欢迎向导导入配置失败: {ex.Message}");
-            StepLabel.Text = $"导入失败: {ex.Message}";
+            ShowToast($"导入失败：{ex.Message}", ToastKind.Error);
         }
     }
 
@@ -766,7 +802,7 @@ public partial class WelcomeWizard : Window
         NavigateTo(_currentStep - 1, false);
     }
 
-    private void OnNextClicked(object? sender, RoutedEventArgs e)
+    private async void OnNextClicked(object? sender, RoutedEventArgs e)
     {
         if (IsDebounced) return;
         _lastNavigateTime = DateTime.Now;
@@ -783,7 +819,7 @@ public partial class WelcomeWizard : Window
             }
             else
             {
-                StepLabel.Text = "请先选择一种配置方式";
+                ShowToast("请先选择一种配置方式", ToastKind.Error);
             }
             return;
         }
@@ -803,6 +839,17 @@ public partial class WelcomeWizard : Window
                 _settings.Model = RecommendedModelBox.Text?.Trim() ?? "";
             }
             SaveWizardBasics();
+
+            // 模型明确不支持图片时先提醒一次，再进入下一步（用户确认后才继续）
+            try
+            {
+                await MaybeWarnUnsupportedVisionAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"[欢迎向导] 图片识别提醒失败: {ex.Message}");
+            }
+
             NavigateTo(5);
             return;
         }
@@ -871,11 +918,7 @@ public partial class WelcomeWizard : Window
             PlatformListBox.SelectedIndex = -1;
             RecommendedEndpointBox.Text = "";
             RecommendedModelBox.Text = "";
-            RecommendedTestResult.Text = "已切换到自定义模式。";
-        }
-        else
-        {
-            RecommendedTestResult.Text = "";
+            ShowToast("已切换到自定义模式", ToastKind.Info);
         }
     }
 
@@ -884,9 +927,9 @@ public partial class WelcomeWizard : Window
         var url = _selectedPreset?.ConsoleUrl;
         if (string.IsNullOrWhiteSpace(url))
         {
-            RecommendedTestResult.Text = _customMode
-                ? "自定义模式没有固定注册链接，请打开你的本地部署或中转站后台。"
-                : "请先选择一个平台。";
+            ShowToast(_customMode
+                ? "自定义模式没有固定注册链接，请打开你的本地部署或中转站后台"
+                : "请先选择一个平台", ToastKind.Error);
             return;
         }
 
@@ -900,7 +943,7 @@ public partial class WelcomeWizard : Window
         }
         catch (Exception ex)
         {
-            RecommendedTestResult.Text = $"无法打开链接：{ex.Message}";
+            ShowToast($"无法打开链接：{ex.Message}", ToastKind.Error);
         }
     }
 
@@ -928,8 +971,104 @@ public partial class WelcomeWizard : Window
             CustomToggleBtn.Content = "+ 自定义（本地部署 / API 中转站）";
             RecommendedEndpointBox.Text = preset.Endpoint;
             RecommendedModelBox.Text = preset.Model;
-            RecommendedTestResult.Text = "";
         }
+    }
+
+    private async void OnManualFetchModelsClicked(object? sender, RoutedEventArgs e)
+    {
+        await FetchModelsAsync(ManualEndpointBox, ManualKeyBox, ManualModelBox,
+            _toast, ManualFetchModelsBtn);
+    }
+
+    private async void OnRecommendedFetchModelsClicked(object? sender, RoutedEventArgs e)
+    {
+        await FetchModelsAsync(RecommendedEndpointBox, RecommendedKeyBox, RecommendedModelBox,
+            _toast, RecommendedFetchModelsBtn);
+    }
+
+    /// <summary>读取当前填写地址的模型列表，并在按钮下方弹出选择列表。</summary>
+    private async System.Threading.Tasks.Task FetchModelsAsync(
+        TextBox endpointBox, TextBox keyBox, TextBox modelBox,
+        ToastHostControl? toast, Button? button)
+    {
+        var endpoint = endpointBox.Text?.Trim() ?? "";
+        var apiKey = keyBox.Text?.Trim() ?? "";
+        if (endpoint.Length == 0)
+        {
+            toast?.Show("请先填写 API 地址", ToastKind.Error);
+            return;
+        }
+
+        if (apiKey.Length == 0)
+        {
+            toast?.Show("请先填写 API Key", ToastKind.Error);
+            return;
+        }
+
+        var originalContent = button?.Content;
+        if (button != null) BusyContent.Begin(button, 14);
+
+        toast?.Show("正在读取模型列表...", ToastKind.Info, 0);
+
+        try
+        {
+            var result = await ModelListFetcher.FetchAsync(endpoint, apiKey);
+            if (!result.Success)
+            {
+                toast?.Show(result.Error ?? "没有可用的模型", ToastKind.Error);
+                return;
+            }
+
+            toast?.Show($"获取到 {result.Models.Count} 个模型，请在列表中选择", ToastKind.Success);
+            if (button != null)
+                ShowModelPicker(result.Models, button, modelBox, toast);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"[欢迎向导] 获取模型列表失败: {ex}");
+            toast?.Show($"获取模型失败：{ex.Message}", ToastKind.Error);
+        }
+        finally
+        {
+            if (button != null)
+                BusyContent.End(button, originalContent);
+        }
+    }
+
+    private static void ShowModelPicker(
+        IReadOnlyList<string> models, Button anchor, TextBox modelBox, ToastHostControl? toast)
+    {
+        var list = new ListBox
+        {
+            ItemsSource = models,
+            MaxHeight = 280,
+            MinWidth = 240
+        };
+
+        var panel = new StackPanel { Spacing = 8, Width = 280 };
+        panel.Children.Add(new TextBlock
+        {
+            Text = $"共 {models.Count} 个模型，点击填入",
+            FontSize = 12,
+            Opacity = 0.72
+        });
+        panel.Children.Add(new ScrollViewer { Content = list, MaxHeight = 280 });
+
+        var flyout = new Avalonia.Controls.Flyout
+        {
+            Content = panel,
+            Placement = PlacementMode.BottomEdgeAlignedRight
+        };
+
+        list.SelectionChanged += (_, _) =>
+        {
+            if (list.SelectedItem is not string model) return;
+            modelBox.Text = model;
+            toast?.Show($"已选择模型：{model}", ToastKind.Success);
+            flyout.Hide();
+        };
+
+        flyout.ShowAt(anchor);
     }
 
     // ---- API 连接测试 ----
@@ -940,7 +1079,6 @@ public partial class WelcomeWizard : Window
             ManualEndpointBox.Text?.Trim() ?? "",
             ManualKeyBox.Text?.Trim() ?? "",
             ManualModelBox.Text?.Trim() ?? "",
-            ManualTestResult,
             ManualTestBtn);
     }
 
@@ -951,7 +1089,7 @@ public partial class WelcomeWizard : Window
             ManualKeyBox.Text?.Trim() ?? "",
             ManualModelBox.Text?.Trim() ?? "",
             "reminder",
-            ManualTestResult,
+            _toast,
             ManualReminderTestBtn, ManualTestBtn, ManualSummaryTestBtn);
     }
 
@@ -962,7 +1100,7 @@ public partial class WelcomeWizard : Window
             ManualKeyBox.Text?.Trim() ?? "",
             ManualModelBox.Text?.Trim() ?? "",
             "before-school",
-            ManualTestResult,
+            _toast,
             ManualBeforeSchoolTestBtn, ManualTestBtn, ManualReminderTestBtn, ManualSummaryTestBtn);
     }
 
@@ -973,7 +1111,7 @@ public partial class WelcomeWizard : Window
             ManualKeyBox.Text?.Trim() ?? "",
             ManualModelBox.Text?.Trim() ?? "",
             "summary",
-            ManualTestResult,
+            _toast,
             ManualSummaryTestBtn, ManualTestBtn, ManualReminderTestBtn);
     }
 
@@ -983,7 +1121,6 @@ public partial class WelcomeWizard : Window
             RecommendedEndpointBox.Text?.Trim() ?? "",
             RecommendedKeyBox.Text?.Trim() ?? "",
             RecommendedModelBox.Text?.Trim() ?? "",
-            RecommendedTestResult,
             RecommendedTestBtn);
     }
 
@@ -994,7 +1131,7 @@ public partial class WelcomeWizard : Window
             RecommendedKeyBox.Text?.Trim() ?? "",
             RecommendedModelBox.Text?.Trim() ?? "",
             "reminder",
-            RecommendedTestResult,
+            _toast,
             RecommendedReminderTestBtn, RecommendedTestBtn, RecommendedSummaryTestBtn);
     }
 
@@ -1005,7 +1142,7 @@ public partial class WelcomeWizard : Window
             RecommendedKeyBox.Text?.Trim() ?? "",
             RecommendedModelBox.Text?.Trim() ?? "",
             "before-school",
-            RecommendedTestResult,
+            _toast,
             RecommendedBeforeSchoolTestBtn, RecommendedTestBtn, RecommendedReminderTestBtn, RecommendedSummaryTestBtn);
     }
 
@@ -1016,23 +1153,51 @@ public partial class WelcomeWizard : Window
             RecommendedKeyBox.Text?.Trim() ?? "",
             RecommendedModelBox.Text?.Trim() ?? "",
             "summary",
-            RecommendedTestResult,
+            _toast,
             RecommendedSummaryTestBtn, RecommendedTestBtn, RecommendedReminderTestBtn);
     }
 
-    private static async System.Threading.Tasks.Task RunTest(
-        string endpoint, string apiKey, string model,
-        TextBlock resultText, Button? testButton)
+    /// <summary>
+    /// 测试 API 连接。连接成功后顺手确认图片识别能力，避免用户以为能识图却用不了。
+    /// </summary>
+    private async Task RunTest(
+        string endpoint, string apiKey, string model, Button? testButton)
     {
         if (testButton != null) testButton.IsEnabled = false;
-        SetTestResultState(resultText);
-        resultText.Text = "正在测试连接...";
+        ShowToast("正在测试连接...", ToastKind.Info, 0);
 
         try
         {
             var result = await ApiConnectionTester.FullTestAsync(endpoint, apiKey, model);
-            resultText.Text = result.Success ? $"✅ {result.Message}" : $"❌ {result.Message}";
-            SetTestResultState(resultText, result.Success ? "success" : "error");
+            if (!result.Success)
+            {
+                ShowToast(result.Message, ToastKind.Error);
+                return;
+            }
+
+            ShowToast("连接正常，正在确认图片识别能力...", ToastKind.Info, 0);
+
+            // 让检测结论与当前填写的地址、模型保持一致（「下一步」还会再写一次）
+            _settings.Endpoint = endpoint;
+            _settings.ApiKey = apiKey;
+            _settings.Model = model;
+
+            var probe = await VisionCapabilityService.DetectAsync(endpoint, apiKey, model);
+            if (probe.IsConclusion)
+                VisionCapabilityService.ApplyDetection(_settings, probe.Support, endpoint, model);
+            UpdateVisionStatus();
+
+            ShowToast(
+                $"{result.Message}\n{probe.Message}",
+                probe.Support == VisionSupport.Unsupported ? ToastKind.Error : ToastKind.Success);
+
+            if (probe.Support == VisionSupport.Unsupported)
+                await ShowVisionWarningAsync(verified: true, model);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"[欢迎向导] 连接测试失败: {ex.Message}");
+            ShowToast($"测试失败：{ex.Message}", ToastKind.Error);
         }
         finally
         {
@@ -1043,20 +1208,19 @@ public partial class WelcomeWizard : Window
     private static async System.Threading.Tasks.Task RunAiTest(
         string endpoint, string apiKey, string model,
         string testType,
-        TextBlock resultText, Button? activeButton,
+        ToastHostControl? toast, Button? activeButton,
         params Button?[] siblingButtons)
     {
         if (activeButton != null) activeButton.IsEnabled = false;
         foreach (var b in siblingButtons)
             if (b != null) b.IsEnabled = false;
 
-        resultText.Text = testType switch
+        toast?.Show(testType switch
         {
             "before-school" => "正在测试智能每日简报...",
             "reminder" => "正在测试课间贴心提醒...",
             _ => "正在测试放学贴心总结..."
-        };
-        SetTestResultState(resultText);
+        }, ToastKind.Info, 0);
 
         try
         {
@@ -1064,8 +1228,7 @@ public partial class WelcomeWizard : Window
             var svc = Plugin.GetAIService();
             if (svc == null)
             {
-                resultText.Text = "AI 服务未初始化，请先保存配置。";
-                SetTestResultState(resultText, "error");
+                toast?.Show("AI 服务未初始化，请先保存配置", ToastKind.Error);
                 return;
             }
 
@@ -1088,10 +1251,9 @@ public partial class WelcomeWizard : Window
                     var reminder = testType == "before-school"
                         ? await svc.GenerateDailyBriefing(new List<string> { "第1节：语文", "第2节：数学" }, throwOnError: true, context: context)
                         : await svc.GenerateBeforeClassReminder("数学", "英语", throwOnError: true, context: context);
-                    resultText.Text = testType == "before-school"
-                        ? $"✅ 智能每日简报测试成功！\n{reminder}"
-                        : $"✅ 课间贴心提醒测试成功！\n{reminder}";
-                    SetTestResultState(resultText, "success");
+                    toast?.Show(testType == "before-school"
+                        ? $"智能每日简报测试成功！\n{reminder}"
+                        : $"课间贴心提醒测试成功！\n{reminder}", ToastKind.Success);
                 }
                 else
                 {
@@ -1102,8 +1264,7 @@ public partial class WelcomeWizard : Window
                         new List<string> { "语文", "数学", "英语", "物理", "体育", "化学" },
                         throwOnError: true,
                         context: context);
-                    resultText.Text = $"✅ 放学贴心总结测试成功！\n{summary}";
-                    SetTestResultState(resultText, "success");
+                    toast?.Show($"放学贴心总结测试成功！\n{summary}", ToastKind.Success);
                 }
             }
             finally
@@ -1115,8 +1276,7 @@ public partial class WelcomeWizard : Window
         }
         catch (Exception ex)
         {
-            resultText.Text = $"❌ 测试失败: {ex.Message}";
-            SetTestResultState(resultText, "error");
+            toast?.Show($"测试失败: {ex.Message}", ToastKind.Error);
         }
         finally
         {
@@ -1126,12 +1286,137 @@ public partial class WelcomeWizard : Window
         }
     }
 
-    private static void SetTestResultState(TextBlock resultText, string? state = null)
+    // ---- 图片识别能力 ----
+
+    /// <summary>模型或地址变化时刷新两页的图片识别徽章。</summary>
+    private void WireVisionStatus()
     {
-        resultText.Classes.Remove("success");
-        resultText.Classes.Remove("error");
-        if (!string.IsNullOrWhiteSpace(state))
-            resultText.Classes.Add(state);
+        ManualEndpointBox.TextChanged += (_, _) => UpdateVisionStatus();
+        ManualModelBox.TextChanged += (_, _) => UpdateVisionStatus();
+        RecommendedEndpointBox.TextChanged += (_, _) => UpdateVisionStatus();
+        RecommendedModelBox.TextChanged += (_, _) => UpdateVisionStatus();
+        UpdateVisionStatus();
+    }
+
+    /// <summary>按两页分别填写的接口地址与模型刷新徽章与说明。</summary>
+    private void UpdateVisionStatus()
+    {
+        var manual = VisionCapabilityService.Evaluate(
+            ManualEndpointBox.Text, ManualModelBox.Text,
+            _settings.VisionSupport, _settings.VisionSupportSignature);
+        var manualDetail = VisionCapabilityService.DescribeSupportDetail(manual);
+        VisionBadgeHelper.Apply(ManualVisionBadge, ManualVisionText, manual);
+        ManualVisionHint.Text = VisionCapabilityService.DescribeSupportShort(manual);
+        ToolTip.SetTip(ManualVisionBadge, manualDetail);
+        ToolTip.SetTip(ManualVisionHint, manualDetail);
+
+        var recommended = VisionCapabilityService.Evaluate(
+            RecommendedEndpointBox.Text, RecommendedModelBox.Text,
+            _settings.VisionSupport, _settings.VisionSupportSignature);
+        var recommendedDetail = VisionCapabilityService.DescribeSupportDetail(recommended);
+        VisionBadgeHelper.Apply(RecommendedVisionBadge, RecommendedVisionText, recommended);
+        RecommendedVisionHint.Text = VisionCapabilityService.DescribeSupportShort(recommended);
+        ToolTip.SetTip(RecommendedVisionBadge, recommendedDetail);
+        ToolTip.SetTip(RecommendedVisionHint, recommendedDetail);
+    }
+
+    private async void OnManualVisionDetectClicked(object? sender, RoutedEventArgs e)
+        => await DetectVisionAsync(manual: true);
+
+    private async void OnRecommendedVisionDetectClicked(object? sender, RoutedEventArgs e)
+        => await DetectVisionAsync(manual: false);
+
+    /// <summary>向接口发一张测试图片，确认当前填写的模型能不能识别图片。</summary>
+    private async Task DetectVisionAsync(bool manual)
+    {
+        var endpoint = (manual ? ManualEndpointBox.Text : RecommendedEndpointBox.Text)?.Trim() ?? "";
+        var apiKey = (manual ? ManualKeyBox.Text : RecommendedKeyBox.Text)?.Trim() ?? "";
+        var model = (manual ? ManualModelBox.Text : RecommendedModelBox.Text)?.Trim() ?? "";
+        var button = manual ? ManualVisionDetectBtn : RecommendedVisionDetectBtn;
+
+        var validation = ApiConnectionTester.ValidateFields(endpoint, apiKey, model);
+        if (!validation.Success)
+        {
+            ShowToast(validation.Message, ToastKind.Error);
+            return;
+        }
+
+        var originalContent = button.Content;
+        BusyContent.Begin(button, 12);
+        ShowToast("正在检测图片识别能力...", ToastKind.Info, 0);
+
+        try
+        {
+            // 检测结论绑定当前填写的地址与模型，步骤 4 的「下一步」也会做同样的写入
+            _settings.Endpoint = endpoint;
+            _settings.ApiKey = apiKey;
+            _settings.Model = model;
+
+            var result = await VisionCapabilityService.DetectAsync(endpoint, apiKey, model);
+            if (result.IsConclusion)
+                VisionCapabilityService.ApplyDetection(_settings, result.Support, endpoint, model);
+
+            UpdateVisionStatus();
+            ShowToast(result.Message, result.Support switch
+            {
+                VisionSupport.Supported => ToastKind.Success,
+                VisionSupport.Unsupported => ToastKind.Error,
+                _ => ToastKind.Info
+            });
+
+            if (result.Support == VisionSupport.Unsupported)
+                await ShowVisionWarningAsync(verified: true, model);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"[欢迎向导] 检测图片识别能力失败: {ex.Message}");
+            ShowToast($"检测失败：{ex.Message}", ToastKind.Error);
+        }
+        finally
+        {
+            BusyContent.End(button, originalContent);
+        }
+    }
+
+    /// <summary>离开配置步骤前，如果模型明确不支持图片识别就弹窗提醒一次。</summary>
+    private async Task MaybeWarnUnsupportedVisionAsync()
+    {
+        var manual = _chosenPath == "manual";
+        var endpoint = manual ? ManualEndpointBox.Text : RecommendedEndpointBox.Text;
+        var model = manual ? ManualModelBox.Text : RecommendedModelBox.Text;
+
+        var info = VisionCapabilityService.Evaluate(
+            endpoint, model, _settings.VisionSupport, _settings.VisionSupportSignature);
+        if (info.Support != VisionSupport.Unsupported) return;
+
+        await ShowVisionWarningAsync(info.IsVerified, model ?? "");
+    }
+
+    /// <summary>显示图片识别提示弹窗，并等待用户点「我知道了」。整轮向导只弹一次。</summary>
+    private async Task ShowVisionWarningAsync(bool verified, string model)
+    {
+        if (_visionWarned) return;
+        _visionWarned = true;
+
+        var name = string.IsNullOrWhiteSpace(model) ? "当前模型" : $"「{model.Trim()}」";
+        VisionWarningTitle.Text = verified ? "当前模型不支持识别图片" : "当前模型可能不支持识别图片";
+        VisionWarningBody.Text = verified
+            ? $"{name} 已确认只能处理文字，AIIsland 的图片识别功能将不可用：外部插件调用图片识别会直接失败。\n\n" +
+              "如果之后要识别图片（例如拍照识别作业），可以在设置页换用名称里带 vl / vision 的视觉模型。现在也可以继续完成设置。"
+            : $"{name} 从名称看不像视觉模型，图片识别可能不可用。\n\n" +
+              "可以点「检测」发一张测试图片确认，或换用名称里带 vl / vision 的模型。现在也可以继续完成设置。";
+
+        VisionWarningOverlay.IsVisible = true;
+        _visionWarningCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        await _visionWarningCompletion.Task;
+    }
+
+    private void OnVisionWarningOkClicked(object? sender, RoutedEventArgs e)
+    {
+        VisionWarningOverlay.IsVisible = false;
+        var completion = _visionWarningCompletion;
+        _visionWarningCompletion = null;
+        completion?.TrySetResult(true);
     }
 
     // ---- 保存与完成 ----
@@ -1404,6 +1689,9 @@ public partial class WelcomeWizard : Window
             AddCheckItem("接口地址", _settings.Endpoint);
         if (!string.IsNullOrWhiteSpace(_settings.Model))
             AddCheckItem("使用模型", _settings.Model);
+        AddCheckItem("图片识别", string.IsNullOrWhiteSpace(_settings.ApiKey)
+            ? "未配置"
+            : VisionCapabilityService.DescribeSupportLabel(VisionCapabilityService.Evaluate(_settings)));
         AddCheckItem("说话语气", _settings.ToneStyle switch { 0 => "活泼", 1 => "标准", 2 => "严肃", _ => "标准" });
         AddCheckItem("角色语气", _settings.PersonaEnabled
             ? (string.IsNullOrWhiteSpace(_settings.PersonaPresetId)
@@ -1457,6 +1745,10 @@ public partial class WelcomeWizard : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        // 关窗时释放可能仍在等待的提醒弹窗，避免导航流程挂起
+        _visionWarningCompletion?.TrySetResult(false);
+        _visionWarningCompletion = null;
+
         StopWelcomeAnimation();
         StopContentEntrance();
         StopCompletionAnimation();

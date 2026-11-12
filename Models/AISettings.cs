@@ -30,6 +30,29 @@ public partial class AISettings : ObservableObject
     private string _model = "deepseek-chat";
     // 模型名称，如 deepseek-chat / gpt-4o-mini / qwen-turbo
 
+    // ===== 图片识别能力 =====
+
+    /// <summary>
+    /// 当前模型能否识别图片（视觉输入）。取值 unknown / supported / unsupported，
+    /// 由 VisionCapabilityService 写入；只有签名与当前接口地址、模型一致时才可信。
+    /// </summary>
+    [ObservableProperty]
+    [property: JsonPropertyName("visionSupport")]
+    private string _visionSupport = VisionSupportValues.Unknown;
+
+    /// <summary>
+    /// 上次检测时的「接口地址|模型名」签名。用户换了模型或接口后旧结论自动失效，
+    /// 避免把旧模型的结论套到新模型上。
+    /// </summary>
+    [ObservableProperty]
+    [property: JsonPropertyName("visionSupportSignature")]
+    private string _visionSupportSignature = "";
+
+    /// <summary>上次检测时间（ISO 8601），仅用于展示。</summary>
+    [ObservableProperty]
+    [property: JsonPropertyName("visionSupportCheckedAt")]
+    private string _visionSupportCheckedAt = "";
+
     // ===== 语气风格 =====
 
     /// <summary>
@@ -93,6 +116,21 @@ public partial class AISettings : ObservableObject
     private int _maxRetries = 1;
     // 失败重试次数
 
+    // ===== 深度思考 =====
+
+    /// <summary>
+    /// 是否开启深度思考（推理）。关闭时按厂商支持情况下发「关闭」参数；
+    /// 开启后会先推理再回答，更准但更慢、更耗 token。
+    /// </summary>
+    [ObservableProperty]
+    [property: JsonPropertyName("enableDeepThinking")]
+    private bool _enableDeepThinking = false;
+
+    /// <summary>思考强度，仅在开启深度思考时生效。</summary>
+    [ObservableProperty]
+    [property: JsonPropertyName("thinkingEffort")]
+    private ThinkingEffort _thinkingEffort = ThinkingEffort.Auto;
+
     [ObservableProperty]
     [property: JsonPropertyName("aiLogRetentionDays")]
     private int _aiLogRetentionDays = 30;
@@ -115,14 +153,51 @@ public partial class AISettings : ObservableObject
     // 考试期间自动切换严肃语气
 
     [ObservableProperty]
-    [property: JsonPropertyName("enableFallbackWhenAiUnavailable")]
-    private bool _enableFallbackWhenAiUnavailable = true;
-    // AI 不可用时使用本地降级提示
-
-    [ObservableProperty]
     [property: JsonPropertyName("enableApiCache")]
     private bool _enableApiCache = true;
     // 启用 AI 结果缓存节省 API 调用
+
+    // ===== 联网搜索 =====
+
+    /// <summary>
+    /// 是否允许模型在对话中自主调用 web_search 工具联网检索。
+    /// 默认关闭；关闭时请求体与未接入搜索前完全一致。
+    /// 启用后本次请求的输出上限会自动抬到至少 800 token、超时至少 30 秒。
+    /// </summary>
+    [ObservableProperty]
+    [property: JsonPropertyName("enableWebSearch")]
+    private bool _enableWebSearch = false;
+
+    /// <summary>
+    /// 是否允许模型在检索摘要不够时调用 web_fetch 打开网页读取正文。
+    /// 默认开启；关闭后请求体里只有 web_search 一个工具，抓取代码不会执行。
+    /// </summary>
+    [ObservableProperty]
+    [property: JsonPropertyName("enableWebFetch")]
+    private bool _enableWebFetch = true;
+
+    /// <summary>OpenSERP 默认搜索引擎；地址固定为内置实例，设置页不再暴露，这里保留以便调整默认引擎。</summary>
+    [ObservableProperty]
+    [property: JsonPropertyName("searchEngine")]
+    private string _searchEngine = "bing";
+
+    [ObservableProperty]
+    [property: JsonPropertyName("webSearchMaxResults")]
+    private int _webSearchMaxResults = 5;
+    // 单次检索返回条数（1-10）
+
+    [ObservableProperty]
+    [property: JsonPropertyName("webSearchTimeoutSeconds")]
+    private int _webSearchTimeoutSeconds = 8;
+    // 单次检索超时秒数（3-30），与 AI 请求超时相互独立
+
+    /// <summary>
+    /// 是否允许在 OpenSERP 没有有效结果、或网页抓取失败时改用 DeepSeek 官方接口兜底。
+    /// 复用 AI 对话的 API Key，按成功请求计费（约 5 元/千次），默认关闭。
+    /// </summary>
+    [ObservableProperty]
+    [property: JsonPropertyName("enableDeepSeekSearchFallback")]
+    private bool _enableDeepSeekSearchFallback = false;
 
     [ObservableProperty]
     [property: JsonPropertyName("enableExamModeLocalServer")]

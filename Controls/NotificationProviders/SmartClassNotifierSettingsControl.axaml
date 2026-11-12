@@ -5,6 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:ci="http://classisland.tech/schemas/xaml/core"
     xmlns:local="clr-namespace:ClassIsland.AISmartClass.Controls.NotificationProviders"
+    xmlns:controls="clr-namespace:ClassIsland.AISmartClass.Controls"
     xmlns:models="clr-namespace:ClassIsland.AISmartClass.Models"
     xmlns:converters="clr-namespace:ClassIsland.AISmartClass.Converters">
 
@@ -39,12 +40,6 @@
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
         </Style>
-        <Style Selector="TextBlock.status-text">
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
-        </Style>
-        <Style Selector="TextBlock.status-text.error">
-            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
-        </Style>
         <Style Selector="Button">
             <Setter Property="MinHeight" Value="34"/>
             <Setter Property="Padding" Value="12,6"/>
@@ -52,9 +47,6 @@
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
         </Style>
         <StyleInclude Source="avares://ClassIsland.AISmartClass/Styles/StableButtonStyles.axaml"/>
-        <Style Selector="Button.danger">
-            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
-        </Style>
         <Style Selector="TextBox">
             <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
@@ -91,6 +83,8 @@
         </Style>
     </ci:NotificationProviderControlBase.Styles>
 
+    <!-- 根 Grid 只为了托住右下角的 toast 浮层；主体仍是原来的 ScrollViewer -->
+    <Grid>
     <ScrollViewer>
         <StackPanel Spacing="8" Margin="16"
                     DataContext="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=local:SmartClassNotifierSettingsControl}}">
@@ -166,7 +160,6 @@
                              IsVisible="False" Watermark="自定义 RSS 地址，每行一个"/>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Content="测试新闻源" Click="OnRssTestClicked"/>
-                        <TextBlock x:Name="RssTestResult" Classes="row-description" VerticalAlignment="Center" TextWrapping="Wrap"/>
                     </StackPanel>
 
                     <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
@@ -248,12 +241,6 @@
                         <Button Grid.Column="1" x:Name="ParseBtn" Content="解析并添加"
                                 Classes="primary" Click="OnParseClicked"/>
                     </Grid>
-                    <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                            BorderThickness="1" CornerRadius="6" Padding="10,8">
-                        <TextBlock x:Name="ParseStatusText" FontSize="13" FontWeight="Medium"
-                                   Classes="status-text" IsVisible="False" TextWrapping="Wrap"/>
-                    </Border>
                 </StackPanel>
             </Border>
 
@@ -304,4 +291,10 @@
             </Border>
         </StackPanel>
     </ScrollViewer>
+
+    <!-- 轻提示：浮在内容右下角，不参与布局，几秒后自动消失，点击可立即关闭 -->
+    <controls:ToastHostControl x:Name="Toast"
+                               HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                               Margin="0,0,24,20"/>
+    </Grid>
 </ci:NotificationProviderControlBase>

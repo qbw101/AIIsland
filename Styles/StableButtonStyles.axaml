@@ -48,6 +48,35 @@
         <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}"/>
     </Style>
 
+    <!-- 危险操作按钮（删除、恢复默认）：始终保持红字，
+         悬浮/按下只加深红色底，避免宿主模板把文字改回白色或主色。 -->
+    <Style Selector="Button.danger">
+        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
+    </Style>
+    <Style Selector="Button.danger /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
+    </Style>
+
+    <Style Selector="Button.danger:pointerover">
+        <Setter Property="Background" Value="#1AC42B1C"/>
+        <Setter Property="BorderBrush" Value="#33C42B1C"/>
+    </Style>
+    <Style Selector="Button.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#1AC42B1C"/>
+        <Setter Property="BorderBrush" Value="#33C42B1C"/>
+        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
+    </Style>
+
+    <Style Selector="Button.danger:pressed">
+        <Setter Property="Background" Value="#33C42B1C"/>
+        <Setter Property="BorderBrush" Value="#33C42B1C"/>
+    </Style>
+    <Style Selector="Button.danger:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#33C42B1C"/>
+        <Setter Property="BorderBrush" Value="#33C42B1C"/>
+        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
+    </Style>
+
     <!-- Selected segmented controls keep their tinted surface on hover. -->
     <Style Selector="Button.selected /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>

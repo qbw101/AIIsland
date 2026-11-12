@@ -24,15 +24,12 @@
         <PackageReference Include="NPSMLib" Version="0.9.14" />
         <!-- 崩溃取证：读取 Windows 应用程序事件日志（仅 Windows 调用） -->
         <PackageReference Include="System.Diagnostics.EventLog" Version="8.0.1" />
+        <!-- Readability 正文提取，仅解析已下载的 HTML。 -->
+        <PackageReference Include="SmartReader" Version="0.11.1" />
     </ItemGroup>
 
-    <!-- 独立作业清单插件位于仓库子目录，不参与 AIIsland 程序集编译。 -->
     <ItemGroup>
-        <Compile Remove="ClassIsland.HomeworkList\**\*.cs" />
-        <AvaloniaXaml Remove="ClassIsland.HomeworkList\**\*.axaml" />
-        <AvaloniaResource Remove="ClassIsland.HomeworkList\**\*.axaml" />
-        <EmbeddedResource Remove="ClassIsland.HomeworkList\**\*" />
-        <None Remove="ClassIsland.HomeworkList\**\*" />
+        <EmbeddedResource Include="ThirdParty\OpenSourceNotices.json" />
     </ItemGroup>
 
     <!-- Data 目录作为独立文件复制到输出目录。

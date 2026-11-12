@@ -9,6 +9,8 @@ using ClassIsland.Core.Extensions.Registry;
 using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.AISmartClass.Models;
 using ClassIsland.AISmartClass.Services;
+using ClassIsland.AISmartClass.Services.WebFetch;
+using ClassIsland.AISmartClass.Services.WebSearch;
 using ClassIsland.AISmartClass.Services.ExamMode;
 using ClassIsland.AISmartClass.Services.NotificationProviders;
 using ClassIsland.AISmartClass.Services.Telemetry;
@@ -184,6 +186,9 @@ public class Plugin : PluginBase
         return changed;
     }
 
+    /// <summary>当前联网搜索服务，供设置页「测试搜索」直接验证配置。</summary>
+    internal static WebSearchService? GetWebSearchService() => _sharedAiService?.WebSearch;
+
     /// <summary>设置页面保存后调用，实时同步 API 配置到 AI 服务并通知所有订阅者刷新 UI。</summary>
     public static void SyncAISettings(AISettings settings)
     {
@@ -302,8 +307,7 @@ public class Plugin : PluginBase
         }
     }
 
-    internal static void SaveAISettingsFile(AISettings settings)
-    {
+    internal static void SaveAISettingsFile(AISettings settings)    {
         var configFolder = ConfigFolderPath
             ?? throw new InvalidOperationException("插件配置目录尚未初始化");
         Directory.CreateDirectory(configFolder);
@@ -483,11 +487,10 @@ public class Plugin : PluginBase
             // 0. 存储配置文件夹路径供其他组件使用
             ConfigFolderPath = PluginConfigFolder;
 
-            // 1. 初始化离线降级句子库
-            var fallback = new FallbackPhraseService();
-            fallback.Load(PluginConfigFolder);
+            // 1. 初始化 AI 报错文案生成器（不再内置预设句子，失败时明确报错）
+            var fallback = new AiErrorPhraseService();
             services.AddSingleton(fallback);
-            Logger.Info("FallbackPhraseService 初始化完成");
+            Logger.Info("AiErrorPhraseService 初始化完成");
 
             // 1.5. 加载 3 套语气风格提示词 JSON
             PromptTemplates.Load(PluginConfigFolder);
@@ -498,10 +501,18 @@ public class Plugin : PluginBase
             var invocationLogDirectory = Path.Combine(PluginConfigFolder, "Logs", "AIRequests");
             var invocationLogger = new AIInvocationLogger(invocationLogDirectory);
             var aiService = new AIChatService(http, fallback, invocationLogger);
+            // 联网搜索服务：开关默认关闭，未配置时所有入口自动退化为普通对话
+            var webSearchService = new WebSearchService();
+            aiService.WebSearch = webSearchService;
+            // 网页抓取服务（web_fetch 工具）：搜索摘要不够时由模型自主打开原文
+            aiService.WebFetch = new WebFetchService();
+            // DeepSeek 官方抓取兜底：本地抓不到（JS 渲染、反爬）时改由服务端抓
+            aiService.DeepSeekFetch = new DeepSeekFetchProvider();
             _sharedInvocationLogger = invocationLogger;
             _sharedAiService = aiService;
             services.AddSingleton(invocationLogger);
             services.AddSingleton(aiService);
+            services.AddSingleton(webSearchService);
             Logger.Info($"AIChatService 初始化完成，调用日志目录: {invocationLogDirectory}");
 
             // 3. 启动时从配置文件加载 AI 设置并同步到服务

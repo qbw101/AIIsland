@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:ci="http://classisland.tech/schemas/xaml/core"
     xmlns:publicApi="clr-namespace:ClassIsland.AISmartClass.PublicApi"
+    xmlns:controls="clr-namespace:ClassIsland.AISmartClass.Controls"
     xmlns:converters="clr-namespace:ClassIsland.AISmartClass.Converters">
 
     <ci:SettingsPageBase.Resources>
@@ -120,9 +121,6 @@
             <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
         <StyleInclude Source="avares://ClassIsland.AISmartClass/Styles/StableButtonStyles.axaml"/>
-        <Style Selector="Button.danger">
-            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
-        </Style>
         <Style Selector="Button.icon-button">
             <Setter Property="Width" Value="32"/>
             <Setter Property="Height" Value="32"/>
@@ -184,27 +182,10 @@
             <Setter Property="OffContent" Value="关"/>
             <Setter Property="OnContent" Value="开"/>
         </Style>
-        <Style Selector="Border.test-result">
-            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
-        </Style>
-        <Style Selector="Border.test-result.success">
-            <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorSuccessBrush}"/>
-        </Style>
-        <Style Selector="Border.test-result.error">
-            <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
-        </Style>
-        <Style Selector="TextBlock.result-text">
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
-        </Style>
-        <Style Selector="TextBlock.result-text.success">
-            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}"/>
-        </Style>
-        <Style Selector="TextBlock.result-text.error">
-            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
-        </Style>
     </ci:SettingsPageBase.Styles>
 
+    <!-- 根 Grid 只为了托住右下角的 toast 浮层；页面主体仍是原来的 ScrollViewer -->
+    <Grid>
     <ScrollViewer>
         <StackPanel Spacing="6" Margin="20,10,20,20" MaxWidth="960" HorizontalAlignment="Stretch">
             <TextBlock Text="插件信息" Classes="section-title"/>
@@ -302,11 +283,41 @@
                     <TextBlock Text="&#xE950;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="模型名称" Classes="row-title"/>
-                        <TextBlock Text="用于生成提醒和总结的模型。" Classes="row-description"/>
+                        <TextBlock Text="用于生成提醒和总结的模型，可从接口读取可用列表。" Classes="row-description"/>
                     </StackPanel>
-                    <TextBox Grid.Column="2" x:Name="ModelBox"
-                             Watermark="deepseek-chat"
-                             VerticalAlignment="Center"/>
+                    <Grid Grid.Column="2" ColumnDefinitions="*,Auto" ColumnSpacing="8" VerticalAlignment="Center">
+                        <TextBox x:Name="ModelBox"
+                                 Watermark="deepseek-chat"
+                                 VerticalAlignment="Center"/>
+                        <Button Grid.Column="1" x:Name="FetchModelsButton"
+                                Content="获取模型"
+                                VerticalAlignment="Center"/>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="0,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE8B9;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="图片识别能力" Classes="row-title"/>
+                        <TextBlock x:Name="VisionSupportHint"
+                                   Text="点「检测」向接口发送一张测试图片，确认该模型是否支持图片识别。"
+                                   Classes="row-description"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Border x:Name="VisionSupportBadge" Width="84" Height="24"
+                                CornerRadius="12" Padding="0" BorderThickness="0"
+                                Background="#5D5D5D" VerticalAlignment="Center">
+                            <TextBlock x:Name="VisionSupportText" Text="未检测" FontSize="12"
+                                       FontWeight="SemiBold" Foreground="White"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       TextAlignment="Center"/>
+                        </Border>
+                        <Button x:Name="DetectVisionButton" Content="检测"
+                                VerticalAlignment="Center"
+                                ToolTip.Tip="发送一张写着随机数字的测试图片，确认模型能否读取图片"/>
+                    </StackPanel>
                 </Grid>
             </Border>
 
@@ -360,7 +371,7 @@
                                  MinHeight="64" MaxHeight="120"
                                  Watermark="例如：温柔耐心，说话轻声细语，喜欢鼓励别人"
                                  VerticalAlignment="Center"/>
-                        <Button Grid.Column="1" x:Name="GeneratePersonaButton" Content="&#x2728; AI 生成"
+                        <Button Grid.Column="1" x:Name="GeneratePersonaButton" Content="AI 生成"
                                 MinWidth="88" VerticalAlignment="Center"
                                 ToolTip.Tip="用 AI 生成一段角色语气设定，生成后可预览并编辑"
                                 Click="OnGeneratePersonaClicked"/>
@@ -398,11 +409,6 @@
                     </WrapPanel>
                 </Grid>
             </Border>
-
-            <Border x:Name="TestResultBorder" Classes="setting-row test-result" CornerRadius="4" Padding="12,8" IsVisible="False">
-                <TextBlock x:Name="TestResultText" Classes="result-text" TextWrapping="Wrap"
-                           FontSize="12"/>
-            </Border>
                 </StackPanel>
             </Expander>
 
@@ -412,21 +418,48 @@
                         <TextBlock Text="&#xF0168;" Classes="expander-icon"/>
                         <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                             <TextBlock Text="生成参数" Classes="expander-title"/>
-                            <TextBlock Text="调整回复长度、请求超时、缓存时长、重试和日志保留策略。" Classes="expander-description"/>
+                            <TextBlock Text="调整思考方式、回复长度、请求超时、缓存时长、重试和日志保留策略。" Classes="expander-description"/>
                         </StackPanel>
                     </Grid>
                 </Expander.Header>
                 <StackPanel Classes="section-content" Spacing="6">
 
             <Border Classes="setting-row">
+                <Grid ColumnDefinitions="0,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE82F;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="深度思考" Classes="row-title"/>
+                        <TextBlock Text="让模型先推理再回答，复杂问题更准；更慢，也更耗 token。" Classes="row-description"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="2" x:Name="DeepThinkingSwitch" IsChecked="False"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="0,*,160" ColumnSpacing="14">
+                    <TextBlock Text="&#xE9D9;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="思考强度" Classes="row-title"/>
+                        <TextBlock Text="越高越深入也越慢，仅在开启深度思考时生效；部分模型不支持调节，会按默认强度思考。" Classes="row-description"/>
+                    </StackPanel>
+                    <ComboBox Grid.Column="2" x:Name="ThinkingEffortComboBox" VerticalAlignment="Center">
+                        <ComboBoxItem Tag="0">自动（跟随模型）</ComboBoxItem>
+                        <ComboBoxItem Tag="1">低 — 更快</ComboBoxItem>
+                        <ComboBoxItem Tag="2">中 — 平衡</ComboBoxItem>
+                        <ComboBoxItem Tag="3">高 — 更深入</ComboBoxItem>
+                    </ComboBox>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
                 <Grid ColumnDefinitions="0,*,160" ColumnSpacing="14">
                     <TextBlock Text="&#xE8A5;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="最大回复长度" Classes="row-title"/>
-                        <TextBlock Text="限制单次 AI 回复可生成的最大 token 数。" Classes="row-description"/>
+                        <TextBlock Text="限制单次 AI 回复可生成的最大 token 数；开启深度思考时会自动为思考过程额外预留；填 0 表示不限制。" Classes="row-description"/>
                     </StackPanel>
                     <NumericUpDown Grid.Column="2" x:Name="MaxTokensBox"
-                                   Minimum="50" Maximum="500" Increment="50" Value="200"
+                                   Minimum="0" Maximum="500" Increment="50" Value="200"
                                    VerticalAlignment="Center"/>
                 </Grid>
             </Border>
@@ -436,10 +469,10 @@
                     <TextBlock Text="&#xE916;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="超时时间（秒）" Classes="row-title"/>
-                        <TextBlock Text="接口请求超过该时间后视为失败。" Classes="row-description"/>
+                        <TextBlock Text="接口请求超过该时间后视为失败；填 0 表示不限制，会一直等到模型返回或手动取消。" Classes="row-description"/>
                     </StackPanel>
                     <NumericUpDown Grid.Column="2" x:Name="TimeoutBox"
-                                   Minimum="3" Maximum="30" Value="10"
+                                   Minimum="0" Maximum="30" Value="10"
                                    VerticalAlignment="Center"/>
                 </Grid>
             </Border>
@@ -488,6 +521,94 @@
             <Expander Classes="settings-section" IsExpanded="False">
                 <Expander.Header>
                     <Grid Classes="section-header" ColumnDefinitions="32,*" ColumnSpacing="12">
+                        <TextBlock Text="&#xE721;" Classes="expander-icon" FontFamily="Segoe MDL2 Assets"/>
+                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="联网搜索" Classes="expander-title"/>
+                            <TextBlock Text="让模型在需要实时信息时自主联网检索，回答里会标注引用来源。" Classes="expander-description"/>
+                        </StackPanel>
+                    </Grid>
+                </Expander.Header>
+                <StackPanel Classes="section-content" Spacing="6">
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="0,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE774;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="允许模型联网搜索" Classes="row-title"/>
+                        <TextBlock Text="关闭时不影响任何请求；开启后模型会在需要时调用搜索工具。" Classes="row-description"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="2" x:Name="WebSearchSwitch" IsChecked="False"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="0,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE8A7;" Classes="row-icon" FontFamily="Segoe MDL2 Assets"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="允许模型打开网页" Classes="row-title"/>
+                        <TextBlock Text="搜索摘要不够时，模型可打开网页读取正文。" Classes="row-description"/>
+                        <TextBlock Text="抓不到的页面会退回摘要，不会编造内容。" Classes="row-description"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="2" x:Name="WebFetchSwitch" IsChecked="True"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="0,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE8D7;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="DeepSeek 官方联网兜底" Classes="row-title"/>
+                        <TextBlock Text="搜索没有有效结果、或网页抓不开时，改用 DeepSeek 官方接口再试一次。" Classes="row-description"/>
+                        <TextBlock Text="使用你自己的 API Key 与余额，按次计费。" Classes="row-description"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="2" x:Name="DeepSeekFallbackSwitch" IsChecked="False"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="0,*,160" ColumnSpacing="14">
+                    <TextBlock Text="&#xE8FD;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="单次检索条数" Classes="row-title"/>
+                        <TextBlock Text="回传给模型的资料条数。条数越多信息越全，上下文占用和延迟也越高。" Classes="row-description"/>
+                    </StackPanel>
+                    <NumericUpDown Grid.Column="2" x:Name="WebSearchMaxResultsBox"
+                                   Minimum="1" Maximum="10" Value="5"
+                                   VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="0,*,160" ColumnSpacing="14">
+                    <TextBlock Text="&#xE916;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="检索超时（秒）" Classes="row-title"/>
+                        <TextBlock Text="单次检索的独立超时，与 AI 请求超时互不影响。超时后自动降级为不联网回答。" Classes="row-description"/>
+                    </StackPanel>
+                    <NumericUpDown Grid.Column="2" x:Name="WebSearchTimeoutBox"
+                                   Minimum="3" Maximum="30" Value="8"
+                                   VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <Border Classes="setting-row">
+                <Grid ColumnDefinitions="0,*,Auto" ColumnSpacing="14">
+                    <TextBlock Text="&#xE9D9;" Classes="row-icon"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="测试搜索" Classes="row-title"/>
+                        <TextBlock Text="测试搜索服务连通性" Classes="row-description"/>
+                    </StackPanel>
+                    <Button Grid.Column="2" x:Name="TestWebSearchButton"
+                            Content="测试" VerticalAlignment="Center" MinWidth="104"/>
+                </Grid>
+            </Border>
+
+                </StackPanel>
+            </Expander>
+
+            <Expander Classes="settings-section" IsExpanded="False">
+                <Expander.Header>
+                    <Grid Classes="section-header" ColumnDefinitions="32,*" ColumnSpacing="12">
                         <TextBlock Text="&#xF0036;" Classes="expander-icon"/>
                         <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                             <TextBlock Text="功能开关" Classes="expander-title"/>
@@ -505,17 +626,6 @@
                         <TextBlock Text="减少重复请求，降低接口延迟和调用次数。" Classes="row-description"/>
                     </StackPanel>
                     <ToggleSwitch Grid.Column="2" x:Name="EnableCacheCb" IsChecked="True"/>
-                </Grid>
-            </Border>
-
-            <Border Classes="setting-row">
-                <Grid ColumnDefinitions="0,*,Auto" ColumnSpacing="14">
-                    <TextBlock Text="&#xE753;" Classes="row-icon"/>
-                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                        <TextBlock Text="离线降级提示" Classes="row-title"/>
-                        <TextBlock Text="AI 不可用时使用本地句子库给出提示。" Classes="row-description"/>
-                    </StackPanel>
-                    <ToggleSwitch Grid.Column="2" x:Name="EnableFallbackCb" IsChecked="True"/>
                 </Grid>
             </Border>
 
@@ -737,11 +847,10 @@
                 <Grid ColumnDefinitions="0,*,Auto" ColumnSpacing="14">
                     <TextBlock Text="&#xE8B7;" Classes="row-icon"/>
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                        <TextBlock Text="离线句子库与提示词" Classes="row-title"/>
-                        <TextBlock Text="可自行编辑 Data/ 下的 JSON 文件来定制 AI 提示词和降级句子。" Classes="row-description"/>
+                        <TextBlock Text="AI 提示词模板" Classes="row-title"/>
+                        <TextBlock Text="可自行编辑 Data/ 下的 prompts_*.json 定制 AI 提示词。" Classes="row-description"/>
                     </StackPanel>
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <Button x:Name="OpenFallbackBtn" Content="打开句子库"/>
                         <Button x:Name="OpenPromptsBtn" Content="打开提示词"/>
                     </StackPanel>
                 </Grid>
@@ -755,7 +864,7 @@
                         <TextBlock Text="&#xF0570;" Classes="expander-icon"/>
                         <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                             <TextBlock Text="更多选项" Classes="expander-title"/>
-                            <TextBlock Text="访问项目主页、提交反馈、预览提示词与上下文、调整诊断与遥测，或重新运行欢迎向导。" Classes="expander-description"/>
+                            <TextBlock Text="访问项目主页、查看开源许可、提交反馈、预览提示词与上下文、调整诊断与遥测，或重新运行欢迎向导。" Classes="expander-description"/>
                         </StackPanel>
                     </Grid>
                 </Expander.Header>
@@ -767,6 +876,16 @@
                                 <TextBlock Text="查看 AIIsland 源代码、版本记录和项目说明。" Classes="row-description"/>
                             </StackPanel>
                             <Button Grid.Column="1" x:Name="GitHubBtn" Content="打开" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+
+                    <Border Classes="setting-row">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
+                            <StackPanel Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="开源库与许可" Classes="row-title"/>
+                                <TextBlock Text="查看使用的开源库、GitHub 地址、版本与许可声明。" Classes="row-description"/>
+                            </StackPanel>
+                            <Button Grid.Column="1" x:Name="OpenSourceLicensesBtn" Content="查看" VerticalAlignment="Center"/>
                         </Grid>
                     </Border>
 
@@ -840,4 +959,10 @@
             </Expander>
         </StackPanel>
     </ScrollViewer>
+
+        <!-- 轻提示：浮在内容右下角，不参与布局，几秒后自动消失，点击可立即关闭 -->
+        <controls:ToastHostControl x:Name="Toast"
+                                   HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                   Margin="0,0,28,24"/>
+    </Grid>
 </ci:SettingsPageBase>

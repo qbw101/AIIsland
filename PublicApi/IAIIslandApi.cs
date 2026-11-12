@@ -27,6 +27,24 @@ public interface IAIIslandApi
     string? ModelName { get; }
 
     /// <summary>
+    /// 当前模型是否被判定为支持图片识别（视觉输入）。此属性不需要授权。
+    /// 判定可能来自真实检测，也可能来自模型名称推断，可用 <see cref="IsVisionSupportVerified"/> 区分。
+    /// </summary>
+    bool SupportsVision { get; }
+
+    /// <summary>
+    /// 图片识别能力的判定级别：<c>supported</c> / <c>unsupported</c> / <c>unknown</c>。
+    /// 此属性不需要授权。
+    /// </summary>
+    string VisionSupportLevel { get; }
+
+    /// <summary>
+    /// <see cref="VisionSupportLevel"/> 是否来自真实检测（true 表示可信结论，false 表示按模型名称推断）。
+    /// 此属性不需要授权。
+    /// </summary>
+    bool IsVisionSupportVerified { get; }
+
+    /// <summary>
     /// 基础 AI 对话。调用方提供系统提示词和用户消息，返回 AI 生成内容。
     /// </summary>
     /// <param name="systemPrompt">系统提示词，定义 AI 角色和行为。</param>
@@ -37,6 +55,75 @@ public interface IAIIslandApi
     Task<AIIslandChatResult> ChatAsync(
         string systemPrompt,
         string userMessage,
+        AIIslandChatOptions? options = null,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// 流式 AI 对话：模型每产出一段增量就回调一次，最后返回完整结果（含思考过程）。
+    /// </summary>
+    /// <remarks>
+    /// 回调在线程池线程上执行，需要更新 UI 时请自行切回 UI 线程；回调内抛出的异常会中断整次调用。
+    /// 缓存命中时会按字符回放，同样走回调。取消令牌被取消时抛出 <see cref="OperationCanceledException"/>。
+    /// </remarks>
+    /// <param name="systemPrompt">系统提示词，定义 AI 角色和行为。</param>
+    /// <param name="userMessage">用户消息内容。</param>
+    /// <param name="onUpdate">增量回调，参数包含本次增量与截至目前的完整快照。</param>
+    /// <param name="options">可选参数：温度、深度思考、思考强度和缓存行为。</param>
+    /// <param name="ct">取消令牌。</param>
+    /// <returns>最终完整结果，<c>Content</c> 与 <c>Reasoning</c> 分别是正文与思考过程。</returns>
+    Task<AIIslandChatResult> ChatStreamAsync(
+        string systemPrompt,
+        string userMessage,
+        Action<AIIslandStreamUpdate> onUpdate,
+        AIIslandChatOptions? options = null,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// 带图片的 AI 对话（图片识别）。图片以原始字节传入，可直接来自截图、相册或网络下载。
+    /// </summary>
+    /// <remarks>
+    /// 图片以 data URI 内联到请求体中，不经过任何图片托管服务。
+    /// 当前模型已确认不支持图片识别时，会直接返回失败并说明原因；
+    /// 调用前可用 <see cref="SupportsVision"/> 判断，避免无谓的等待。
+    /// </remarks>
+    /// <param name="systemPrompt">系统提示词，定义 AI 角色和行为。</param>
+    /// <param name="userMessage">与图片一起发送的文字，例如「这张图里有什么」。</param>
+    /// <param name="imageData">图片原始字节，支持 PNG / JPEG / GIF / WebP / BMP，单张不超过 20 MB。</param>
+    /// <param name="imageMimeType">图片 MIME 类型；为空时按文件头自动识别。</param>
+    /// <param name="options">可选参数：温度、用途描述和缓存行为。</param>
+    /// <param name="ct">取消令牌。</param>
+    /// <returns>AI 对图片的回答，包含文本内容和是否成功标志。</returns>
+    Task<AIIslandChatResult> ChatWithImageAsync(
+        string systemPrompt,
+        string userMessage,
+        byte[] imageData,
+        string? imageMimeType = null,
+        AIIslandChatOptions? options = null,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// 带图片的流式对话：模型每产出一段增量就回调一次，最后返回完整结果（含思考过程）。
+    /// </summary>
+    /// <remarks>
+    /// 回调在线程池线程上执行，需要更新 UI 时请自行切回 UI 线程；回调内抛出的异常会中断整次调用。
+    /// 图片以 data URI 内联到请求体中，不经过任何图片托管服务。
+    /// 当前模型已确认不支持图片识别时，回调会直接收到一段本地降级内容，返回结果 <c>Success=true</c> 且
+    /// <c>IsFallback=true</c>；调用前可用 <see cref="SupportsVision"/> 判断，避免无谓的等待。
+    /// </remarks>
+    /// <param name="systemPrompt">系统提示词，定义 AI 角色和行为。</param>
+    /// <param name="userMessage">与图片一起发送的文字。</param>
+    /// <param name="onUpdate">增量回调，参数包含本次增量与截至目前的完整快照。</param>
+    /// <param name="imageData">图片原始字节，支持 PNG / JPEG / GIF / WebP / BMP，单张不超过 20 MB。</param>
+    /// <param name="imageMimeType">图片 MIME 类型；为空时按文件头自动识别。</param>
+    /// <param name="options">可选参数：温度、深度思考、思考强度和缓存行为。</param>
+    /// <param name="ct">取消令牌。</param>
+    /// <returns>最终完整结果，<c>Content</c> 与 <c>Reasoning</c> 分别是正文与思考过程。</returns>
+    Task<AIIslandChatResult> ChatWithImageStreamAsync(
+        string systemPrompt,
+        string userMessage,
+        Action<AIIslandStreamUpdate> onUpdate,
+        byte[] imageData,
+        string? imageMimeType = null,
         AIIslandChatOptions? options = null,
         CancellationToken ct = default);
 

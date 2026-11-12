@@ -1,0 +1,62 @@
+<UserControl
+    x:Class="ClassIsland.AISmartClass.Controls.ToastHostControl"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <UserControl.Styles>
+        <!-- 浮在内容之上，不占布局，淡入上浮 + 自动消失 -->
+        <Style Selector="Border.toast">
+            <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="14,10"/>
+            <Setter Property="MaxWidth" Value="460"/>
+            <Setter Property="BoxShadow" Value="0 6 20 0 #2E000000"/>
+            <Setter Property="Opacity" Value="0"/>
+            <Setter Property="RenderTransform" Value="translate(0px, 12px)"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.18"/>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.18"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.toast.visible">
+            <Setter Property="Opacity" Value="1"/>
+            <Setter Property="RenderTransform" Value="translate(0px, 0px)"/>
+        </Style>
+        <Style Selector="Border.toast.success">
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorSuccessBrush}"/>
+        </Style>
+        <Style Selector="Border.toast.error">
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.toast-icon">
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="VerticalAlignment" Value="Top"/>
+            <Setter Property="Margin" Value="0,1,0,0"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.toast-icon.success">
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.toast-icon.error">
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.toast-text">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="LineHeight" Value="19"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Border x:Name="ToastRoot" Classes="toast" IsVisible="False" Cursor="Hand"
+            PointerPressed="OnToastPointerPressed">
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+            <TextBlock x:Name="ToastIcon" Classes="toast-icon" Text="&#xE946;"/>
+            <TextBlock x:Name="ToastText" Grid.Column="1" Classes="toast-text" TextWrapping="Wrap"/>
+        </Grid>
+    </Border>
+</UserControl>

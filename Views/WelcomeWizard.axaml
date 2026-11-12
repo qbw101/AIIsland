@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:controls="clr-namespace:ClassIsland.AISmartClass.Controls"
     mc:Ignorable="d"
     Title="欢迎使用 AIIsland"
     Width="820" Height="640"
@@ -168,15 +169,6 @@
             <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
         </Style>
-        <Style Selector="TextBlock.test-result">
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
-        </Style>
-        <Style Selector="TextBlock.test-result.success">
-            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}"/>
-        </Style>
-        <Style Selector="TextBlock.test-result.error">
-            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
-        </Style>
         <Style Selector="TextBlock.check-label">
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
         </Style>
@@ -301,12 +293,13 @@
 
                 <!-- 步骤 2：一天的时间线 + 真实示例气泡 -->
                 <Border x:Name="Page2" Padding="48,34,48,22" Opacity="0" IsVisible="False">
-                    <StackPanel Spacing="16" HorizontalAlignment="Center">
+                    <StackPanel Spacing="16" Width="660" HorizontalAlignment="Center">
                         <TextBlock Text="欢迎使用 AIIsland" Classes="page-title"
                                    HorizontalAlignment="Center"/>
 
                         <!-- 竖向时间轴：左列时刻 + 轴线，右列卡片 -->
-                        <Grid x:Name="FeatureTimeline" Width="660" ColumnDefinitions="76,26,*" RowSpacing="10">
+                        <Grid x:Name="FeatureTimeline" Width="660" ColumnDefinitions="76,26,*" RowSpacing="10"
+                              Tag="entrance-group">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
@@ -467,7 +460,7 @@
 
                 <!-- 步骤 3：选择配置方式 -->
                 <Border x:Name="Page3" Padding="48,34" Opacity="0" IsVisible="False">
-                    <StackPanel Spacing="14" MaxWidth="470" HorizontalAlignment="Center">
+                    <StackPanel Spacing="14" Width="470" HorizontalAlignment="Center">
                         <StackPanel Spacing="7" HorizontalAlignment="Center" Margin="0,0,0,6">
                             <TextBlock Text="第一步" Classes="section-eyebrow" HorizontalAlignment="Center"/>
                             <TextBlock Text="接入 AI" Classes="page-title" HorizontalAlignment="Center"/>
@@ -554,7 +547,7 @@
 
                 <!-- 步骤 4A：高级手填 -->
                 <Border x:Name="Page4Manual" Padding="48,34" Opacity="0" IsVisible="False">
-                    <StackPanel Spacing="14" MaxWidth="420" HorizontalAlignment="Center">
+                    <StackPanel Spacing="14" Width="420" HorizontalAlignment="Center">
                         <StackPanel Spacing="7" HorizontalAlignment="Center" Margin="0,0,0,4">
                             <TextBlock Text="第二步" Classes="section-eyebrow" HorizontalAlignment="Center"/>
                             <TextBlock Text="填三行就好" Classes="page-title" HorizontalAlignment="Center"/>
@@ -577,11 +570,36 @@
                         </StackPanel>
 
                         <StackPanel Spacing="6">
-                            <TextBlock Text="模型名称" Classes="field-label"/>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="模型名称" Classes="field-label" VerticalAlignment="Center"/>
+                                <Button x:Name="ManualFetchModelsBtn" Grid.Column="1"
+                                        Content="获取模型" Padding="8,3" FontSize="12" MinHeight="26"
+                                        Classes="link" Click="OnManualFetchModelsClicked"/>
+                            </Grid>
                             <TextBox x:Name="ManualModelBox" FontSize="14"
                                      Watermark="deepseek-chat"/>
                             <TextBlock Text="选择轻量快速的模型即可，提醒内容通常较短。" Classes="field-hint"/>
                         </StackPanel>
+
+                        <!-- 图片识别能力：单行紧凑显示，点「检测」真实确认；不支持时下一步会弹窗提醒 -->
+                        <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8">
+                            <TextBlock Text="图片识别" Classes="field-label" VerticalAlignment="Center"/>
+                            <Border Grid.Column="1" x:Name="ManualVisionBadge" Width="80" Height="22"
+                                    CornerRadius="11" Padding="0" BorderThickness="0"
+                                    Background="#5D5D5D" VerticalAlignment="Center">
+                                <TextBlock x:Name="ManualVisionText" Text="未检测"
+                                           FontSize="11.5" FontWeight="SemiBold" Foreground="White"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           TextAlignment="Center"/>
+                            </Border>
+                            <TextBlock Grid.Column="2" x:Name="ManualVisionHint" Classes="field-hint"
+                                       FontSize="11" VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis"
+                                       Text="点「检测」确认这个模型能不能识别图片"/>
+                            <Button Grid.Column="3" x:Name="ManualVisionDetectBtn"
+                                    Content="检测" Padding="8,2" FontSize="11.5" MinHeight="24"
+                                    Classes="link" Click="OnManualVisionDetectClicked"/>
+                        </Grid>
 
                         <Border Height="1" Margin="0,4"
                                 Background="{DynamicResource CardStrokeColorDefaultBrush}"/>
@@ -603,115 +621,156 @@
                                         Click="OnManualSummaryTestClicked"/>
                             </Grid>
                         </StackPanel>
-                        <TextBlock x:Name="ManualTestResult" FontSize="13" Classes="test-result"
-                                   LineHeight="21" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
 
                 <!-- 步骤 4B：推荐平台 -->
-                <Border x:Name="Page4Recommended" Padding="48,30" Opacity="0" IsVisible="False">
-                    <StackPanel Spacing="12" MaxWidth="480" HorizontalAlignment="Center">
-                        <StackPanel Spacing="7" HorizontalAlignment="Center" Margin="0,0,0,2">
-                            <TextBlock Text="第二步" Classes="section-eyebrow" HorizontalAlignment="Center"/>
-                            <TextBlock Text="挑一个平台，粘一次 Key" Classes="page-title" HorizontalAlignment="Center"/>
-                            <TextBlock Text="选择平台后地址和模型将自动填充。不确定的话可以直接选第一个。"
-                                       Classes="page-subtitle" TextAlignment="Center" MaxWidth="420"/>
+                <Border x:Name="Page4Recommended" Padding="50,38,50,12" Opacity="0" IsVisible="False">
+                    <!-- Stretch + MaxWidth：宽度由窗口决定，绝不随输入框内容变化 -->
+                    <Grid RowDefinitions="Auto,*" MaxWidth="720" HorizontalAlignment="Stretch">
+                        <StackPanel Grid.Row="0" Spacing="6" Margin="0,0,0,12">
+                            <TextBlock Text="第二步" Classes="section-eyebrow"/>
+                            <TextBlock Text="挑一个平台，粘一次 Key" Classes="page-title"/>
+                            <TextBlock Text="地址和模型会自动填好。不确定就选第一个，之后都能改。"
+                                       Classes="page-subtitle" MaxWidth="560" HorizontalAlignment="Left"/>
                         </StackPanel>
 
-                        <ScrollViewer MaxHeight="170" AllowAutoHide="False">
-                            <ListBox x:Name="PlatformListBox" Background="Transparent"
-                                     BorderThickness="0" SelectionMode="Single"
-                                     ScrollViewer.VerticalScrollBarVisibility="Auto">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Padding="12,10" Margin="0,0,0,2"
-                                                CornerRadius="6"
-                                                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                                            <DockPanel>
-                                                <TextBlock Text="{Binding Badge}" FontSize="11"
-                                                           Foreground="{DynamicResource AccentFillColorDefaultBrush}"
-                                                           VerticalAlignment="Center"
-                                                           DockPanel.Dock="Right" Margin="8,0,0,0"/>
-                                                <StackPanel>
-                                                    <TextBlock FontSize="14" FontWeight="SemiBold"
-                                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}">
-                                                        <Run Text="{Binding Index}"/><Run Text=". "/><Run Text="{Binding Name}"/>
-                                                    </TextBlock>
-                                                    <TextBlock FontSize="12"
-                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                               TextWrapping="Wrap">
-                                                        <Run Text="{Binding Model}"/>
-                                                    </TextBlock>
-                                                </StackPanel>
-                                            </DockPanel>
+                        <Grid Grid.Row="1" ColumnDefinitions="272,18,*" Tag="entrance-group">
+                            <!-- 左：平台列表 -->
+                            <Border Grid.Column="0"
+                                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1" CornerRadius="10" Padding="12,10">
+                                <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+                                    <TextBlock Text="推荐平台" Classes="field-label" Margin="4,0,0,0"/>
+                                    <ListBox x:Name="PlatformListBox" Grid.Row="1"
+                                             Background="Transparent" BorderThickness="0"
+                                             SelectionMode="Single" Padding="0"
+                                             MaxHeight="304" VerticalAlignment="Top"
+                                             ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Padding="10,7" Margin="0,0,0,3"
+                                                        CornerRadius="6"
+                                                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                                                    <DockPanel>
+                                                        <TextBlock Text="{Binding Badge}" FontSize="10.5"
+                                                                   Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                                                   VerticalAlignment="Center"
+                                                                   DockPanel.Dock="Right" Margin="6,0,0,0"/>
+                                                        <StackPanel Spacing="2">
+                                                            <TextBlock FontSize="13.5" FontWeight="SemiBold"
+                                                                       TextWrapping="Wrap"
+                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                                                                <Run Text="{Binding Index}"/><Run Text=". "/><Run Text="{Binding Name}"/>
+                                                            </TextBlock>
+                                                            <TextBlock FontSize="11.5" TextWrapping="Wrap"
+                                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                                                                <Run Text="{Binding Model}"/>
+                                                            </TextBlock>
+                                                        </StackPanel>
+                                                    </DockPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                    <Button Grid.Row="2" x:Name="CustomToggleBtn" Click="OnCustomToggleClicked"
+                                            HorizontalAlignment="Stretch" Padding="12,9"
+                                            HorizontalContentAlignment="Left"
+                                            Classes="wizard-choice">
+                                        <TextBlock Text="＋ 都不是？手动填写地址" FontSize="12.5"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                    </Button>
+                                </Grid>
+                            </Border>
+
+                            <!-- 右：连接信息 -->
+                            <Border Grid.Column="2"
+                                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1" CornerRadius="10" Padding="18,12">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="连接信息" Classes="section-eyebrow"/>
+
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="API 地址" Classes="field-label"/>
+                                        <TextBox x:Name="RecommendedEndpointBox" FontSize="13.5"
+                                                 Watermark="选完平台自动填"/>
+                                    </StackPanel>
+
+                                    <StackPanel Spacing="4">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="模型名称" Classes="field-label" VerticalAlignment="Center"/>
+                                            <Button x:Name="RecommendedFetchModelsBtn" Grid.Column="1"
+                                                    Content="获取模型" Padding="8,3" FontSize="12" MinHeight="26"
+                                                    Classes="link" Click="OnRecommendedFetchModelsClicked"/>
+                                        </Grid>
+                                        <TextBox x:Name="RecommendedModelBox" FontSize="13.5"
+                                                 Watermark="可自行更换"/>
+                                    </StackPanel>
+
+                                    <!-- 图片识别能力：与手填页同款检测入口 -->
+                                    <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="6">
+                                        <TextBlock Text="图片识别" Classes="field-label" VerticalAlignment="Center"/>
+                                        <Border Grid.Column="1" x:Name="RecommendedVisionBadge" Width="74" Height="21"
+                                                CornerRadius="11" Padding="0" BorderThickness="0"
+                                                Background="#5D5D5D" VerticalAlignment="Center">
+                                            <TextBlock x:Name="RecommendedVisionText" Text="未检测"
+                                                       FontSize="10.5" FontWeight="SemiBold" Foreground="White"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       TextAlignment="Center"/>
                                         </Border>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                        </ScrollViewer>
+                                        <TextBlock Grid.Column="2" x:Name="RecommendedVisionHint" Classes="field-hint"
+                                                   FontSize="11" VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Text="可点「检测」确认能否读图"/>
+                                        <Button Grid.Column="3" x:Name="RecommendedVisionDetectBtn"
+                                                Content="检测" Padding="6,2" FontSize="11" MinHeight="22"
+                                                Classes="link" Click="OnRecommendedVisionDetectClicked"/>
+                                    </Grid>
 
-                        <Button x:Name="CustomToggleBtn" Click="OnCustomToggleClicked"
-                                HorizontalAlignment="Stretch" Padding="14,10"
-                                HorizontalContentAlignment="Left"
-                                Classes="wizard-choice">
-                            <TextBlock Text="＋ 都不是？本地部署或中转站也能填" FontSize="13.5"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                        </Button>
+                                    <StackPanel Spacing="4">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="API Key" Classes="field-label" VerticalAlignment="Center"/>
+                                            <Button x:Name="RecommendedRegisterBtn" Grid.Column="1"
+                                                    Content="还没有 Key？去注册 →"
+                                                    Padding="8,3" FontSize="12" MinHeight="26"
+                                                    Classes="link"
+                                                    Click="OnOpenConsoleClicked"/>
+                                        </Grid>
+                                        <TextBox x:Name="RecommendedKeyBox" PasswordChar="*" FontSize="13.5"
+                                                 Watermark="粘贴到这里，只存在本机"/>
+                                    </StackPanel>
 
-                        <Grid ColumnDefinitions="*,12,*" Margin="0,4,0,0">
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="API 地址" Classes="field-label"/>
-                                <TextBox x:Name="RecommendedEndpointBox" FontSize="14"
-                                         Watermark="选完平台自动填"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="2" Spacing="6">
-                                <TextBlock Text="模型名称" Classes="field-label"/>
-                                <TextBox x:Name="RecommendedModelBox" FontSize="14"
-                                         Watermark="可自行更换"/>
-                            </StackPanel>
+                                    <Border Height="1" Margin="0,2"
+                                            Background="{DynamicResource CardStrokeColorDefaultBrush}"/>
+
+                                    <Button x:Name="RecommendedTestBtn" Content="测试连接" FontSize="13"
+                                            HorizontalAlignment="Stretch" Padding="14,8"
+                                            Click="OnRecommendedTestClicked" Classes="primary"/>
+                                    <Grid ColumnDefinitions="*,8,*,8,*">
+                                        <Button x:Name="RecommendedBeforeSchoolTestBtn" Content="试每日简报" FontSize="12"
+                                                HorizontalAlignment="Stretch" Padding="6,7"
+                                                Click="OnRecommendedBeforeSchoolTestClicked"/>
+                                        <Button x:Name="RecommendedReminderTestBtn" Grid.Column="2" Content="试课间提醒" FontSize="12"
+                                                HorizontalAlignment="Stretch" Padding="6,7"
+                                                Click="OnRecommendedReminderTestClicked"/>
+                                        <Button x:Name="RecommendedSummaryTestBtn" Grid.Column="4" Content="试放学总结" FontSize="12"
+                                                HorizontalAlignment="Stretch" Padding="6,7"
+                                                Click="OnRecommendedSummaryTestClicked"/>
+                                    </Grid>
+                                    <TextBlock Text="Key 只保存在本机；地址、模型和 Key 之后都能在设置里修改。"
+                                               Classes="field-hint"/>
+                                </StackPanel>
+                            </Border>
                         </Grid>
-
-                        <StackPanel Spacing="6" Margin="0,2,0,0">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Text="API Key" Classes="field-label" VerticalAlignment="Center"/>
-                                <Button x:Name="RecommendedRegisterBtn" Grid.Column="1"
-                                        Content="还没有 Key？去注册 →"
-                                        Padding="8,3" FontSize="12" MinHeight="26"
-                                        Classes="link"
-                                        Click="OnOpenConsoleClicked"/>
-                            </Grid>
-                            <TextBox x:Name="RecommendedKeyBox" PasswordChar="*" FontSize="14"
-                                     Watermark="粘贴到这里，只存在本机"/>
-                        </StackPanel>
-
-                        <Border Height="1" Margin="0,4"
-                                Background="{DynamicResource CardStrokeColorDefaultBrush}"/>
-
-                        <StackPanel Spacing="8">
-                            <Button x:Name="RecommendedTestBtn" Content="测试连接" FontSize="13"
-                                    HorizontalAlignment="Stretch" Padding="14,8"
-                                    Click="OnRecommendedTestClicked" Classes="primary"/>
-                            <Grid ColumnDefinitions="*,8,*,8,*">
-                                <Button x:Name="RecommendedBeforeSchoolTestBtn" Content="试每日简报" FontSize="12.5"
-                                        HorizontalAlignment="Stretch" Padding="8,8"
-                                        Click="OnRecommendedBeforeSchoolTestClicked"/>
-                                <Button x:Name="RecommendedReminderTestBtn" Grid.Column="2" Content="试课间提醒" FontSize="12.5"
-                                        HorizontalAlignment="Stretch" Padding="8,8"
-                                        Click="OnRecommendedReminderTestClicked"/>
-                                <Button x:Name="RecommendedSummaryTestBtn" Grid.Column="4" Content="试放学总结" FontSize="12.5"
-                                        HorizontalAlignment="Stretch" Padding="8,8"
-                                        Click="OnRecommendedSummaryTestClicked"/>
-                            </Grid>
-                        </StackPanel>
-                        <TextBlock x:Name="RecommendedTestResult" FontSize="13" Classes="test-result"
-                                   LineHeight="21" TextWrapping="Wrap"/>
-                    </StackPanel>
+                    </Grid>
                 </Border>
 
                 <!-- 步骤 5：偏好设置 -->
                 <Border x:Name="PagePreferences" Padding="48,34" Opacity="0" IsVisible="False">
-                    <StackPanel Spacing="14" MaxWidth="430" HorizontalAlignment="Center">
+                    <StackPanel Spacing="14" Width="430" HorizontalAlignment="Center">
                         <StackPanel Spacing="7" HorizontalAlignment="Center" Margin="0,0,0,6">
                             <TextBlock Text="第三步" Classes="section-eyebrow" HorizontalAlignment="Center"/>
                             <TextBlock Text="选择对话风格" Classes="page-title" HorizontalAlignment="Center"/>
@@ -792,7 +851,7 @@
                                          MinHeight="58" MaxHeight="96"
                                          Watermark="例如：温柔耐心，说话轻声细语，喜欢鼓励别人"/>
                                 <Button Grid.Column="1" x:Name="WizardPersonaGenerateBtn"
-                                        Content="&#x2728; AI 生成" MinWidth="86"
+                                        Content="AI 生成" MinWidth="86"
                                         VerticalAlignment="Center"
                                         ToolTip.Tip="用 AI 生成一段角色语气设定，生成后可预览并编辑"
                                         Click="OnWizardPersonaGenerateClicked"/>
@@ -808,7 +867,7 @@
                 <!-- 步骤 6：贴心提醒与插件授权 -->
                 <Border x:Name="PagePluginAuth" Padding="48,34" Opacity="0" IsVisible="False"
                         TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
-                    <StackPanel Spacing="12" MaxWidth="520" HorizontalAlignment="Center">
+                    <StackPanel Spacing="12" Width="520" HorizontalAlignment="Center">
                         <StackPanel Spacing="7" HorizontalAlignment="Center" Margin="0,0,0,6">
                             <TextBlock Text="第四步" Classes="section-eyebrow" HorizontalAlignment="Center"/>
                             <TextBlock Text="设置贴心提醒" Classes="page-title" HorizontalAlignment="Center"/>
@@ -876,7 +935,7 @@
 
                 <!-- 步骤 7：完成 -->
                 <Border x:Name="Page5" Padding="48,30" Opacity="0" IsVisible="False">
-                    <StackPanel Spacing="14" MaxWidth="400" HorizontalAlignment="Center">
+                    <StackPanel Spacing="14" Width="400" HorizontalAlignment="Center">
                         <Panel x:Name="DonePanel" Width="112" Height="112" HorizontalAlignment="Center">
                             <Border x:Name="DoneHalo" Width="108" Height="108" CornerRadius="54"
                                     Background="{DynamicResource ControlFillColorSecondaryBrush}"
@@ -941,5 +1000,37 @@
         <StackPanel x:Name="StepIndicator" Orientation="Horizontal"
                     HorizontalAlignment="Center" Grid.Row="0"
                     VerticalAlignment="Top" Margin="0,16,0,0" Spacing="7"/>
+
+        <!-- 轻提示：浮在内容区右下角，不遮挡底部按钮 -->
+        <controls:ToastHostControl x:Name="Toast" Grid.Row="0"
+                                   HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                   Margin="0,0,28,20"/>
+
+        <!-- 图片识别不支持提醒：模态遮罩 + 卡片。
+             自己画遮罩而不用 ContentDialog，因为向导是独立 Window，没有对话框宿主。 -->
+        <Border x:Name="VisionWarningOverlay" Grid.RowSpan="2" IsVisible="False"
+                Background="#66000000" ZIndex="200">
+            <Border Width="470" CornerRadius="12" Padding="26,24"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                    BoxShadow="0 10 32 0 #33000000">
+                <StackPanel Spacing="14">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                        <TextBlock Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets" FontSize="20"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource SystemFillColorCautionBrush}"/>
+                        <TextBlock Grid.Column="1" x:Name="VisionWarningTitle" Text="当前模型不支持识别图片"
+                                   FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                   TextWrapping="Wrap"/>
+                    </Grid>
+                    <TextBlock x:Name="VisionWarningBody" TextWrapping="Wrap" FontSize="13" LineHeight="21"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                    <Button x:Name="VisionWarningBtn" Content="我知道了" Classes="primary"
+                            HorizontalAlignment="Right" Click="OnVisionWarningOkClicked"/>
+                </StackPanel>
+            </Border>
+        </Border>
     </Grid>
 </Window>

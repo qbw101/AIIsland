@@ -7,6 +7,7 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform.Storage;
 using ClassIsland.Core.Abstractions.Controls;
+using ClassIsland.AISmartClass.Controls;
 using ClassIsland.AISmartClass.Models;
 using ClassIsland.AISmartClass.Services;
 using ClassIsland.AISmartClass.Views;
@@ -23,9 +24,8 @@ public partial class SmartClassNotifierSettingsControl : NotificationProviderCon
 {
     private ListBox? _reminderListBox;
     private TextBox? _nlInputBox;
-    private TextBlock? _parseStatusText;
+    private ToastHostControl? _toast;
     private TextBlock? _windowsContextTestResult;
-    private TextBlock? _rssTestResult;
     private ComboBox? _rssSourceComboBox;
     private TextBox? _customRssTextBox;
     private TextBlock? _pluginStatusText;
@@ -46,9 +46,8 @@ public partial class SmartClassNotifierSettingsControl : NotificationProviderCon
         base.OnLoaded(e);
         _reminderListBox = this.FindControl<ListBox>("ReminderListBox");
         _nlInputBox = this.FindControl<TextBox>("NlInputBox");
-        _parseStatusText = this.FindControl<TextBlock>("ParseStatusText");
+        _toast = this.FindControl<ToastHostControl>("Toast");
         _windowsContextTestResult = this.FindControl<TextBlock>("WindowsContextTestResult");
-        _rssTestResult = this.FindControl<TextBlock>("RssTestResult");
         _rssSourceComboBox = this.FindControl<ComboBox>("RssSourceComboBox");
         _customRssTextBox = this.FindControl<TextBox>("CustomRssTextBox");
         _pluginStatusText = this.FindControl<TextBlock>("PluginStatusText");
@@ -100,19 +99,28 @@ public partial class SmartClassNotifierSettingsControl : NotificationProviderCon
 
     private async void OnRssTestClicked(object? sender, RoutedEventArgs e)
     {
-        if (_rssTestResult == null || Settings == null) return;
-        _rssTestResult.Text = "正在读取 RSS...";
+        if (Settings == null) return;
+        var button = sender as Button;
+        var originalContent = button?.Content;
+        if (button != null) BusyContent.Begin(button);
+        _toast?.Show("正在读取 RSS...", ToastKind.Info, 0);
         try
         {
             var service = new DailyBriefingDataService();
             var news = await service.GetNewsAsync(Settings.ClassIslandInstallDirectory, Settings.RssFeedUrls);
-            _rssTestResult.Text = news.Count == 0
-                ? "未读取到新闻，请检查地址或网络。"
-                : $"读取成功：{string.Join("；", news.Take(2))}";
+            _toast?.Show(
+                news.Count == 0
+                    ? "未读取到新闻，请检查地址或网络。"
+                    : $"读取成功：{string.Join("；", news.Take(2))}",
+                news.Count == 0 ? ToastKind.Error : ToastKind.Success);
         }
         catch (Exception ex)
         {
-            _rssTestResult.Text = $"RSS 测试失败：{ex.Message}";
+            _toast?.Show($"RSS 测试失败：{ex.Message}", ToastKind.Error);
+        }
+        finally
+        {
+            if (button != null) BusyContent.End(button, originalContent);
         }
     }
 
@@ -132,9 +140,12 @@ public partial class SmartClassNotifierSettingsControl : NotificationProviderCon
 
     private async void OnWindowsContextTestClicked(object? sender, RoutedEventArgs e)
     {
-        if (_windowsContextTestResult == null || Settings == null) return;
+        if (Settings == null) return;
 
-        _windowsContextTestResult.Text = "正在读取 ClassIsland 天气位置、媒体会话和小米天气...";
+        var button = sender as Button;
+        var originalContent = button?.Content;
+        if (button != null) BusyContent.Begin(button);
+        _toast?.Show("正在读取 ClassIsland 天气位置、媒体会话和小米天气...", ToastKind.Info, 0);
         try
         {
             var service = new WindowsSystemContextService();
@@ -158,11 +169,15 @@ public partial class SmartClassNotifierSettingsControl : NotificationProviderCon
                       : "");
 
             var musicText = music == null ? "未检测到正在播放的音乐" : $"音乐：{music.Title}";
-            _windowsContextTestResult.Text = $"{locationText}；{musicText}；{weatherText}";
+            _toast?.Show($"{locationText}\n{musicText}\n{weatherText}", ToastKind.Success);
         }
         catch (Exception ex)
         {
-            _windowsContextTestResult.Text = $"Windows 功能测试失败：{ex.Message}";
+            _toast?.Show($"Windows 功能测试失败：{ex.Message}", ToastKind.Error);
+        }
+        finally
+        {
+            if (button != null) BusyContent.End(button, originalContent);
         }
     }
 
@@ -186,7 +201,11 @@ public partial class SmartClassNotifierSettingsControl : NotificationProviderCon
 
     private void OnCustomRemindersChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        RefreshReminderList();
+        // 集合变更由 ListBox 自己消化，这里只清理已经失效的选中项；
+        // 不要在回调里重设 ItemsSource，否则会打断 ItemsControl 的增删流程。
+        if (_reminderListBox?.SelectedItem is CustomReminder selected &&
+            Settings != null && !Settings.CustomReminders.Contains(selected))
+            _reminderListBox.SelectedItem = null;
     }
 
     private void RefreshReminderList()
@@ -220,9 +239,12 @@ public partial class SmartClassNotifierSettingsControl : NotificationProviderCon
             return;
         }
 
+        var title = reminder.DisplayTitle;
+        // CustomReminders 本身是 ObservableCollection，删除会直接同步到 ListBox；
+        // 之前在这里重设 ItemsSource，会打断 ItemsControl 正在进行的集合更新，列表看起来没变。
         Settings.CustomReminders.Remove(reminder);
-        SetStatus("已删除选中的提醒。", false);
-        RefreshReminderList();
+        _reminderListBox.SelectedItem = null;
+        SetStatus($"已删除提醒：{title}", false);
     }
 
     private async void OnExportRemindersClicked(object? sender, RoutedEventArgs e)
@@ -346,6 +368,10 @@ public partial class SmartClassNotifierSettingsControl : NotificationProviderCon
             return;
         }
 
+        var button = sender as Button;
+        var originalContent = button?.Content;
+        if (button != null) BusyContent.Begin(button);
+
         try
         {
             var parser = Plugin.GetReminderParser();
@@ -355,7 +381,7 @@ public partial class SmartClassNotifierSettingsControl : NotificationProviderCon
                 return;
             }
 
-            SetStatus("正在解析...", false);
+            SetStatus("正在解析...", false, sticky: true);
             var (reminder, error) = await parser.ParseAsync(input);
             if (reminder == null)
             {
@@ -372,6 +398,10 @@ public partial class SmartClassNotifierSettingsControl : NotificationProviderCon
         {
             Logger.Error($"自然语言解析失败: {ex.Message}");
             SetStatus("解析失败，请尝试更直接的表述或手动添加。", true);
+        }
+        finally
+        {
+            if (button != null) BusyContent.End(button, originalContent);
         }
     }
 
@@ -399,15 +429,9 @@ public partial class SmartClassNotifierSettingsControl : NotificationProviderCon
         SetStatus("提醒已保存。", false);
     }
 
-    private void SetStatus(string message, bool isError)
+    private void SetStatus(string message, bool isError, bool sticky = false)
     {
-        if (_parseStatusText == null) return;
-        _parseStatusText.Text = message;
-        if (isError)
-            _parseStatusText.Classes.Add("error");
-        else
-            _parseStatusText.Classes.Remove("error");
-        _parseStatusText.IsVisible = true;
+        _toast?.Show(message, isError ? ToastKind.Error : ToastKind.Success, sticky ? 0 : null);
     }
 
     private void UpdatePluginStatus()

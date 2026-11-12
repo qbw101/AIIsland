@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using ClassIsland.AISmartClass.Controls;
 using ClassIsland.AISmartClass.Services;
 
 namespace ClassIsland.AISmartClass.Views;
@@ -171,18 +172,23 @@ public partial class PersonaWizardDialog : Window
         _busy = busy;
         if (_generateButton == null) return;
 
-        _generateButton.IsEnabled = !busy;
         if (busy)
-            _generateButton.Content = "⏳ 生成中…";
+        {
+            BusyContent.Begin(_generateButton);
+        }
         else
+        {
+            // 交回 BusyContent 还原 MinWidth 与可用状态，文案随后刷新
+            BusyContent.End(_generateButton, null);
             UpdateGenerateButtonLabel();
+        }
     }
 
     /// <summary>已有结果时按钮显示「重新生成」，方便反复换一版。</summary>
     private void UpdateGenerateButtonLabel()
     {
         if (_generateButton == null || _busy) return;
-        _generateButton.Content = HasResult() ? "🔄 重新生成" : "✨ 生成设定";
+        _generateButton.Content = HasResult() ? "重新生成" : "生成设定";
     }
 
     private bool HasResult() => !string.IsNullOrWhiteSpace(_resultBox?.Text);

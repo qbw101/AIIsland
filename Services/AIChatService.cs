@@ -7,6 +7,56 @@ using ClassIsland.AISmartClass.Models;
 namespace ClassIsland.AISmartClass.Services;
 
 /// <summary>
+/// 一次 AI 调用的完整结果：正文 + 思考过程。
+/// 思考过程只有开启深度思考且厂商返回 <c>reasoning_content</c> 时才有内容。
+/// </summary>
+public readonly record struct AIChatResponse(string Content, string Reasoning)
+{
+    /// <summary>是否有正文。</summary>
+    public bool HasContent => !string.IsNullOrWhiteSpace(Content);
+
+    /// <summary>是否拿到了思考过程。</summary>
+    public bool HasReasoning => !string.IsNullOrWhiteSpace(Reasoning);
+
+    /// <summary>
+    /// 模型请求执行的工具调用。为空表示这一轮不需要工具。
+    /// 用 init 属性而非位置参数，保持现有两参构造与解构完全兼容；
+    /// 类型仅程序集内可见，不进入公开 API 面。
+    /// </summary>
+    internal IReadOnlyList<ChatToolCall> ToolCalls { get; init; } = Array.Empty<ChatToolCall>();
+
+    /// <summary>
+    /// <see cref="ToolCalls"/> 是否来自正文里的文本标记（<c>✿FUNCTION✿</c>）而非结构化
+    /// <c>tool_calls</c>。这类调用回传结果时不能用 <c>role:tool</c>，要沿用模型自己的文本协议。
+    /// </summary>
+    internal bool TextualToolCalls { get; init; }
+}
+
+/// <summary>
+/// 流式回调的一次推送：本次增量 + 截至目前的完整快照。
+/// 同一次推送里正文与思考过程通常只有一段有增量。
+/// </summary>
+public readonly record struct AIChatStreamUpdate(
+    string ContentDelta,
+    string ReasoningDelta,
+    string Content,
+    string Reasoning)
+{
+    /// <summary>
+    /// 阶段状态。<c>"searching"</c> 表示模型要求联网、正在执行检索；
+    /// <c>"answering"</c> 表示检索完成、开始生成最终回答（调用方应清空此前已显示的内容）；
+    /// 空字符串表示普通输出。
+    /// </summary>
+    public string Status { get; init; } = "";
+
+    /// <summary>
+    /// 阶段补充信息。目前只在 <see cref="Status"/> 为 <c>"searching"</c> 时携带
+    /// 模型实际使用的检索关键词（多个用「；」分隔），便于调用方显示「正在搜索：xxx」。
+    /// </summary>
+    public string SearchQuery { get; init; } = "";
+}
+
+/// <summary>
 /// 统一 AI 后端：封装 HTTP 调用、缓存、重试、降级。
 /// 场景方法拆分到 <see cref="AIChatService.Scenarios"/> 和 <see cref="AIChatService.Rules"/>。
 /// </summary>
@@ -14,7 +64,7 @@ public partial class AIChatService : IDisposable
 {
     // ===== 依赖 =====
     private readonly HttpClient _http;
-    private readonly FallbackPhraseService _fallback;
+    private readonly AiErrorPhraseService _fallback;
     private readonly AIInvocationLogger _invocationLogger;
 
     // ===== 缓存 / 并发控制 =====
@@ -26,11 +76,13 @@ public partial class AIChatService : IDisposable
     private class CacheEntry
     {
         public string Result { get; set; } = "";
+        public string Reasoning { get; set; } = "";
         public DateTime ExpireAt { get; set; }
     }
 
     private sealed record AIChatResult(
         string Content,
+        string Reasoning,
         AIRequestDiagnostics? Diagnostics);
 
     // ===== 可配置属性 =====
@@ -41,18 +93,34 @@ public partial class AIChatService : IDisposable
     public double? CustomTemperature { get; set; } = null; // 自定义温度，为null时使用语气风格映射
     public bool PersonaEnabled { get; set; } = false;      // 是否启用角色语气
     public string PersonaPrompt { get; set; } = "";        // 已组装的角色设定前缀（空=未启用）
+    /// <summary>单次回复输出上限；0 表示不限制（不下发 max_tokens）。</summary>
     public int MaxTokens { get; set; } = 200;
+    /// <summary>单次请求超时秒数；0 表示不设置超时。</summary>
     public int TimeoutSeconds { get; set; } = 10;
     public int CacheMinutes { get; set; } = 5;
     public int MaxRetries { get; set; } = 1;
 
+    /// <summary>是否开启深度思考（推理模式）。</summary>
+    public bool EnableDeepThinking { get; set; } = false;
+
+    /// <summary>思考强度，仅 <see cref="EnableDeepThinking"/> 为 true 时下发。</summary>
+    public ThinkingEffort ThinkingEffort { get; set; } = ThinkingEffort.Auto;
+
     // ===== 偏好开关（从 AISettings 同步） =====
     public bool EnableCache { get; set; } = true;
-    public bool EnableFallback { get; set; } = true;
+
+    /// <summary>是否允许模型调用 web_fetch 打开网页读取正文。</summary>
+    public bool EnableWebFetch { get; set; } = true;
     public bool UseSeriousToneInExamMode { get; set; } = true;
     public bool IsInExam { get; set; } = false;
     public bool EnableExamModeLocalServer { get; set; } = true;
     public bool ShowConfigStatusOnStartup { get; set; } = true;
+
+    /// <summary>
+    /// 当前模型的图片识别能力，随设置同步。图片请求只在该值明确为「不支持」时被拦截，
+    /// 按名称推断的结果不作为拦截依据。
+    /// </summary>
+    public VisionCapabilityInfo VisionCapability { get; set; } = VisionCapabilityInfo.Unknown;
 
     /// <summary>获取实际生效的语气风格（考试模式可覆盖为严肃）</summary>
     public int EffectiveToneStyle =>
@@ -71,7 +139,7 @@ public partial class AIChatService : IDisposable
 
     public AIChatService(
         HttpClient http,
-        FallbackPhraseService fallback,
+        AiErrorPhraseService fallback,
         AIInvocationLogger? invocationLogger = null)
     {
         _http = http;
@@ -92,20 +160,26 @@ public partial class AIChatService : IDisposable
             CustomTemperature = settings.CustomTemperature;
             PersonaEnabled = settings.PersonaEnabled;
             PersonaPrompt = PersonaCatalog.BuildPersonaPrompt(settings);
-            MaxTokens = settings.MaxTokens;
-            TimeoutSeconds = Math.Clamp(settings.TimeoutSeconds, 3, 120);
+            MaxTokens = Math.Max(0, settings.MaxTokens);
+            // 0（或负数）= 不设置超时，一直等到模型返回或调用方取消
+            TimeoutSeconds = settings.TimeoutSeconds <= 0
+                ? 0
+                : Math.Clamp(settings.TimeoutSeconds, 1, 120);
             CacheMinutes = settings.CacheMinutes;
             MaxRetries = settings.MaxRetries;
+            EnableDeepThinking = settings.EnableDeepThinking;
+            ThinkingEffort = settings.ThinkingEffort;
             // 注意：不要在这里修改 _http.Timeout。HttpClient.Timeout 在请求进行中变更会抛
             // InvalidOperationException，多个组件同时调用时极易触发。超时统一用每个请求
             // 独立的 CancellationTokenSource.CancelAfter 控制。
 
             // 同步偏好开关
             EnableCache = settings.EnableApiCache;
-            EnableFallback = settings.EnableFallbackWhenAiUnavailable;
+            EnableWebFetch = settings.EnableWebFetch;
             UseSeriousToneInExamMode = settings.UseSeriousToneInExamMode;
             EnableExamModeLocalServer = settings.EnableExamModeLocalServer;
             ShowConfigStatusOnStartup = settings.ShowConfigStatusOnStartup;
+            VisionCapability = VisionCapabilityService.Evaluate(settings);
         }
 
         // 设置变更后清除缓存，确保立即使用新配置重新调用 AI。
@@ -114,8 +188,8 @@ public partial class AIChatService : IDisposable
         _cache.Clear();
         _inflightRequests.Clear();
 
-        // 同步语气风格到降级句子库
-        _fallback.ToneStyle = settings.ToneStyle;
+        // 同步联网搜索配置（开关、OpenSERP 地址、默认引擎等）
+        WebSearch?.SyncFrom(settings);
     }
 
     /// <summary>清除全部缓存，供手动重新生成时绕过缓存获取新内容。</summary>
@@ -161,22 +235,70 @@ public partial class AIChatService : IDisposable
         double temperature = -1,
         CancellationToken ct = default,
         bool throwOnError = false,
-        bool bypassCache = false)
+        bool bypassCache = false,
+        bool? enableDeepThinking = null,
+        ThinkingEffort? thinkingEffort = null)
+    {
+        var response = await ExecuteChatAsync(
+            systemPrompt, userMessage, null, "通用聊天",
+            temperature, ct, throwOnError, bypassCache, enableDeepThinking, thinkingEffort)
+            .ConfigureAwait(false);
+        return response.Content;
+    }
+
+    /// <summary>
+    /// 与 <see cref="ChatAsync"/> 相同，但同时返回思考过程（<c>reasoning_content</c>）。
+    /// 开启深度思考后可用它拿到模型的推理内容。
+    /// </summary>
+    public Task<AIChatResponse> ChatResponseAsync(
+        string systemPrompt,
+        string userMessage,
+        double temperature = -1,
+        CancellationToken ct = default,
+        bool throwOnError = false,
+        bool bypassCache = false,
+        bool? enableDeepThinking = null,
+        ThinkingEffort? thinkingEffort = null)
+    {
+        return ExecuteChatAsync(
+            systemPrompt, userMessage, null, "通用聊天",
+            temperature, ct, throwOnError, bypassCache, enableDeepThinking, thinkingEffort);
+    }
+
+    /// <summary>
+    /// 文本对话与图片识别共用的执行管线：缓存、并发合并、重试、降级与调用日志。
+    /// <paramref name="image"/> 为 null 时是纯文本请求。
+    /// </summary>
+    private async Task<AIChatResponse> ExecuteChatAsync(
+        string systemPrompt,
+        string userMessage,
+        VisionImage? image,
+        string scenario,
+        double temperature,
+        CancellationToken ct,
+        bool throwOnError,
+        bool bypassCache,
+        bool? enableDeepThinking = null,
+        ThinkingEffort? thinkingEffort = null)
     {
         AiRequestSnapshot snapshot;
         lock (_settingsLock)
         {
+            var thinkingEnabled = enableDeepThinking ?? EnableDeepThinking;
+            var effort = thinkingEffort ?? ThinkingEffort;
             snapshot = new AiRequestSnapshot(
                 Endpoint,
                 ApiKey,
                 Model,
-                MaxTokens,
+                ThinkingRequestBuilder.GetEffectiveMaxTokens(
+                    MaxTokens, thinkingEnabled, effort),
                 TimeoutSeconds,
                 Math.Max(0, CacheMinutes),
                 Math.Clamp(MaxRetries, 0, 5),
                 EnableCache && !bypassCache,
-                EnableFallback,
-                temperature >= 0 ? temperature : GetTemperature());
+                temperature >= 0 ? temperature : GetTemperature(),
+                thinkingEnabled,
+                effort);
         }
 
         // 1. API Key 缺失 → 降级或抛出异常
@@ -185,7 +307,7 @@ public partial class AIChatService : IDisposable
             if (throwOnError)
             {
                 await LogInvocationAsync(
-                    "通用聊天",
+                    scenario,
                     systemPrompt,
                     userMessage,
                     "",
@@ -196,9 +318,9 @@ public partial class AIChatService : IDisposable
                 throw new InvalidOperationException("请先配置 AI API Key");
             }
 
-            var fallback = snapshot.EnableFallback ? _fallback.GetRandomPhrase("api_key_missing") : "";
+            var fallback = _fallback.GetErrorPhraseFromReason("未配置 API Key，请在设置中填写");
             await LogInvocationAsync(
-                "通用聊天",
+                scenario,
                 systemPrompt,
                 userMessage,
                 fallback,
@@ -206,23 +328,23 @@ public partial class AIChatService : IDisposable
                 false,
                 snapshot.Model,
                 "未配置 API Key").ConfigureAwait(false);
-            return fallback;
+            return new AIChatResponse(fallback, "");
         }
 
         // 2. 检查缓存（受 EnableCache 控制）
-        var cacheKey = ComputeCacheKey(systemPrompt, userMessage, snapshot);
+        var cacheKey = ComputeCacheKey(systemPrompt, userMessage, snapshot, image);
         var cacheGeneration = Volatile.Read(ref _cacheGeneration);
         if (snapshot.EnableCache && _cache.TryGetValue(cacheKey, out var cached) && cached.ExpireAt > DateTime.UtcNow)
         {
             await LogInvocationAsync(
-                "通用聊天",
+                scenario,
                 systemPrompt,
                 userMessage,
                 cached.Result,
                 "缓存",
                 false,
                 snapshot.Model).ConfigureAwait(false);
-            return cached.Result;
+            return new AIChatResponse(cached.Result, cached.Reasoning);
         }
 
         // 3. 合并相同请求，避免多个组件同时加载时把同一条 AI 请求并发打出去。
@@ -235,6 +357,7 @@ public partial class AIChatService : IDisposable
             _ => CreateSharedRequest(
                 systemPrompt,
                 userMessage,
+                image,
                 cacheKey,
                 inflightKey,
                 cacheGeneration,
@@ -245,7 +368,7 @@ public partial class AIChatService : IDisposable
         {
             var chatResult = await lazyRequest.Value.WaitAsync(ct).ConfigureAwait(false);
             await LogInvocationAsync(
-                "通用聊天",
+                scenario,
                 systemPrompt,
                 userMessage,
                 chatResult.Content,
@@ -256,12 +379,12 @@ public partial class AIChatService : IDisposable
                     ? null
                     : BuildFailureSummary(chatResult.Diagnostics.Attempts),
                 chatResult.Diagnostics).ConfigureAwait(false);
-            return chatResult.Content;
+            return new AIChatResponse(chatResult.Content, chatResult.Reasoning);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             await LogInvocationAsync(
-                "通用聊天",
+                scenario,
                 systemPrompt,
                 userMessage,
                 "",
@@ -274,7 +397,7 @@ public partial class AIChatService : IDisposable
         catch (Exception ex)
         {
             await LogInvocationAsync(
-                "通用聊天",
+                scenario,
                 systemPrompt,
                 userMessage,
                 "",
@@ -290,6 +413,7 @@ public partial class AIChatService : IDisposable
     private Lazy<Task<AIChatResult>> CreateSharedRequest(
         string systemPrompt,
         string userMessage,
+        VisionImage? image,
         string cacheKey,
         string inflightKey,
         long cacheGeneration,
@@ -306,6 +430,7 @@ public partial class AIChatService : IDisposable
                     return await Task.Run(() => ChatCoreAsync(
                             systemPrompt,
                             userMessage,
+                            image,
                             cacheKey,
                             snapshot,
                             CancellationToken.None,
@@ -324,10 +449,27 @@ public partial class AIChatService : IDisposable
         return request;
     }
 
+    /// <summary>流式响应的一个增量片段：正文、思考过程或工具调用分片。</summary>
+    private readonly record struct AIChatStreamChunk(string Content, string Reasoning)
+    {
+        /// <summary>本轮的工具调用增量；非空表示模型正在请求调用工具。</summary>
+        public IReadOnlyList<ChatToolCallDelta> ToolCallDeltas { get; init; } =
+            Array.Empty<ChatToolCallDelta>();
+    }
+
+    /// <summary>
+    /// 流式回调自身抛出的异常。它不是 AI 请求失败，不应进入重试与降级，
+    /// 而是直接透传给调用方（对外表现为调用失败）。
+    /// </summary>
+    private sealed class StreamCallbackException : Exception
+    {
+        public StreamCallbackException(string message, Exception inner) : base(message, inner) { }
+    }
+
     /// <summary>
     /// 流式聊天接口。每收到一个 token 就通过回调返回当前完整快照，适合 UI 直接替换显示。
     /// 重试时快照会从头开始，避免将中断的半截文本与新响应拼接。
-    /// 返回值是最终完整结果。
+    /// 返回值是最终正文。
     /// </summary>
     public async Task<string> ChatStreamAsync(
         string systemPrompt,
@@ -338,6 +480,49 @@ public partial class AIChatService : IDisposable
     {
         if (onUpdate == null) throw new ArgumentNullException(nameof(onUpdate));
 
+        var response = await ChatStreamResponseAsync(
+            systemPrompt,
+            userMessage,
+            update => onUpdate(update.Content),
+            temperature,
+            ct).ConfigureAwait(false);
+        return response.Content;
+    }
+
+    /// <summary>
+    /// 流式聊天的完整版本：回调同时给出正文与思考过程的增量，最终返回两者。
+    /// 传入 <paramref name="image"/> 时为带图片的流式对话（多模态）。
+    /// </summary>
+    /// <param name="onUpdate">增量回调。注意它在线程池线程上执行，UI 场景请自行切回 UI 线程。</param>
+    /// <param name="image">可选图片，随用户消息一起发送。</param>
+    public async Task<AIChatResponse> ChatStreamResponseAsync(
+        string systemPrompt,
+        string userMessage,
+        Action<AIChatStreamUpdate> onUpdate,
+        double temperature = -1,
+        CancellationToken ct = default,
+        bool? enableDeepThinking = null,
+        ThinkingEffort? thinkingEffort = null,
+        VisionImage? image = null)
+    {
+        if (onUpdate == null) throw new ArgumentNullException(nameof(onUpdate));
+
+        // 回调抛出的异常不属于 AI 请求失败：包装后绕过重试与降级，直接透传给调用方
+        void Emit(AIChatStreamUpdate update)
+        {
+            try
+            {
+                onUpdate(update);
+            }
+            catch (Exception ex)
+            {
+                throw new StreamCallbackException(ex.Message, ex);
+            }
+        }
+
+        var thinkingEnabled = enableDeepThinking ?? EnableDeepThinking;
+        var effort = thinkingEffort ?? ThinkingEffort;
+
         AiRequestSnapshot snapshot;
         lock (_settingsLock)
         {
@@ -345,19 +530,21 @@ public partial class AIChatService : IDisposable
                 Endpoint,
                 ApiKey,
                 Model,
-                MaxTokens,
+                ThinkingRequestBuilder.GetEffectiveMaxTokens(
+                    MaxTokens, thinkingEnabled, effort),
                 TimeoutSeconds,
                 Math.Max(0, CacheMinutes),
                 Math.Clamp(MaxRetries, 0, 5),
                 EnableCache,
-                EnableFallback,
-                temperature >= 0 ? temperature : GetTemperature());
+                temperature >= 0 ? temperature : GetTemperature(),
+                thinkingEnabled,
+                effort);
         }
 
         if (string.IsNullOrWhiteSpace(snapshot.ApiKey))
         {
-            var fallback = snapshot.EnableFallback ? _fallback.GetRandomPhrase("api_key_missing") : "";
-            onUpdate(fallback);
+            var fallback = _fallback.GetErrorPhraseFromReason("未配置 API Key，请在设置中填写");
+            Emit(new AIChatStreamUpdate(fallback, "", fallback, ""));
             await LogInvocationAsync(
                 "通用流式聊天",
                 systemPrompt,
@@ -367,10 +554,10 @@ public partial class AIChatService : IDisposable
                 true,
                 snapshot.Model,
                 "未配置 API Key").ConfigureAwait(false);
-            return fallback;
+            return new AIChatResponse(fallback, "");
         }
 
-        var cacheKey = ComputeCacheKey(systemPrompt, userMessage, snapshot);
+        var cacheKey = ComputeCacheKey(systemPrompt, userMessage, snapshot, image);
         var cacheGeneration = Volatile.Read(ref _cacheGeneration);
         if (snapshot.EnableCache && _cache.TryGetValue(cacheKey, out var cached) && cached.ExpireAt > DateTime.UtcNow)
         {
@@ -378,9 +565,13 @@ public partial class AIChatService : IDisposable
             foreach (var ch in cached.Result)
             {
                 replay.Append(ch);
-                onUpdate(replay.ToString());
+                Emit(new AIChatStreamUpdate(ch.ToString(), "", replay.ToString(), cached.Reasoning));
                 await Task.Delay(8, ct).ConfigureAwait(false);
             }
+
+            if (cached.Result.Length == 0 && cached.Reasoning.Length > 0)
+                Emit(new AIChatStreamUpdate("", "", "", cached.Reasoning));
+
             await LogInvocationAsync(
                 "通用流式聊天",
                 systemPrompt,
@@ -389,7 +580,7 @@ public partial class AIChatService : IDisposable
                 "缓存",
                 true,
                 snapshot.Model).ConfigureAwait(false);
-            return cached.Result;
+            return new AIChatResponse(cached.Result, cached.Reasoning);
         }
 
         var failures = new List<AIRequestFailureInfo>();
@@ -402,23 +593,38 @@ public partial class AIChatService : IDisposable
             var attemptStopwatch = Stopwatch.StartNew();
             try
             {
-                var fullResult = new StringBuilder();
-                await foreach (var token in SendStreamRequestAsync(systemPrompt, userMessage, snapshot, ct).ConfigureAwait(false))
+                var contentBuilder = new StringBuilder();
+                var reasoningBuilder = new StringBuilder();
+                var toolAccumulator = new ToolCallAccumulator();
+                await foreach (var chunk in SendStreamRequestAsync(systemPrompt, userMessage, image, snapshot, ct).ConfigureAwait(false))
                 {
-                    fullResult.Append(token);
-                    onUpdate(fullResult.ToString());
+                    contentBuilder.Append(chunk.Content);
+                    reasoningBuilder.Append(chunk.Reasoning);
+                    foreach (var toolDelta in chunk.ToolCallDeltas)
+                        toolAccumulator.Append(toolDelta);
+
+                    Emit(new AIChatStreamUpdate(
+                        chunk.Content,
+                        chunk.Reasoning,
+                        contentBuilder.ToString(),
+                        reasoningBuilder.ToString()));
                 }
 
-                var result = fullResult.ToString().Trim();
-                if (string.IsNullOrEmpty(result))
+                var result = contentBuilder.ToString().Trim();
+                var reasoning = reasoningBuilder.ToString().Trim();
+                // 三者都为空才算失败：思考型模型可能只回思考内容，工具调用轮次可能只有 tool_calls
+                if (string.IsNullOrEmpty(result) && string.IsNullOrEmpty(reasoning) && toolAccumulator.IsEmpty)
                     throw new InvalidDataException("AI 流式响应内容为空");
 
+                // 带工具调用的轮次涉及实时信息，不写缓存（缓存结构也不承载 tool_calls）
                 if (snapshot.EnableCache &&
+                    toolAccumulator.IsEmpty &&
                     cacheGeneration == Volatile.Read(ref _cacheGeneration))
                 {
                     _cache[cacheKey] = new CacheEntry
                     {
                         Result = result,
+                        Reasoning = reasoning,
                         ExpireAt = DateTime.UtcNow.AddMinutes(Math.Max(1, snapshot.CacheMinutes))
                     };
                 }
@@ -434,7 +640,10 @@ public partial class AIChatService : IDisposable
                     "AI 返回",
                     true,
                     snapshot.Model).ConfigureAwait(false);
-                return result;
+                return new AIChatResponse(result, reasoning)
+                {
+                    ToolCalls = toolAccumulator.Build()
+                };
             }
             catch (OperationCanceledException ex)
             {
@@ -462,7 +671,9 @@ public partial class AIChatService : IDisposable
                 }
 
                 var timeout = new TimeoutException(
-                    $"本地等待 API 响应超过 {snapshot.TimeoutSeconds} 秒",
+                    snapshot.TimeoutSeconds > 0
+                        ? $"本地等待 API 响应超过 {snapshot.TimeoutSeconds} 秒"
+                        : "请求在未设置超时的情况下被中断",
                     ex);
                 var failure = AIRequestFailureClassifier.Classify(
                     timeout,
@@ -474,6 +685,11 @@ public partial class AIChatService : IDisposable
                 {
                     break;
                 }
+            }
+            catch (StreamCallbackException)
+            {
+                // 回调自身出错：不重试、不降级，直接透传给调用方
+                throw;
             }
             catch (Exception ex)
             {
@@ -492,8 +708,8 @@ public partial class AIChatService : IDisposable
         }
 
         totalStopwatch.Stop();
-        var finalFallback = snapshot.EnableFallback ? _fallback.GetRandomPhrase("api_error") : "";
-        onUpdate(finalFallback);
+        var finalFallback = _fallback.GetErrorPhrase(failures.Count > 0 ? failures[^1] : null);
+        onUpdate(new AIChatStreamUpdate(finalFallback, "", finalFallback, ""));
         await LogInvocationAsync(
             "通用流式聊天",
             systemPrompt,
@@ -504,7 +720,7 @@ public partial class AIChatService : IDisposable
             snapshot.Model,
             BuildFailureSummary(failures),
             CreateDiagnostics(snapshot, failures, totalStopwatch.ElapsedMilliseconds)).ConfigureAwait(false);
-        return finalFallback;
+        return new AIChatResponse(finalFallback, "");
     }
 
     // ========================================
@@ -520,12 +736,14 @@ public partial class AIChatService : IDisposable
         int CacheMinutes,
         int MaxRetries,
         bool EnableCache,
-        bool EnableFallback,
-        double Temperature);
+        double Temperature,
+        bool EnableDeepThinking,
+        ThinkingEffort ThinkingEffort);
 
     private async Task<AIChatResult> ChatCoreAsync(
         string systemPrompt,
         string userMessage,
+        VisionImage? image,
         string cacheKey,
         AiRequestSnapshot snapshot,
         CancellationToken ct,
@@ -543,14 +761,15 @@ public partial class AIChatService : IDisposable
             var attemptStopwatch = Stopwatch.StartNew();
             try
             {
-                var result = await SendRequestAsync(systemPrompt, userMessage, snapshot, ct).ConfigureAwait(false);
+                var result = await SendRequestAsync(systemPrompt, userMessage, image, snapshot, ct).ConfigureAwait(false);
 
                 if (snapshot.EnableCache &&
                     cacheGeneration == Volatile.Read(ref _cacheGeneration))
                 {
                     _cache[cacheKey] = new CacheEntry
                     {
-                        Result = result,
+                        Result = result.Content,
+                        Reasoning = result.Reasoning,
                         ExpireAt = DateTime.UtcNow.AddMinutes(Math.Max(1, snapshot.CacheMinutes))
                     };
                 }
@@ -559,7 +778,7 @@ public partial class AIChatService : IDisposable
                     CleanExpiredCache();
 
                 totalStopwatch.Stop();
-                return new AIChatResult(result, null);
+                return new AIChatResult(result.Content, result.Reasoning, null);
             }
             catch (OperationCanceledException ex)
             {
@@ -567,7 +786,9 @@ public partial class AIChatService : IDisposable
                 // 调用方主动取消才抛出；请求自身超时属于可重试错误。
                 if (ct.IsCancellationRequested) throw;
                 lastException = new TimeoutException(
-                    $"本地等待 API 响应超过 {snapshot.TimeoutSeconds} 秒",
+                    snapshot.TimeoutSeconds > 0
+                        ? $"本地等待 API 响应超过 {snapshot.TimeoutSeconds} 秒"
+                        : "请求在未设置超时的情况下被中断",
                     ex);
                 var failure = AIRequestFailureClassifier.Classify(
                     lastException,
@@ -609,7 +830,8 @@ public partial class AIChatService : IDisposable
         }
 
         return new AIChatResult(
-            snapshot.EnableFallback ? _fallback.GetRandomPhrase("api_error") : "",
+            _fallback.GetErrorPhrase(failures.Count > 0 ? failures[^1] : null),
+            "",
             diagnostics);
     }
 
@@ -678,10 +900,14 @@ public partial class AIChatService : IDisposable
         return $"{final.Source} / {final.Category}: {final.Message}（共尝试 {failures.Count} 次）";
     }
 
-    private static string ComputeCacheKey(string system, string user, AiRequestSnapshot snapshot)
+    private static string ComputeCacheKey(string system, string user, AiRequestSnapshot snapshot, VisionImage? image = null)
     {
         // 使用 SHA256 生成跨进程稳定哈希；包含模型/参数，避免设置变更后复用旧结果。
-        var raw = $"{snapshot.Endpoint}|{snapshot.Model}|{snapshot.MaxTokens}|{snapshot.TimeoutSeconds}|{snapshot.Temperature:R}|{system}|{user}";
+        var raw = $"{snapshot.Endpoint}|{snapshot.Model}|{snapshot.MaxTokens}|{snapshot.TimeoutSeconds}|{snapshot.Temperature:R}" +
+                  $"|thinking:{snapshot.EnableDeepThinking}:{snapshot.ThinkingEffort}|{system}|{user}";
+        // 图片请求把图片内容一起纳入哈希，避免同一句提问配不同图片时命中旧缓存。
+        if (image != null)
+            raw += $"|image:{Convert.ToHexString(SHA256.HashData(image.Data))}";
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
         return Convert.ToHexString(bytes);
     }
@@ -696,16 +922,17 @@ public partial class AIChatService : IDisposable
         }
     }
 
-    /// <summary>判断文本是否为 API 缺失或 API 失败时的降级句子。</summary>
+    /// <summary>判断文本是否为 AI 失败时生成的报错文案。</summary>
     public bool IsFallbackResult(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return true;
 
-        var apiKeyMissing = _fallback.GetRandomPhrase("api_key_missing");
-        var apiError = _fallback.GetRandomPhrase("api_error");
-        return string.Equals(text, apiKeyMissing, StringComparison.Ordinal) ||
-               string.Equals(text, apiError, StringComparison.Ordinal) ||
-               text.Contains("请在设置中配置", StringComparison.Ordinal) ||
+        // 新文案统一以固定前缀开头，具体原因无法逐条枚举。
+        if (text.StartsWith(AiErrorPhraseService.ErrorPrefix, StringComparison.Ordinal))
+            return true;
+
+        // 兼容历史缓存与旧日志中残留的降级文案。
+        return text.Contains("请在设置中配置", StringComparison.Ordinal) ||
                text.Contains("未配置 AI API Key", StringComparison.Ordinal) ||
                text.Contains("还没有配置 AI", StringComparison.Ordinal) ||
                text.Contains("AI 暂时不可用", StringComparison.Ordinal) ||

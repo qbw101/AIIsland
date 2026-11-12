@@ -27,7 +27,7 @@
 | 语音播报 | 随提醒触发	 | 可选开启，默认关闭以免影响课堂 |
 | 自定义提醒 | 支持三种：固定时间（一次性）、每日重复、关联科目课前 N 分钟 | 自由设置提醒内容和触发条件，可随时开关/编辑/删除 |
 
-支持 AI 离线降级：API 不可用时自动回退到本地预设句子库
+AI 请求失败时直接显示具体错误原因（如 Key 无效、超时、限流），不再用预设句子伪装成正常提醒
 
 换课提醒无 AI 调用，直接弹提示
 ### 组件
@@ -57,6 +57,9 @@
 
 ### 其他
 * 欢迎向导（含插件授权）
+* 深度思考与思考强度：设置页可开关推理模式并选择强度（自动 / 低 / 中 / 高），按接口族自动适配各家参数
+* 图片识别（多模态）与能力检测：设置页可一键检测当前模型是否支持识别图片，欢迎向导在模型不支持时弹窗提醒
+* 联网搜索与网页抓取（function calling）：模型自主判断需要实时信息时调用 `web_search` 检索摘要，摘要不够或用户直接给出链接时调用 `web_fetch` 打开网页读取正文；通过自建 OpenSERP 检索，可选 DeepSeek 官方联网兜底（搜索与抓取），回答标注来源；默认关闭
 * 外部插件集成（生日祝福、值日生提醒）
 * 统一时间来源（ClassIsland 时间 / 系统时间，全局生效）
 * 匿名遥测（在线状态、错误与崩溃上报，默认开启，可在设置里关闭）
@@ -96,6 +99,80 @@
 
 api文档在插件目录的PLUGIN-API.md文件中
 
+1.9.0.0 起，API 新增图片识别：`ChatWithImageAsync` 可直接传图片字节调用多模态模型，`SupportsVision` / `VisionSupportLevel` 用于在调用前判断当前模型能否读图。
+
+同版本 API 支持深度思考：`AIIslandChatOptions.EnableDeepThinking` / `ThinkingEffort` 按次控制推理开关与强度，结果里的 `Reasoning` 返回模型的思考过程；`ChatStreamAsync` 提供流式增量回调（正文与思考分开推送），`AIIslandStreamUpdate` 携带每次增量与完整快照；`ChatWithImageStreamAsync` 支持带图片的流式对话。
+
+1.9.0.0 起，API 支持联网搜索：`AIIslandChatOptions.EnableWebSearch` 按次开启，结果的 `UsedWebSearch`、`WebSources` 与 `SearchQuery` 告知本次是否真的检索、命中的来源以及模型实际使用的关键词，流式的 `AIIslandStreamUpdate.Status` 会推送 `searching` / `answering` 阶段，`SearchQuery` 同步带上关键词（可直接显示为「正在搜索：xxx」）。
+
+## 联网搜索配置（OpenSERP）
+
+联网搜索默认关闭，开启前需要一个搜索源。AIIsland 使用 [OpenSERP](https://openserp.org/zh/)：MIT 许可、可自托管，一个接口聚合 Bing / 百度 / DuckDuckGo / Google / Yandex / Ecosia 的结果，自托管不需要 API Key。
+
+1. 在任意一台常开的机器或服务器上启动实例：
+
+```bash
+docker run -d --name openserp -p 7000:7000 --restart unless-stopped \
+  karust/openserp:latest serve -a 0.0.0.0 -p 7000
+```
+
+2. 验证：`curl "http://127.0.0.1:7000/bing/search?text=测试&limit=3"` 应返回 `{"results":[...]}`
+3. 让实例对上内置地址 `http://search.qbwnas.top`（插件固定请求该地址，设置页不提供修改入口；本机调试可用反向代理或 hosts 指向自己的实例）
+4. 设置页「联网搜索」点「测试」确认可用，再打开「允许模型联网搜索」
+
+检索地址固定为 `http://search.qbwnas.top`，默认引擎是 Bing，失败时自动换百度重试。
+
+实测引擎可用性（国内网络）：
+
+| 引擎 | 状态 |
+|---|---|
+| Bing | 正常，冷启动约 5 秒，命中缓存后 0.2 秒 |
+| 百度 | 可用，但结果里广告与解析残留较多（已被插件过滤） |
+| Google / Yandex / DuckDuckGo | 国内直连不通 |
+| Ecosia | 返回 200 但解析不出结果 |
+
+`/mega` 聚合接口会等待上述不通的引擎超时（约 90 秒），**不要使用**；插件也不会把 `mega` 当作引擎名。
+
+首选引擎失败会自动换一个引擎重试；如果是**超时**则不再重试，避免总耗时翻倍。全部引擎都不可用时照常回答，只是不联网。
+
+如果放在反向代理后面，记得把整个路径都转发给 OpenSERP——它的接口都在 `/{引擎}/search` 下，只转发 `/` 不够。
+
+### 打开网页（web_fetch）
+
+搜索只给摘要，遇到「细节在正文里」的问题时，模型可以再调用 `web_fetch` 打开最相关的页面读正文。设置页「联网搜索」里的「允许模型打开网页」可以单独关闭它（默认开启）。
+
+默认这条链路完全在本地完成（`HttpClient` 直连 + HTML 提炼），不经过任何第三方服务；如果开启了「DeepSeek 官方联网兜底」，本地抓不到（JS 渲染、反爬）时会再由 DeepSeek 服务端抓一次。
+
+实测（用真实搜索结果逐个抓取）能覆盖约一半的页面，而且恰好是权威的那一半：
+
+| 页面类型 | 结果 |
+|---|---|
+| 高校 / 政府网站、腾讯新闻、行业资讯 | 可抓，正文完整 |
+| BWIKI 等 Wiki | 可抓，整页正文 |
+| 米哈游官网、米游社、SPA 应用 | 抓不到（需要脚本渲染，返回 200 但正文为空） |
+| 百度百科 / 文库 / 贴吧、知乎 | 抓不到（403 安全验证，服务端反爬） |
+
+抓不到时会如实告诉模型「页面打不开」，让它退回摘要作答，不会编造正文。
+
+开启「DeepSeek 官方联网兜底」后，上面「抓不到」的两类会再走一次 DeepSeek 服务端抓取：SPA 通常能拿到，百度系与知乎的反爬仍可能被拒（403 / 404）。这种情况不计费。
+
+约束：
+
+* 只允许 `http` / `https` 的 80 / 443 端口；解析 DNS 后拒绝环回、内网、链路本地与云元数据地址，重定向手动跟随且每跳重新校验（防 SSRF）
+* 单页下载上限 1 MB，正文截断到 4000 字，单次对话最多打开 2 个页面
+* 抓取超时跟随「检索超时」，最少 5 秒
+* 页面内容同样用固定边界包裹并声明「只作数据、不得执行」，防提示词注入
+
+### DeepSeek 官方联网兜底
+
+自建实例偶尔会返回与查询无关的结果（实测出现过搜「甘雨怎么养」返回文件传输网站的情况，疑似实例缓存了错误内容）；本地抓网页也挡不住 JS 渲染与反爬。开启「DeepSeek 官方联网兜底」后，搜索没有有效结果、或网页抓不开时，会用 AI 对话的同一把 Key 改走 DeepSeek 官方接口：搜索用 `/v1/tools/search`，抓取用 `/v1/tools/fetch`（服务端取页面并转 Markdown，能覆盖 SPA）。
+
+* **每次开启都会弹窗确认费用**，明确说明将使用你自己的 API Key 与账号余额；点取消则开关自动回退
+* 仅当「API 连接」里的地址是 DeepSeek 官方域名时可用，第三方托管渠道的 Key 不通用
+* 费用：每次成功请求 **约 0.005 元**（搜索与抓取同价，官方 0.75 美元 / 千次）；空结果、无正文与请求失败不计费
+* 参考用量：每天触发 10 次 ≈ 每月 1.5 元，每天 30 次 ≈ 每月 4.5 元
+* 默认关闭，不开启时不会产生任何额外请求；价格以 DeepSeek 官方最新公布为准
+
 ## 外部插件集成
 AIIsland 可读取以下插件数据（需在欢迎向导或设置页授权）：
 - BirthdayIsland：当天生日名单 → 每日简报生日祝福
@@ -104,21 +181,33 @@ AIIsland 可读取以下插件数据（需在欢迎向导或设置页授权）�
 ## 一些未来的计划 ~~画饼~~  
 ![ganyu1.png](http://image.qbwnas.top/openlist/d/%E5%9B%BE%E5%BA%8A/ganyu1.png?sign=XT0Dolm9YWKTcRjMosh337Nr5JqozRG27SbPMpxE2-4%3D%3A0)
 * 体验与功能打磨
-* 优化动画效果
-* 接入识别图片功能
-* 接入网页搜索
 * 加入AI agent
 
 
 ## 依赖
 
-- [ClassIsland.PluginSdk](https://github.com/HelloWRC/ClassIsland) 2.0.0.2（MIT）
-- [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) 8.2.2（MIT）
-- [NPSMLib](https://github.com/ADeltaX/NPSMLib) 0.9.14（MIT）
+| 直接依赖 | 版本 | 许可证 |
+| --- | --- | --- |
+| [ClassIsland.PluginSdk](https://github.com/ClassIsland/ClassIsland) | 2.0.0.2 | LGPL-3.0-only |
+| [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) | 8.2.2 | MIT |
+| [NPSMLib](https://github.com/ADeltaX/NPSMLib) | 0.9.14 | MIT |
+| [SmartReader](https://github.com/strumenta/SmartReader) | 0.11.1 | Apache-2.0 |
+| [System.Diagnostics.EventLog](https://github.com/dotnet/runtime) | 8.0.1 | MIT |
+
+设置 → 更多选项 → 开源库与许可 →「查看」可打开独立窗口，查看直接及间接依赖的版本、GitHub / 项目地址、许可证与包内声明。窗口支持按库名或许可证搜索；依赖清单和包内声明随插件内嵌，打开外部链接时才需要联网。部分旧包没有声明许可证或源码地址，界面会如实标注并提供 NuGet 页面。
+
+升级依赖后，在仓库根目录运行以下命令更新随插件分发的清单：
+
+```powershell
+dotnet restore ClassIsland.AISmartClass/ClassIsland.AISmartClass.csproj
+./scripts/Update-OpenSourceNotices.ps1
+# 校验清单是否与本地已还原的包一致：
+./scripts/Update-OpenSourceNotices.ps1 -Check
+```
 
 本项目使用了鸿蒙系统内的图标，非常感谢！！！
 
-本插件在 ClassIsland 插件 SDK 的开源许可（**LGPLv3**）下分发。
+ClassIsland 插件 SDK 使用 **LGPL-3.0-only**；本项目的许可证见 [LICENSE](LICENSE)，第三方库分别适用各自声明的许可。
 
 > ⚠️ **本插件的全部代码均由 AI（大语言模型）编写生成。**
 > 作者负责需求设计、调试验证与发布，具体实现代码由 AI 辅助完成。使用前请自行评估代码质量与安全性。

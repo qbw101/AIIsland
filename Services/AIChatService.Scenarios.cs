@@ -140,31 +140,18 @@ public partial class AIChatService
                     reason: "未配置 API Key，调用要求抛出错误").ConfigureAwait(false);
                 throw new InvalidOperationException("请先配置 AI API Key");
             }
-            var fallback = _fallback.GetRandomPhrase("before_class", nextSubject);
+            var error = _fallback.GetErrorPhraseFromReason("未配置 API Key，请在设置中填写");
             await LogLocalResultAsync(
                 "课前提醒",
                 systemPrompt,
                 userMessage,
-                fallback,
+                error,
                 reason: "未配置 API Key").ConfigureAwait(false);
-            return fallback;
+            return error;
         }
 
-        var result = await ChatAsync(systemPrompt, userMessage, ct: ct, throwOnError: throwOnError).ConfigureAwait(false);
-
-        if (IsFallbackPhrase(result))
-        {
-            var fallback = _fallback.GetRandomPhrase("before_class", nextSubject);
-            await LogLocalResultAsync(
-                "课前提醒",
-                systemPrompt,
-                userMessage,
-                fallback,
-                reason: "通用 AI 请求失败，改用场景降级内容").ConfigureAwait(false);
-            return fallback;
-        }
-
-        return result;
+        // 失败时 ChatAsync 已返回带具体原因的报错文案，无需再用预设句子覆盖。
+        return await ChatAsync(systemPrompt, userMessage, ct: ct, throwOnError: throwOnError).ConfigureAwait(false);
     }
 
     public async Task<string> GenerateBeforeClassReminderStream(
@@ -177,36 +164,21 @@ public partial class AIChatService
             previousSubject ?? "无", nextSubject);
         if (string.IsNullOrWhiteSpace(ApiKey))
         {
-            var fallback = _fallback.GetRandomPhrase("before_class", nextSubject);
-            onUpdate(fallback);
+            var error = _fallback.GetErrorPhraseFromReason("未配置 API Key，请在设置中填写");
+            onUpdate(error);
             await LogLocalResultAsync(
                 "课前提醒",
                 systemPrompt,
                 userMessage,
-                fallback,
+                error,
                 true,
                 "未配置 API Key").ConfigureAwait(false);
-            return fallback;
+            return error;
         }
 
 
-        var result = await ChatStreamAsync(systemPrompt, userMessage, onUpdate, ct: ct).ConfigureAwait(false);
-
-        if (IsFallbackPhrase(result))
-        {
-            var fallback = _fallback.GetRandomPhrase("before_class", nextSubject);
-            onUpdate(fallback);
-            await LogLocalResultAsync(
-                "课前提醒",
-                systemPrompt,
-                userMessage,
-                fallback,
-                true,
-                "通用 AI 请求失败，改用场景降级内容").ConfigureAwait(false);
-            return fallback;
-        }
-
-        return result;
+        // 失败时 ChatStreamAsync 已通过 onUpdate 推送带具体原因的报错文案。
+        return await ChatStreamAsync(systemPrompt, userMessage, onUpdate, ct: ct).ConfigureAwait(false);
     }
 
     // ========================================
@@ -257,45 +229,32 @@ public partial class AIChatService
                 throw new InvalidOperationException("请先配置 AI API Key");
             }
 
-            var fallback = _fallback.GetRandomPhrase("current_hint", safeFocus);
-            onUpdate(fallback);
+            var error = _fallback.GetErrorPhraseFromReason("未配置 API Key，请在设置中填写");
+            onUpdate(error);
             await LogLocalResultAsync(
                 "学习提示",
                 systemPrompt,
                 userMessage,
-                fallback,
+                error,
                 true,
                 "未配置 API Key").ConfigureAwait(false);
-            return fallback;
+            return error;
         }
 
 
         var result = await ChatStreamAsync(systemPrompt, userMessage, onUpdate, ct: ct).ConfigureAwait(false);
 
-        if (IsFallbackPhrase(result))
+        // 失败时已是带具体原因的报错文案，仅在调用方要求时抛错，否则原样返回。
+        if (IsFallbackPhrase(result) && throwOnError)
         {
-            if (throwOnError)
-            {
-                await LogLocalResultAsync(
-                    "学习提示",
-                    systemPrompt,
-                    userMessage,
-                    "",
-                    true,
-                    "AI 请求失败，调用要求抛出错误").ConfigureAwait(false);
-                throw new InvalidOperationException("AI 学习提示生成失败");
-            }
-
-            var fallback = _fallback.GetRandomPhrase("current_hint", safeFocus);
-            onUpdate(fallback);
             await LogLocalResultAsync(
                 "学习提示",
                 systemPrompt,
                 userMessage,
-                fallback,
+                "",
                 true,
-                "通用 AI 请求失败，改用场景降级内容").ConfigureAwait(false);
-            return fallback;
+                "AI 请求失败，调用要求抛出错误").ConfigureAwait(false);
+            throw new InvalidOperationException("AI 学习提示生成失败");
         }
 
         return result;
@@ -308,7 +267,8 @@ public partial class AIChatService
     /// <summary>
     /// 生成第二段「贴心提示」：把已生成的课程提示作为上下文，结合本次发生变化的
     /// 贴心信息（天气/时段/新闻/生日/值日/节假日/音乐）补一句自然衔接的关怀。
-    /// 贴心提示是可选增强，AI 不可用或变化信息为空时返回空字符串（调用方不追加）。
+    /// 变化信息为空时返回空字符串（确实没有可播报的内容）；AI 不可用时返回带具体
+    /// 原因的报错文案，与其它场景一致，不再静默丢弃。
     /// </summary>
     public async Task<string> GenerateThoughtfulHintAsync(
         string scene,
@@ -320,33 +280,39 @@ public partial class AIChatService
         if (changes == null || changes.Count == 0)
             return "";
 
+        // 第一段课程提示已经失败时不再发第二次请求：报错已经在界面上，
+        // 再追加一条相同的错误只会重复。
+        if (IsFallbackResult(previousCourseHint))
+            return "";
+
         var systemPrompt = ApplyPersona(PromptTemplates.GetThoughtfulHintSystem(EffectiveToneStyle));
         var userMessage = BuildThoughtfulHintUserMessage(scene, previousCourseHint, changes);
 
         if (string.IsNullOrWhiteSpace(ApiKey))
         {
+            var error = _fallback.GetErrorPhraseFromReason("未配置 API Key，请在设置中填写");
             await LogLocalResultAsync(
                 "贴心提示",
                 systemPrompt,
                 userMessage,
-                "",
+                error,
                 true,
-                "未配置 API Key，跳过贴心提示").ConfigureAwait(false);
-            return "";
+                "未配置 API Key").ConfigureAwait(false);
+            return error;
         }
 
         var result = await ChatStreamAsync(systemPrompt, userMessage, onUpdate, ct: ct).ConfigureAwait(false);
 
         if (IsFallbackPhrase(result))
         {
+            // ChatStreamAsync 已返回带具体原因的报错文案，这里只补一条场景级日志后原样透传。
             await LogLocalResultAsync(
                 "贴心提示",
                 systemPrompt,
                 userMessage,
-                "",
+                result,
                 true,
-                "通用 AI 请求失败，跳过贴心提示").ConfigureAwait(false);
-            return "";
+                "通用 AI 请求失败，返回报错文案").ConfigureAwait(false);
         }
 
         return result;
@@ -391,31 +357,18 @@ public partial class AIChatService
                     reason: "未配置 API Key，调用要求抛出错误").ConfigureAwait(false);
                 throw new InvalidOperationException("请先配置 AI API Key");
             }
-            var fallback = _fallback.GetRandomPhrase("after_school");
+            var error = _fallback.GetErrorPhraseFromReason("未配置 API Key，请在设置中填写");
             await LogLocalResultAsync(
                 "放学总结",
                 systemPrompt,
                 userMessage,
-                fallback,
+                error,
                 reason: "未配置 API Key").ConfigureAwait(false);
-            return fallback;
+            return error;
         }
 
-        var result = await ChatAsync(systemPrompt, userMessage, ct: ct, throwOnError: throwOnError).ConfigureAwait(false);
-
-        if (IsFallbackPhrase(result))
-        {
-            var fallback = _fallback.GetRandomPhrase("after_school");
-            await LogLocalResultAsync(
-                "放学总结",
-                systemPrompt,
-                userMessage,
-                fallback,
-                reason: "通用 AI 请求失败，改用场景降级内容").ConfigureAwait(false);
-            return fallback;
-        }
-
-        return result;
+        // 失败时 ChatAsync 已返回带具体原因的报错文案，无需再用预设句子覆盖。
+        return await ChatAsync(systemPrompt, userMessage, ct: ct, throwOnError: throwOnError).ConfigureAwait(false);
     }
 
     /// <summary>生成智能每日简报。</summary>

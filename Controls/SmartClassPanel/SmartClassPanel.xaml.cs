@@ -28,7 +28,7 @@ namespace ClassIsland.AISmartClass.Controls.SmartClassPanel;
 /// 新增功能应优先在独立组件中实现，SmartClassPanel 仅做聚合调用。
 /// </summary>
 [ComponentInfo(
-    "A1B2C3D4-E5F6-7890-ABCD-EF1234567890",
+    "C3ACB0BE-68EA-4AA7-92F3-64D5FA796835",
     "AIIsland 智能面板",
     "显示课表总结、倒计时和学习建议"
 )]
